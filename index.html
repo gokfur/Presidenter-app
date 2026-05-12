@@ -3409,10 +3409,62 @@
     </div>
   </div>
   <div class="ins-actions">
+    <button id="ins-improve" title="✨ AI rewrite — keep speaker, pick a lens, rewrite situation + outcomes for tone">✨ Improve</button>
     <button id="ins-regen" class="regen" title="Regenerate this card (+ children)">↻ Regenerate</button>
     <button id="ins-delete" class="danger" title="Delete this card">× Delete</button>
   </div>
 </aside>
+
+<!-- 2026-05-12 — ✨ AI Improve picker. Sub-modal launched from the
+     inspector's Improve button. The author picks a lens (or a free-
+     text instruction) and the AI rewrites the situation + outcomes
+     while keeping the speaker, ministry, topic, and meter shifts. -->
+<div id="improve-backdrop" class="modal-backdrop-v2" style="display:none;">
+  <div class="modal-card" style="max-width: 540px;">
+    <div class="modal-header">
+      <h2>✨ AI Improve</h2>
+      <button class="modal-close-x" data-fires="improve-close" aria-label="Close">×</button>
+    </div>
+    <div class="modal-sub">AI keeps the speaker, ministry, topic, and meter shifts. It rewrites the situation + both outcomes for tone, brevity, and bite.</div>
+    <div class="row">
+      <div>
+        <label>Direction</label>
+        <select id="improve-direction">
+          <option value="punchier">Punchier (shorter, sharper)</option>
+          <option value="wittier">More witty</option>
+          <option value="cynical">More cynical</option>
+          <option value="mysterious">More mysterious</option>
+          <option value="dilemma">Tighten the moral dilemma</option>
+          <option value="reallife">Map to a real-life pattern</option>
+          <option value="thriller">Political thriller voice</option>
+          <option value="satire">Bureaucratic satire</option>
+          <option value="domestic">Quiet domestic register</option>
+          <option value="custom">Custom instruction…</option>
+        </select>
+      </div>
+      <div>
+        <label>Strength</label>
+        <select id="improve-strength">
+          <option value="light" selected>Light pass (small edits)</option>
+          <option value="heavy">Heavy rewrite</option>
+        </select>
+      </div>
+    </div>
+    <div class="row full" id="improve-custom-row" style="display:none;">
+      <div>
+        <label>Custom instruction</label>
+        <input id="improve-custom" type="text" placeholder="e.g. Make the speaker more apologetic. Or: Reference Foreman Kell's strike.">
+      </div>
+    </div>
+    <div id="improve-status" style="background: var(--bg-deep); padding: 10px; border-radius: 8px; font-size: 11px; line-height: 1.5; color: var(--text-muted); min-height: 24px; margin-top: 12px;"></div>
+    <div id="improve-preview" style="display:none; background: var(--bg-deep); padding: 10px; border-radius: 8px; font-size: 12px; margin-top: 10px; max-height: 280px; overflow-y: auto;"></div>
+    <div class="modal-actions">
+      <button id="improve-generate" class="primary">✨ Suggest rewrite</button>
+      <button id="improve-apply" style="display:none;">Apply rewrite</button>
+      <button id="improve-close" style="display:none;" aria-hidden="true"></button>
+    </div>
+  </div>
+</div>
 
 <div id="hint-banner">
   <b>Hover</b> or <b>click</b> any card to see its trigger connections
@@ -8775,6 +8827,13 @@ function renderChainHeader(chain) {
   const endingBanner = chain.forcesEnding
     ? `<div class="ending-banner">⚠ Ending Chain · Game Over Path</div>`
     : "";
+  // 2026-05-12 — Reigns-style cause-of-death stamp surfaced on the
+  // chain header so the author sees the climactic one-liner inline
+  // with the chain card. Lives only on ending chains; nil/empty
+  // skips the chip.
+  const stampChip = chain.causeOfDeathStamp
+    ? `<div class="ending-banner" style="background: rgba(255, 200, 80, 0.10); border-left: 3px solid var(--gold); color: var(--gold); font-size: 11px;">🕊 "${chain.causeOfDeathStamp.replace(/"/g, "&quot;")}"</div>`
+    : "";
   // Cooldown + rotation badge — only when explicitly set on the
   // chain (legacy chains without these fields don't show it).
   const cd = (typeof chain.cooldownDays === "number") ? chain.cooldownDays : null;
@@ -8784,6 +8843,7 @@ function renderChainHeader(chain) {
     : "";
   el.innerHTML = `
     ${endingBanner}
+    ${stampChip}
     <div class="label">${chain.subtitle}</div>
     <div class="title">${chain.name}</div>
     ${cooldownChip}
@@ -12702,11 +12762,67 @@ function wireLeafExtend(newChain, extend) {
 // from that moment. NO random STORY_ARCS picks. Player ask 2026-05:
 // "no need template mode, all generations must be context aware.
 // no random generation if i am creating a chain from a single card."
+// 2026-05-12 — local-engine lens phrasebank. Each lens gets its own
+// set of c2/c3/c4/c5 hooks so the no-API-key path produces chains
+// with a tonal flavor instead of the generic "the room wants a
+// public statement" template. The phrases stay short; the engine
+// composes them with a "After X's call, …" cite prefix.
+const LOCAL_LENS_PHRASES = {
+  reallife: {
+    c2: "the press is calling it a referendum. Stand the line?",
+    c3: "the opposition wants a sit-down before noon. Take it?",
+    c4: "the courts are reviewing the order. Defend it publicly?",
+    c5: "the foreign desk is fielding calls. Read the prepared statement?",
+  },
+  thriller: {
+    c2: "someone in the second row already has the file. Pretend you don't notice?",
+    c3: "a name on the lock-up list is missing this morning. Ask about it?",
+    c4: "the cable was opened before it reached you. Trace it?",
+    c5: "the visitor log was edited overnight. Demand a copy of the old one?",
+  },
+  satire: {
+    c2: "the inter-ministerial subcommittee has filed a memo. Read it before lunch?",
+    c3: "the protocol office is requesting clarification on the clarification. Provide one?",
+    c4: "the briefing pack is now in its eighteenth revision. Approve the index?",
+    c5: "a working group has been formed to study the working group. Endorse the chair?",
+  },
+  domestic: {
+    c2: "a teacher in the eastern district wants the desk to know. Send a note?",
+    c3: "a baker on the kiosk row has written you a letter. Reply?",
+    c4: "the children's hospital sent a card. Visit?",
+    c5: "the post office is short three vans. Sign for them?",
+  },
+  crisis: {
+    c2: "the flood line is now at the second bridge. Order evacuation?",
+    c3: "the second hospital just lost power. Reroute the generators?",
+    c4: "the foreign minister is on the line from a basement. Approve the airlift?",
+    c5: "the press wants a unified statement before dawn. Draft it now?",
+  },
+  moral: {
+    c2: "the family of the missing person is at the gate. See them?",
+    c3: "the contractor's accident report wants your seal. Sign it?",
+    c4: "an apology would close the file. Issue one?",
+    c5: "the chaplain is willing to speak on your behalf. Permit it?",
+  },
+  absurd: {
+    c2: "the form requires a signature from someone who can only sign forms after this one. Sign?",
+    c3: "a citizen requests deportation of a person who does not exist. Process?",
+    c4: "the subsidy applies to losses on a crop that was never grown. Approve?",
+    c5: "the ministry is named after a minister who has not yet been appointed. Confirm?",
+  },
+};
+function localLensPhrase(lens, slot, fallback) {
+  if (!lens || !LOCAL_LENS_PHRASES[lens]) return fallback;
+  return LOCAL_LENS_PHRASES[lens][slot] || fallback;
+}
+
 function buildLocalContextChain(opts) {
   const length = opts.length || 5;
   const theme = opts.theme || "civic";
   const sourceCtx = opts.sourceCtx;
   const requestedSpeakerName = opts.speaker || null;
+  // 2026-05-12 — lens hint. Maps to a LOCAL_LENS_PHRASES bank.
+  const lens = opts.lens || "";
 
   // Helpers
   const inSpeakers = (m) => SPEAKERS_BY_MINISTRY[m] || [];
@@ -12748,10 +12864,10 @@ function buildLocalContextChain(opts) {
   // Build c1..c5 (or however many fit `length`)
   const notThese = new Set([sourceCtx ? sourceCtx.speaker : null]);
   const c1 = makeC1(notThese); notThese.add(c1.speaker);
-  const c2 = makeChild(c1, notThese, "the room wants a public statement. Issue it?"); notThese.add(c2.speaker);
-  const c3 = makeChild(c1, notThese, "the rival faction wants a meeting first. Take it?"); notThese.add(c3.speaker);
-  const c4 = makeChild(c2, notThese, "the bench has filed three motions overnight. Respond to all of them?"); notThese.add(c4.speaker);
-  const c5 = makeChild(c3, notThese, "the unions want a number on the contract. Give them one?");
+  const c2 = makeChild(c1, notThese, localLensPhrase(lens, "c2", "the room wants a public statement. Issue it?")); notThese.add(c2.speaker);
+  const c3 = makeChild(c1, notThese, localLensPhrase(lens, "c3", "the rival faction wants a meeting first. Take it?")); notThese.add(c3.speaker);
+  const c4 = makeChild(c2, notThese, localLensPhrase(lens, "c4", "the bench has filed three motions overnight. Respond to all of them?")); notThese.add(c4.speaker);
+  const c5 = makeChild(c3, notThese, localLensPhrase(lens, "c5", "the unions want a number on the contract. Give them one?"));
   const sketches = [c1, c2, c3, c4, c5].slice(0, Math.max(5, length));
 
   // Wrap each sketch with full outcomes + meter shifts via the local
@@ -12954,6 +13070,14 @@ async function generateChainFromOptions() {
     if (endingPrompt && chain.cards.length >= 4) {
       const eId = endingId === "__custom__" ? "custom_" + uniqueId : endingId;
       chain.forcesEnding = eId;
+      // 2026-05-12 — preserve AI-generated cause-of-death stamp.
+      // The engine consumes this via `ForcedEnding.causeOfDeathStamp`
+      // when a chain bakes into Swift with `emitAnyway: true`;
+      // otherwise it stays as authoring metadata for the human to
+      // copy into their Swift ending file.
+      if (typeof data.causeOfDeathStamp === "string" && data.causeOfDeathStamp.trim()) {
+        chain.causeOfDeathStamp = data.causeOfDeathStamp.trim();
+      }
       // 2026-05-12 — attach the ending to the FINAL card on long
       // linear-spine chains and to c4 on the 5-card branching tree
       // (matches the GAME-OVER MODE prompt's c4-is-the-guillotine
@@ -13219,8 +13343,11 @@ ${structureBlock}${sourceLine}
 ${themeLine}
 ${speakerLine}${endingLine}${lensLine}
 
+${opts.endingPrompt ? `
+WHEN THIS IS AN ENDING CHAIN: also output a top-level "causeOfDeathStamp" field (6-12 words, Reigns-style sharp one-liner) that captures HOW this reign ended. Example registers: "Removed by the officer corps." / "Outlasted by the bridge that never opened." / "Outpriced by his own bond market." / "Forgotten in a footnote." NO real-world names. The stamp should be the perfect 8-word summary the morning paper would use.
+` : ""}
 Output ONLY this JSON (no prose). Include EVERY card asked for in the structure block above — no fewer.
-{"name":"Short chain name","subtitle":"Subtitle · colour","cards":[
+{"name":"Short chain name","subtitle":"Subtitle · colour"${opts.endingPrompt ? `,"causeOfDeathStamp":"..."` : ""},"cards":[
 {"suffix":"c1","speaker":"...","ministry":"...","topic":"...","situation":"...","accept":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0},"decline":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0}},
 ... one entry per suffix, in order ...
 ]}`;
@@ -13544,6 +13671,150 @@ Output ONLY this JSON array (no prose):
   }
 }
 document.getElementById("batch-generate").addEventListener("click", generateBatch);
+
+// 2026-05-12 — ✨ AI Improve. Single-card rewrite for tone. Keeps
+// the speaker, ministry, topic, and meter shifts; rewrites the
+// situation + both outcomes through a chosen lens. The author
+// reviews the diff before applying — watchdog approval gate.
+let improveProposed = null;
+function openImproveModal() {
+  if (!inspectorCardId) {
+    showCopyToast("Open a card in the inspector first.");
+    return;
+  }
+  improveProposed = null;
+  document.getElementById("improve-status").textContent = "";
+  document.getElementById("improve-preview").style.display = "none";
+  document.getElementById("improve-preview").innerHTML = "";
+  document.getElementById("improve-apply").style.display = "none";
+  document.getElementById("improve-generate").disabled = false;
+  document.getElementById("improve-generate").textContent = "✨ Suggest rewrite";
+  document.getElementById("improve-custom").value = "";
+  document.getElementById("improve-custom-row").style.display = "none";
+  document.getElementById("improve-direction").value = "punchier";
+  document.getElementById("improve-strength").value = "light";
+  document.getElementById("improve-backdrop").classList.add("open");
+}
+function closeImproveModal() {
+  document.getElementById("improve-backdrop").classList.remove("open");
+  improveProposed = null;
+}
+document.getElementById("ins-improve").addEventListener("click", openImproveModal);
+document.getElementById("improve-backdrop").addEventListener("click", (e) => {
+  if (e.target.id === "improve-backdrop") closeImproveModal();
+});
+document.querySelector("#improve-backdrop .modal-close-x")?.addEventListener("click", closeImproveModal);
+document.getElementById("improve-direction").addEventListener("change", (e) => {
+  document.getElementById("improve-custom-row").style.display = (e.target.value === "custom") ? "block" : "none";
+});
+
+const IMPROVE_DIRECTION_PROMPTS = {
+  punchier: "Make every line shorter and sharper. Cut every redundant word. The card should feel like the speaker is out of time.",
+  wittier: "Add one sharp turn of phrase — a metaphor, an understatement, a dry observation. The speaker has earned the wit; they're not posturing.",
+  cynical: "Sharpen the cynicism. The speaker has seen this before; they know how it usually ends. Their tiredness is earned.",
+  mysterious: "Add one mysterious hint at a larger truth without explaining it. Something is moving off-camera. The press already knows.",
+  dilemma: "Tighten the moral dilemma. Both swipes must leak something the player wanted to protect. No clean exit. Push real costs into both sides.",
+  reallife: "Re-anchor to a documented real-world political pattern (currency crisis, press standoff, vaccine politics, monument controversy) but keep the cast and country fictional. Never name a real country, party, or leader.",
+  thriller: "Rewrite in political-thriller voice. Paranoia, partial information, someone in the next room knows more. Stakes escalate through implication.",
+  satire: "Rewrite in bureaucratic-satire voice (Yes Minister / Veep). Polite phrasing for an indefensible position. Dry comedy rooted in the gap between what the room knows and what gets minuted.",
+  domestic: "Rewrite in quiet-domestic-drama voice. Small lives intersecting government. Concrete one-citizen details, an unglamorous edge of the front pages.",
+};
+
+async function generateImproveProposal() {
+  const card = CHAINS.flatMap(c => c.cards).find(x => x.id === inspectorCardId);
+  if (!card) { closeImproveModal(); return; }
+  const direction = document.getElementById("improve-direction").value;
+  const strength = document.getElementById("improve-strength").value;
+  const customInstruction = document.getElementById("improve-custom").value.trim();
+  const keys = loadAIKeys();
+  let key = keys.anthropic || keys.claude || null;
+  let provider = key ? "claude" : null;
+  if (!key && keys.gemini) { key = keys.gemini; provider = "gemini"; }
+  if (!key) {
+    document.getElementById("improve-status").innerHTML = `<span style="color: var(--decline);">No API key configured. Save a Claude or Gemini key in Settings.</span>`;
+    return;
+  }
+  document.getElementById("improve-status").textContent = `Calling ${provider === "claude" ? "Claude" : "Gemini"}…`;
+  document.getElementById("improve-generate").disabled = true;
+
+  const directionHint = (direction === "custom")
+    ? (customInstruction || "Tighten the writing.")
+    : (IMPROVE_DIRECTION_PROMPTS[direction] || IMPROVE_DIRECTION_PROMPTS.punchier);
+  const strengthHint = strength === "heavy"
+    ? "Heavy rewrite — change phrasing freely, but keep the same situation and meaning."
+    : "Light pass — preserve as much of the original phrasing as possible; small targeted edits only.";
+
+  const prompt = `You rewrite ONE decision card for "Presidenter", a Reigns-style swipe game.
+
+KEEP THESE UNCHANGED:
+- speaker: "${card.speaker}"
+- ministry: "${card.ministry}"
+- topic: ${card.topic || "tricky"}
+- meter shifts (env / mil / wel / eco on both sides)
+- the underlying situation / decision (don't invent a new card)
+
+REWRITE THESE FOR TONE:
+- situation: ≤140 chars, ≤2 sentences, ends in "?". The speaker's voice.
+- accept.outcome: ≤140 chars, same voice.
+- decline.outcome: ≤140 chars, same voice.
+
+Rules: NO em-dashes. NO real-world country/party/leader names. v30 tone is witty, slightly cynical, mysterious.
+
+DIRECTION: ${directionHint}
+STRENGTH: ${strengthHint}
+
+ORIGINAL CARD:
+- situation: "${card.situation || ""}"
+- accept outcome: "${(card.accept && card.accept.outcome) || ""}"
+- decline outcome: "${(card.decline && card.decline.outcome) || ""}"
+
+Output ONLY this JSON (no prose):
+{"situation":"...","accept_outcome":"...","decline_outcome":"..."}`;
+
+  try {
+    const text = await callAITextPlain(provider, key, prompt);
+    const proposal = extractJSONFromAIText(text);
+    improveProposed = proposal;
+    // Render the diff preview.
+    const diff = (label, oldS, newS) => `
+      <div style="margin-bottom: 10px;">
+        <div style="color: var(--text-faint); font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 4px;">${label}</div>
+        <div style="color: var(--decline); opacity: 0.7; text-decoration: line-through; margin-bottom: 3px;">${(oldS || "").replace(/</g, "&lt;")}</div>
+        <div style="color: var(--accept);">${(newS || "").replace(/</g, "&lt;")}</div>
+      </div>
+    `;
+    const preview = document.getElementById("improve-preview");
+    preview.innerHTML = diff("Situation", card.situation, proposal.situation)
+                      + diff("Accept outcome", card.accept?.outcome, proposal.accept_outcome)
+                      + diff("Decline outcome", card.decline?.outcome, proposal.decline_outcome);
+    preview.style.display = "block";
+    document.getElementById("improve-apply").style.display = "inline-block";
+    document.getElementById("improve-status").innerHTML = `<span style="color: var(--accept);">Review the diff. Apply rewrite to commit, or pick a different direction.</span>`;
+    document.getElementById("improve-generate").textContent = "↻ Try again";
+  } catch (err) {
+    document.getElementById("improve-status").innerHTML = `<span style="color: var(--decline);">Error: ${err.message}</span>`;
+  } finally {
+    document.getElementById("improve-generate").disabled = false;
+  }
+}
+document.getElementById("improve-generate").addEventListener("click", generateImproveProposal);
+
+function applyImproveProposal() {
+  if (!improveProposed || !inspectorCardId) return;
+  const card = CHAINS.flatMap(c => c.cards).find(x => x.id === inspectorCardId);
+  if (!card) return;
+  snapshot();
+  if (improveProposed.situation) card.situation = improveProposed.situation;
+  if (improveProposed.accept_outcome && card.accept) card.accept.outcome = improveProposed.accept_outcome;
+  if (improveProposed.decline_outcome && card.decline) card.decline.outcome = improveProposed.decline_outcome;
+  persist();
+  rerenderAll();
+  // Reopen inspector so the new values surface in the editor fields.
+  openInspector(card.id);
+  closeImproveModal();
+  showCopyToast("AI rewrite applied. ↶ undoes it if you change your mind.");
+}
+document.getElementById("improve-apply").addEventListener("click", applyImproveProposal);
 
 // ====================================================================
 // COACH — design-assistant. Watches the deck and surfaces a ranked
