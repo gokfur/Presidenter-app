@@ -3880,6 +3880,37 @@
       </div>
     </div>
 
+    <!-- 2026-05-12 — Mode-aware authoring. The engine has three game
+         modes (classic / realistic / calm) but cards aren't currently
+         filtered by mode. This row authors a `modes` array on each
+         card; the engine will gain a `Card.availableInModes` field
+         + CardDirector filter in a follow-up Swift commit. Empty
+         (none checked) = available in every mode. Multi-select so
+         a card can be e.g. "classic + realistic only" without
+         appearing in the calm-mode pool. -->
+    <div class="row full">
+      <div>
+        <label>Game modes <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(blank = all modes; check to restrict)</span></label>
+        <div class="modes-row" style="display:flex; gap:14px; padding-top:4px; font-size:13px;">
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:400; text-transform:none; letter-spacing:0;">
+            <input type="checkbox" id="f-mode-classic" data-mode="classic">
+            <span>Classic</span>
+            <span style="color:var(--text-faint); font-size:11px;">(fast)</span>
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:400; text-transform:none; letter-spacing:0;">
+            <input type="checkbox" id="f-mode-realistic" data-mode="realistic">
+            <span>Realistic</span>
+            <span style="color:var(--text-faint); font-size:11px;">(mid)</span>
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:400; text-transform:none; letter-spacing:0;">
+            <input type="checkbox" id="f-mode-calm" data-mode="calm">
+            <span>Calm</span>
+            <span style="color:var(--text-faint); font-size:11px;">(live-paced)</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
     <!-- Trickyclue shown only when topic = .tricky (CLAUDE.md §6 + DeckAudit) -->
     <div class="row full" id="f-trickyclue-row" style="display:none;">
       <div>
@@ -9932,6 +9963,14 @@ function openModal(presetParentId, editId) {
       document.getElementById("f-memory").value = editCard.memoryFragment || (MEMORY_FRAGMENTS[editCard.speaker] || "");
       // Alt phrasings restore into the variants list (one row per phrasing)
       renderVariantsList(editCard.situationVariants || []);
+      // 2026-05-12 — restore mode checkboxes. Empty / missing = no
+      // restriction; checked items mark the card available only in
+      // those modes.
+      const editModes = Array.isArray(editCard.modes) ? editCard.modes : [];
+      for (const m of ["classic", "realistic", "calm"]) {
+        const cb = document.getElementById(`f-mode-${m}`);
+        if (cb) cb.checked = editModes.includes(m);
+      }
       // Branches
       for (const side of ["accept", "decline"]) {
         const b = editCard[side] || {};
@@ -9987,6 +10026,12 @@ function closeModal() {
   populateAddCardCondition("");
   const exBox = document.getElementById("f-styleguide-exception");
   if (exBox) exBox.checked = false;
+  // 2026-05-12 — reset mode checkboxes so a fresh "+ Add card"
+  // doesn't inherit the previous edit's restrictions.
+  for (const m of ["classic", "realistic", "calm"]) {
+    const cb = document.getElementById(`f-mode-${m}`);
+    if (cb) cb.checked = false;
+  }
   document.getElementById("f-trickyclue-row").style.display = "none";
   document.getElementById("f-speaker").value = "";
   document.getElementById("f-ministry").value = "";
@@ -11040,6 +11085,8 @@ function buildCardJSON() {
     if (document.getElementById("f-styleguide-exception")?.checked) {
       card.styleguideException = true;
     }
+    const modes = readModesList();
+    if (modes) card.modes = modes;
     return JSON.stringify(card, null, 2);
   }
   const chain = CHAINS.find(c => c.id === chainId);
@@ -11072,6 +11119,8 @@ function buildCardJSON() {
     }
     const variants = readVariantsList();
     if (variants.length) card.situationVariants = variants;
+    const modes = readModesList();
+    if (modes) card.modes = modes;
     return JSON.stringify(card, null, 2);
   }
 
@@ -11102,7 +11151,21 @@ function buildCardJSON() {
   if (document.getElementById("f-styleguide-exception")?.checked) {
     card.styleguideException = true;
   }
+  const modes = readModesList();
+  if (modes) card.modes = modes;
   return JSON.stringify(card, null, 2);
+}
+
+// 2026-05-12 — read the mode checkboxes. Returns the array of
+// checked mode names, or null if none are checked (= "available in
+// every mode" — the engine treats nil/missing as no filter).
+function readModesList() {
+  const checked = [];
+  for (const m of ["classic", "realistic", "calm"]) {
+    const cb = document.getElementById(`f-mode-${m}`);
+    if (cb && cb.checked) checked.push(m);
+  }
+  return checked.length === 0 ? null : checked;
 }
 
 function makeBranch(side) {
