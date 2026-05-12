@@ -2015,6 +2015,98 @@
     font-size: 18px; font-weight: 700;
     color: var(--text-primary);
   }
+  /* Title row with X-close in the top-right corner. Standard modal
+     pattern — replaces the bottom "Close" buttons that used to live
+     in every modal. Click outside / Esc also close. Player ask
+     2026-05: "move close as an x icon top right." */
+  .modal-card .modal-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 4px;
+  }
+  .modal-card .modal-header h2 { margin: 0; }
+  .modal-close-x {
+    flex-shrink: 0;
+    background: transparent;
+    border: 1px solid var(--hairline);
+    color: var(--text-muted);
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0;
+    transition: all 0.15s;
+  }
+  .modal-close-x:hover {
+    color: var(--text-primary);
+    border-color: var(--gold);
+    background: var(--surface2);
+  }
+  /* Grouped action rows. Modals with multiple unrelated actions
+     (GitHub sync has local-backup + remote-sync) use this to label
+     each group, so the user can tell at a glance what each button
+     does. Single-group modals can omit the wrapper. */
+  .modal-card .modal-actions-stacked {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--hairline);
+  }
+  .modal-card .actions-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .modal-card .actions-group .group-label {
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--text-faint);
+  }
+  .modal-card .actions-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .modal-card .actions-row button {
+    flex: 1;
+    min-width: 0;
+    padding: 12px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--hairline);
+    background: var(--surface2);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .modal-card .actions-row button:hover {
+    border-color: var(--gold);
+    color: var(--gold);
+  }
+  .modal-card .actions-row button.primary {
+    background: var(--gold);
+    color: var(--bg-deep);
+    border-color: var(--gold);
+  }
+  .modal-card .actions-row button.primary:hover {
+    filter: brightness(1.06);
+    color: var(--bg-deep);
+  }
+  .modal-card .actions-row button.primary:disabled {
+    opacity: 0.4; cursor: not-allowed;
+  }
   .modal-card .modal-sub {
     color: var(--text-muted);
     font-size: 12px;
@@ -2675,7 +2767,10 @@
      ending / generation method (template / Claude / Gemini) -->
 <div id="chainopt-backdrop" class="modal-backdrop-v2" style="display:none;">
   <div class="modal-card" style="max-width: 580px;">
-    <h2>Generate a chain</h2>
+    <div class="modal-header">
+      <h2>Generate a chain</h2>
+      <button class="modal-close-x" data-fires="co-cancel" aria-label="Close">×</button>
+    </div>
     <div class="modal-sub">Pick the shape and ask the engine — or an AI — to fill it in. Press <b>Generate</b> to see it land on the canvas.</div>
 
     <div class="row">
@@ -2741,8 +2836,8 @@
     <div id="co-status" style="background: var(--bg-deep); padding: 10px; border-radius: 8px; font-size: 11px; line-height: 1.5; color: var(--text-muted); min-height: 24px; margin-top: 12px;"></div>
 
     <div class="modal-actions">
-      <button id="co-cancel">Cancel</button>
-      <button id="co-generate" class="primary">Generate</button>
+      <button id="co-generate" class="primary">Generate chain</button>
+      <button id="co-cancel" style="display:none;" aria-hidden="true"></button>
     </div>
   </div>
 </div>
@@ -2750,7 +2845,10 @@
 <!-- Settings modal — danger-zone actions live here -->
 <div id="settings-backdrop" class="modal-backdrop-v2" style="display:none;">
   <div class="modal-card" style="max-width: 540px;">
-    <h2>Settings</h2>
+    <div class="modal-header">
+      <h2>Settings</h2>
+      <button class="modal-close-x" data-fires="settings-close" aria-label="Close">×</button>
+    </div>
     <div class="modal-sub">Deck management. Cmd-Z restores from any of these.</div>
 
     <div style="background: var(--surface2); padding: 14px; border-radius: 10px; margin-bottom: 12px;">
@@ -2781,22 +2879,23 @@
       </div>
     </div>
 
-    <div class="modal-actions">
-      <button id="settings-close">Close</button>
-    </div>
+    <button id="settings-close" style="display:none;" aria-hidden="true"></button>
   </div>
 </div>
 
 <!-- Prototype play modal — click through a chain card-by-card -->
 <div id="prototype-backdrop" class="modal-backdrop-v2" style="display:none;">
   <div class="modal-card" style="max-width: 560px;">
-    <h2 id="proto-title">Prototype play</h2>
+    <div class="modal-header">
+      <h2 id="proto-title">Prototype play</h2>
+      <button class="modal-close-x" data-fires="proto-close" aria-label="Close">×</button>
+    </div>
     <div class="modal-sub" id="proto-meters">env 50 · mil 50 · wel 50 · eco 50  ·  step 0</div>
     <div id="proto-card-view" style="margin: 16px 0;"></div>
     <div id="proto-history" style="font-size: 11px; color: var(--text-faint); line-height: 1.6; max-height: 140px; overflow-y: auto; background: var(--bg-deep); border-radius: 8px; padding: 10px; margin-top: 12px;"></div>
     <div class="modal-actions">
-      <button id="proto-restart">↺ Restart</button>
-      <button id="proto-close">Close</button>
+      <button id="proto-restart" class="primary">↺ Restart prototype</button>
+      <button id="proto-close" style="display:none;" aria-hidden="true"></button>
     </div>
   </div>
 </div>
@@ -2804,8 +2903,11 @@
 <!-- GitHub commit modal -->
 <div id="github-backdrop" class="modal-backdrop-v2" style="display:none;">
   <div class="modal-card" style="max-width: 540px;">
-    <h2>Sync to GitHub</h2>
-    <div class="modal-sub">Commit your deck to a separate GitHub repo so the cards live in two places (browser + git). Token + repo settings are stored in localStorage.</div>
+    <div class="modal-header">
+      <h2>Sync &amp; back up</h2>
+      <button class="modal-close-x" data-fires="gh-close" aria-label="Close">×</button>
+    </div>
+    <div class="modal-sub">Two ways to make your work safe: <b>local file</b> (Export / Import to a JSON on disk) and <b>GitHub</b> (push to the deck repo so it lives outside your browser). Settings save automatically as you type.</div>
     <div style="background: rgba(106, 169, 224, 0.10); border-left: 3px solid var(--chain3); padding: 10px 12px; border-radius: 8px; margin-bottom: 14px; font-size: 12px; line-height: 1.5;">
       <b style="color: var(--chain3); letter-spacing: 0.08em;">📡 Share with a friend</b><br>
       This authoring tool is live at:<br>
@@ -2841,20 +2943,40 @@
       </div>
     </div>
     <div id="github-status" style="background: var(--bg-deep); padding: 10px; border-radius: 8px; font-size: 11px; line-height: 1.5; color: var(--text-muted); min-height: 40px;"></div>
-    <div class="modal-actions">
-      <button id="gh-close">Close</button>
-      <button id="gh-export-json" title="Save the current deck as a local JSON file (belt-and-suspenders backup)">💾 Export JSON file</button>
-      <button id="gh-import-json" title="Load a deck JSON file from disk (replaces or merges, asks)">📂 Import JSON file</button>
-      <button id="gh-save">Save settings</button>
-      <button id="gh-pull">⬇ Pull from GitHub</button>
-      <button id="gh-commit" class="primary">⬆ Commit current deck</button>
+    <!-- Stacked action groups — each labeled so the author can tell
+         at a glance what each button does. Player ask 2026-05:
+         "which is export which is commit to github? make these
+         buttons easy." -->
+    <div class="modal-actions-stacked">
+      <div class="actions-group">
+        <div class="group-label">💾 Local backup (JSON file on disk)</div>
+        <div class="actions-row">
+          <button id="gh-export-json">Export to file</button>
+          <button id="gh-import-json">Import from file</button>
+        </div>
+      </div>
+      <div class="actions-group">
+        <div class="group-label">☁ GitHub sync (deck.json in your repo)</div>
+        <div class="actions-row">
+          <button id="gh-pull">⬇ Pull latest from GitHub</button>
+          <button id="gh-commit" class="primary">⬆ Push to GitHub</button>
+        </div>
+      </div>
     </div>
+    <!-- Hidden buttons keep the JS handlers intact. The X close
+         button fires gh-close; gh-save still exists as a fallback
+         for older code paths but the form auto-saves on change. -->
+    <button id="gh-close" style="display:none;" aria-hidden="true"></button>
+    <button id="gh-save" style="display:none;" aria-hidden="true"></button>
   </div>
 </div>
 
 <div id="standalone-backdrop" class="modal-backdrop-v2" style="display:none;">
   <div class="modal-card" style="max-width: 640px;">
-    <h2>Drop a standalone card</h2>
+    <div class="modal-header">
+      <h2>Drop a standalone card</h2>
+      <button class="modal-close-x" data-fires="standalone-cancel" aria-label="Close">×</button>
+    </div>
     <div class="modal-sub">Pick a category — a random card from that bucket lands on the canvas. Switch the dropdown if you want a specific card.</div>
     <div id="standalone-categories" style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 16px 0;"></div>
     <details>
@@ -2870,38 +2992,43 @@
         <button id="standalone-create" style="padding: 8px 14px; border: 1px solid var(--gold); background: var(--gold); color: var(--bg-deep); border-radius: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer;">Drop specific card</button>
       </div>
     </details>
-    <div class="modal-actions">
-      <button id="standalone-cancel">Close</button>
-    </div>
+    <button id="standalone-cancel" style="display:none;" aria-hidden="true"></button>
   </div>
 </div>
 
 <div id="health-backdrop" class="modal-backdrop-v2" style="display:none;">
   <div class="modal-card" style="max-width: 700px;">
-    <h2 id="health-title">Health check</h2>
+    <div class="modal-header">
+      <h2 id="health-title">Health check</h2>
+      <button class="modal-close-x" data-fires="health-close" aria-label="Close">×</button>
+    </div>
     <div class="modal-sub" id="health-sub">Checking every card, every connection, every flag…</div>
     <div id="health-body"></div>
     <div class="modal-actions">
-      <button id="health-close">Close</button>
-      <button id="health-autofix" class="primary">Auto-fix all</button>
+      <button id="health-autofix" class="primary">Auto-fix all issues</button>
+      <button id="health-close" style="display:none;" aria-hidden="true"></button>
     </div>
   </div>
 </div>
 
 <div id="analysis-backdrop" class="modal-backdrop-v2" style="display:none;">
   <div class="modal-card" style="max-width: 760px;">
-    <h2>Deck analysis</h2>
+    <div class="modal-header">
+      <h2>Deck analysis</h2>
+      <button class="modal-close-x" data-fires="analysis-close" aria-label="Close">×</button>
+    </div>
     <div class="modal-sub" id="analysis-sub">Distribution of speakers, topics and meter impact across every card.</div>
     <div id="analysis-body"></div>
-    <div class="modal-actions">
-      <button id="analysis-close">Close</button>
-    </div>
+    <button id="analysis-close" style="display:none;" aria-hidden="true"></button>
   </div>
 </div>
 
 <div id="ending-backdrop" class="modal-backdrop-v2" style="display:none;">
   <div class="modal-card" style="max-width: 540px;">
-    <h2>Generate a chain to a game ending</h2>
+    <div class="modal-header">
+      <h2>Generate a chain to a game ending</h2>
+      <button class="modal-close-x" data-fires="ending-cancel" aria-label="Close">×</button>
+    </div>
     <div class="modal-sub">Pick the ending you want this chain to push the player toward. Every Accept outcome will bias the meters in the failure direction, and the leaf card will trigger the ending.</div>
     <div class="row full">
       <div>
@@ -2917,8 +3044,8 @@
     </div>
     <div id="ending-preview" style="background: var(--bg-deep); padding: 12px; border-radius: 8px; font-size: 12px; color: var(--text-muted); line-height: 1.5;"></div>
     <div class="modal-actions">
-      <button id="ending-cancel">Cancel</button>
-      <button id="ending-create" class="primary">Generate chain</button>
+      <button id="ending-create" class="primary">Generate ending chain</button>
+      <button id="ending-cancel" style="display:none;" aria-hidden="true"></button>
     </div>
   </div>
 </div>
@@ -2926,7 +3053,10 @@
 
 <div id="modal-backdrop">
   <div id="add-card-modal" class="modal-card" role="dialog" aria-modal="true">
-    <h2 id="modal-title">Add a card</h2>
+    <div class="modal-header">
+      <h2 id="modal-title">Add a card</h2>
+      <button class="modal-close-x" data-fires="modal-cancel" aria-label="Close">×</button>
+    </div>
     <div class="modal-sub">v29 rules apply: ≤140 chars, ≤3 sentences, ends in a yes/no question, no other cast as subject. Leave the chain set to <b>Orphan</b> if you just want to draft a single card — wire it into a chain later, or click "Generate chain" to grow a story around it.</div>
 
     <div class="row">
@@ -3110,8 +3240,8 @@
          the ⬇ button. Card creation should be fast, not exhaustive. -->
 
     <div class="modal-actions">
-      <button id="modal-cancel">Cancel</button>
       <button id="modal-save" class="primary" disabled>Add to canvas</button>
+      <button id="modal-cancel" style="display:none;" aria-hidden="true"></button>
     </div>
   </div>
 </div>
@@ -11603,6 +11733,20 @@ async function githubPull() {
 document.getElementById("act-github").addEventListener("click", openGithubModal);
 document.getElementById("gh-close").addEventListener("click", () =>
   document.getElementById("github-backdrop").classList.remove("open"));
+// Auto-save GitHub form settings on every change. Player ask 2026-05:
+// the explicit "Save settings" button was friction; nobody knew if
+// their token had been saved or not.
+for (const id of ["gh-token", "gh-repo", "gh-path", "gh-branch", "gh-message"]) {
+  const el = document.getElementById(id);
+  if (!el) continue;
+  el.addEventListener("change", () => {
+    saveGithubSettings(readGithubForm());
+    ghSetStatus("Settings saved.");
+  });
+  el.addEventListener("blur", () => {
+    saveGithubSettings(readGithubForm());
+  });
+}
 // Local file shortcuts inside the sync modal — same handlers as the
 // top-bar ⬇/⇑ buttons, surfaced here so the "back up my deck" flow
 // lives in one place. Player ask 2026-05.
@@ -11611,6 +11755,33 @@ document.getElementById("gh-export-json").addEventListener("click", () => {
 });
 document.getElementById("gh-import-json").addEventListener("click", () => {
   document.getElementById("import-file").click();
+});
+
+// Delegated X-close handler — every modal's top-right × button has
+// data-fires="<idOfExistingCloseButton>" so the existing close /
+// cancel handler runs (preserves dirty-state checks, cleanup, etc.).
+// Esc on any open modal also fires the X.
+document.addEventListener("click", (e) => {
+  const x = e.target.closest(".modal-close-x");
+  if (!x) return;
+  e.stopPropagation();
+  const targetId = x.getAttribute("data-fires");
+  if (targetId) {
+    const btn = document.getElementById(targetId);
+    if (btn) { btn.click(); return; }
+  }
+  // Fallback: just close the parent backdrop
+  const bd = x.closest(".modal-backdrop-v2, #modal-backdrop");
+  if (bd) bd.classList.remove("open");
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  // Find the topmost-open modal and fire its X
+  const open = document.querySelectorAll(".modal-backdrop-v2.open, #modal-backdrop.open");
+  if (!open.length) return;
+  const top = open[open.length - 1];
+  const x = top.querySelector(".modal-close-x");
+  if (x) x.click();
 });
 document.getElementById("gh-save").addEventListener("click", () => {
   saveGithubSettings(readGithubForm());
