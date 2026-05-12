@@ -738,6 +738,17 @@
     border-color: var(--gold);
     color: var(--bg-deep);
   }
+  /* Leaf "extend with wizard" variant — gold border so the author
+     spots that this + opens the chain-options modal rather than the
+     quick branch-off. Hover swap stays the same. */
+  .card .fate-line .branch-btn.extend-btn {
+    border-color: var(--gold);
+    color: var(--gold);
+  }
+  .card .fate-line .branch-btn.extend-btn:hover {
+    background: var(--gold);
+    color: var(--bg-deep);
+  }
 
   /* Ending-chain header banner — loud red strip at the top of the
      chain so the player can tell ENDING CHAIN vs regular chain
@@ -7476,18 +7487,33 @@ function renderFateBlock(card, chain) {
   }
   const a = describe(card.accept, "accept");
   const d = describe(card.decline, "decline");
+  // Player ask 2026-05: "when there is an end point, add a plus
+  // icon for each paths that let me add a new chain related to that
+  // card and let me select the end point if i want any. same logic
+  // as the adding a custom chain ai template." For leaf paths the
+  // + opens the full chain-options wizard (length / theme / speaker
+  // / ending / AI vs template). Non-leaf paths keep the quick
+  // template branch-off.
+  const aMode = a.kind === "leaf" ? "extend" : "branch";
+  const dMode = d.kind === "leaf" ? "extend" : "branch";
+  const aTip  = aMode === "extend"
+    ? "Extend this dead end into a new chain (AI or template, with optional ending)"
+    : "Branch a new chain off this Accept swipe";
+  const dTip  = dMode === "extend"
+    ? "Extend this dead end into a new chain (AI or template, with optional ending)"
+    : "Branch a new chain off this Decline swipe";
   return `<div class="fate-block">
     <div class="fate-line accept ${a.kind}">
       <span class="swipe-label">Accept</span>
       <span class="arrow">→</span>
       <span class="target">${a.text}</span>
-      <button class="branch-btn" data-branch-side="accept" data-branch-card="${card.id}" title="Branch a new chain off this Accept swipe">+</button>
+      <button class="branch-btn ${aMode === "extend" ? "extend-btn" : ""}" data-branch-side="accept" data-branch-card="${card.id}" data-branch-mode="${aMode}" title="${aTip}">+</button>
     </div>
     <div class="fate-line decline ${d.kind}">
       <span class="swipe-label">Decline</span>
       <span class="arrow">→</span>
       <span class="target">${d.text}</span>
-      <button class="branch-btn" data-branch-side="decline" data-branch-card="${card.id}" title="Branch a new chain off this Decline swipe">+</button>
+      <button class="branch-btn ${dMode === "extend" ? "extend-btn" : ""}" data-branch-side="decline" data-branch-card="${card.id}" data-branch-mode="${dMode}" title="${dTip}">+</button>
     </div>
   </div>`;
 }
@@ -7744,13 +7770,23 @@ function renderCard(chain, card) {
     e.stopPropagation();
     completeChainFromSeed(card.id);
   });
-  // Branch-off buttons in the fate-block
+  // Branch-off buttons in the fate-block. Two modes:
+  //   - "branch" (default): quick template branch off an open swipe.
+  //   - "extend" (leaf path): opens the chain-options wizard so the
+  //     author can pick length / theme / speaker / ending / AI vs
+  //     template. The wizard wires the new chain's c1 onto this
+  //     leaf path after generation. Player ask 2026-05.
   for (const btn of el.querySelectorAll(".branch-btn")) {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
-      const cid = btn.getAttribute("data-branch-card");
+      const cid  = btn.getAttribute("data-branch-card");
       const side = btn.getAttribute("data-branch-side");
-      branchOffSwipe(cid, side);
+      const mode = btn.getAttribute("data-branch-mode") || "branch";
+      if (mode === "extend") {
+        extendLeafWithWizard(cid, side);
+      } else {
+        branchOffSwipe(cid, side);
+      }
     });
   }
   el.querySelector(".card-actions .edit").addEventListener("click", (e) => {
@@ -10291,6 +10327,26 @@ function saveAIKeys(k) {
   localStorage.setItem(AI_KEYS_STORAGE, JSON.stringify(k));
 }
 
+// Pending leaf-extend state. When the user clicks + on a leaf
+// fate-line, this captures the source card + side. The wizard's
+// generate function checks it and wires the new chain's c1 onto
+// the leaf path after the chain lands. Cleared on close / cancel.
+let pendingLeafExtend = null;
+
+function extendLeafWithWizard(cardId, side) {
+  const sourceCard = CHAINS.flatMap(c => c.cards).find(x => x.id === cardId);
+  if (!sourceCard) return;
+  pendingLeafExtend = { cardId, side, sourceSpeaker: sourceCard.speaker };
+  showChainOptionsModal();
+  // Surface the pending source in the modal banner so the author
+  // sees what they're extending. The status line is empty until
+  // they click Generate, so it's a natural place to land this hint.
+  const status = document.getElementById("co-status");
+  if (status) {
+    status.innerHTML = `<span style="color: var(--gold);">Extending the dead end on <b>${sourceCard.speaker}</b>'s ${side.toUpperCase()} swipe. The new chain's first card will replace "end of chain" on that path.</span>`;
+  }
+}
+
 function showChainOptionsModal() {
   document.getElementById("co-theme").innerHTML = '<option value="">— random —</option>' +
     CHAIN_THEMES.map(t => `<option value="${t}">${t}</option>`).join("");
@@ -10321,14 +10377,56 @@ document.querySelectorAll("input[name='co-method']").forEach(r => r.addEventList
   else if (v === "claude") hint.textContent = "Calls Anthropic Claude API directly from your browser. Needs an API key (Settings → AI generation keys).";
   else hint.textContent = "Calls Google AI Studio Gemini API directly from your browser. Needs an API key (Settings → AI generation keys).";
 }));
-document.getElementById("co-cancel").addEventListener("click", () =>
-  document.getElementById("chainopt-backdrop").classList.remove("open"));
+document.getElementById("co-cancel").addEventListener("click", () => {
+  document.getElementById("chainopt-backdrop").classList.remove("open");
+  pendingLeafExtend = null;
+});
 document.getElementById("co-generate").addEventListener("click", generateChainFromOptions);
 document.getElementById("chainopt-backdrop").addEventListener("click", (e) => {
-  if (e.target.id === "chainopt-backdrop") e.target.classList.remove("open");
+  if (e.target.id === "chainopt-backdrop") {
+    e.target.classList.remove("open");
+    pendingLeafExtend = null;
+  }
 });
 
+// Wire a freshly-generated chain's c1 onto a pending leaf path.
+// Replaces "end of chain" on the source swipe with a pool target
+// pointing at the new chain. Mirrors the wiring in branchOffSwipe
+// (pool-add-not-replace, preserve existing target if somehow set).
+function wireLeafExtend(newChain, extend) {
+  if (!newChain || !newChain.cards || !newChain.cards.length || !extend) return;
+  const sourceCard = CHAINS.flatMap(c => c.cards).find(x => x.id === extend.cardId);
+  if (!sourceCard) return;
+  const branch = sourceCard[extend.side];
+  if (!branch) return;
+  if (!branch.setFlag) branch.setFlag = sourceCard.id + "_" + extend.side;
+  if (!branch.poolTargets) branch.poolTargets = [];
+  if (branch.target && !branch.poolTargets.includes(branch.target)) {
+    branch.poolTargets.push(branch.target);
+  }
+  branch.target = null;
+  const newSeed = newChain.cards[0];
+  if (!branch.poolTargets.includes(newSeed.id)) {
+    branch.poolTargets.push(newSeed.id);
+  }
+  // If we ended up with one entry, demote back to .target for cleanliness
+  if (branch.poolTargets.length === 1) {
+    branch.target = branch.poolTargets[0];
+    delete branch.poolTargets;
+  }
+  newSeed.requires = branch.setFlag;
+  newSeed.branchedFrom = sourceCard.id;
+  newSeed.branchedFromSide = extend.side;
+  // Rewrite the seed situation to read like a continuation of the
+  // source's outcome. Same auto-fix the drag-connect path uses.
+  if (typeof autoFixIssue === "function") autoFixIssue("narrative-rewrite", newSeed.id);
+}
+
 async function generateChainFromOptions() {
+  // Snapshot the pending leaf-extend so a slow async generate doesn't
+  // race with a second click. Cleared immediately so cancel works.
+  const extend = pendingLeafExtend;
+  pendingLeafExtend = null;
   const length = parseInt(document.getElementById("co-length").value, 10);
   const theme = document.getElementById("co-theme").value || null;
   const speaker = document.getElementById("co-speaker").value || null;
@@ -10347,7 +10445,17 @@ async function generateChainFromOptions() {
 
   if (method === "template") {
     document.getElementById("chainopt-backdrop").classList.remove("open");
+    const beforeLen = CHAINS.length;
     addChain(null, null, length);
+    // addChain pushed exactly one chain at the end of CHAINS
+    if (extend && CHAINS.length > beforeLen) {
+      const newChain = CHAINS[CHAINS.length - 1];
+      snapshot();
+      wireLeafExtend(newChain, extend);
+      persist();
+      rerenderAll();
+      showCopyToast(`Extended ${extend.sourceSpeaker}'s ${extend.side} swipe → "${newChain.name}"`);
+    }
     return;
   }
 
@@ -10405,13 +10513,20 @@ async function generateChainFromOptions() {
       }
     }
     CHAINS.push(chain);
+    // If this generate was triggered by an "Extend leaf" + button on
+    // some card's CHAIN-ENDS path, wire the new c1 onto that path.
+    if (extend) wireLeafExtend(chain, extend);
     // Add parallels if length > 5 via the existing pool-fan-out logic.
     // (The AI spine + template-mixer pool members.)
     persist();
     rerenderAll();
     setTimeout(() => setFocusedCard(chain.cards[0].id, false), 80);
     document.getElementById("chainopt-backdrop").classList.remove("open");
-    showCopyToast(`AI generated "${chain.name}"`);
+    if (extend) {
+      showCopyToast(`AI extended ${extend.sourceSpeaker}'s ${extend.side} dead-end → "${chain.name}"`);
+    } else {
+      showCopyToast(`AI generated "${chain.name}"`);
+    }
   } catch (err) {
     document.getElementById("co-generate").disabled = false;
     status.innerHTML = `<span style="color: var(--decline);">Error: ${err.message}</span>`;
