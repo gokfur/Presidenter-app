@@ -5141,6 +5141,37 @@ async function idbDeckClear() {
   });
 }
 
+// 2026-05-12 — cross-session undo. Persists the undoStack into the
+// same IDB object store under a separate key so the ↶ button survives
+// a page reload. Debounced via the same persist() rhythm: the in-
+// memory stack updates synchronously, IDB writes fire-and-forget.
+// Plays nicely with the existing reconcileFromIDB hydration on boot.
+async function idbUndoPut(stack) {
+  const db = await idbOpen();
+  if (!db) return false;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(IDB_STORE, "readwrite");
+      tx.objectStore(IDB_STORE).put(stack, "undoStack");
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+    } catch (e) { resolve(false); }
+  });
+}
+
+async function idbUndoGet() {
+  const db = await idbOpen();
+  if (!db) return null;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(IDB_STORE, "readonly");
+      const req = tx.objectStore(IDB_STORE).get("undoStack");
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    } catch (e) { resolve(null); }
+  });
+}
+
 function persist() {
   // Always persist rooms alongside CHAINS so they never drift out
   // of sync. Player ask 2026-05: "I created a room named room 1
@@ -5260,12 +5291,18 @@ function snapshot() {
     undoStack.push(snap);
     if (undoStack.length > UNDO_MAX) undoStack.shift();
     updateUndoButton();
+    // 2026-05-12 — mirror to IDB so the stack survives a reload.
+    // Fire-and-forget; if IDB is unavailable the in-memory stack
+    // still works for the current session.
+    idbUndoPut([...undoStack]).catch(() => {});
   } catch (e) { /* JSON.stringify shouldn't fail on our data */ }
 }
 
 function undo() {
   if (!undoStack.length) return;
   const snap = undoStack.pop();
+  // Mirror the pop to IDB so a subsequent reload sees the shorter stack.
+  idbUndoPut([...undoStack]).catch(() => {});
   try {
     const restored = JSON.parse(snap);
     // Back-compat: old snapshots were raw CHAINS arrays, new ones
@@ -14380,6 +14417,20 @@ idbDeckGet().then(idbPayload => {
     bootRender();
     showCopyToast(`Restored ${CHAINS.length} chains from IndexedDB (localStorage was capped).`);
   }
+}).catch(() => {});
+
+// 2026-05-12 — cross-session undo hydration. Pulls the persisted
+// undoStack from IDB so the ↶ button reads as armed on a fresh page
+// load. If the stack is empty or the read fails, fall through
+// silently — the in-memory stack just starts empty (current behaviour).
+// Capped at UNDO_MAX in case a future build's MAX is smaller than
+// what was persisted on disk.
+idbUndoGet().then(persistedStack => {
+  if (!Array.isArray(persistedStack) || persistedStack.length === 0) return;
+  undoStack.length = 0;
+  const trimmed = persistedStack.slice(-UNDO_MAX);
+  trimmed.forEach(s => undoStack.push(s));
+  updateUndoButton();
 }).catch(() => {});
 
 if (!persisted && CHAINS.length === 0) {
