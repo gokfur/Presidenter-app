@@ -4084,7 +4084,10 @@
   <div id="add-card-modal" class="modal-card" role="dialog" aria-modal="true">
     <div class="modal-header">
       <h2 id="modal-title">Add a card</h2>
-      <button class="modal-close-x" data-fires="modal-cancel" aria-label="Close">×</button>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <button type="button" id="f-random-card" title="🎲 Generate a full random card — speaker, topic, situation, both outcomes, meters. Click again for a different one." style="background:rgba(255,200,80,0.15); border:1px solid rgba(255,200,80,0.45); color:var(--gold); padding:6px 12px; border-radius:6px; font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer;">🎲 Random card</button>
+        <button class="modal-close-x" data-fires="modal-cancel" aria-label="Close">×</button>
+      </div>
     </div>
     <div class="modal-sub">
       v30 voice: <b>witty · slightly cynical · mysterious</b>. Two short sentences, ends in a yes/no question, both swipes carry a cost. Lands as a standalone — wire it later.
@@ -13367,7 +13370,18 @@ async function generateChainWithAI(provider, apiKey, opts) {
 - c4 (after c2 ACCEPT): deeper consequence on accept path
 - c5 (after c3 ACCEPT): deeper consequence on decline path
 
-EVERY child (c2/c3/c4/c5) MUST start its situation with a transition phrase referring to the parent's outcome ("With the X done, ...", "After the Y, ...") . NO random scene changes.`;
+CRITICAL — CONTINUITY (each card consistent with the parent's accept/decline):
+
+  • c2's situation MUST explicitly reference a SPECIFIC NOUN from c1.accept.outcome (the document signed, the loan taken, the column moved, the bill filed — whatever c1 produced). The c2 speaker reacts to that specific consequence, not a generic "the room moves on".
+  • c3's situation MUST explicitly reference a SPECIFIC NOUN from c1.decline.outcome. Same rule, opposite branch — c3 is what unfolds when the player REFUSED c1.
+  • c4's situation MUST reference c2.accept.outcome — escalation on the accept path.
+  • c5's situation MUST reference c3.accept.outcome — escalation on the decline path.
+  • Verbs / nouns / names should ladder across the chain. If c1.accept names "the foreign loan," c2.situation should say "the loan", c2.accept.outcome should say "the new repayment terms," and c4 should mention "the repayment terms" — same prop, advancing.
+  • The c2.accept.outcome and c2.decline.outcome both have to make sense as continuations of c2.situation, which was itself a continuation of c1.accept.outcome. CHECK YOUR CHAIN: read it bottom-up. If any link doesn't follow, rewrite.
+
+Open each child situation with a transition phrase that NAMES the prop from the parent's outcome: "With the loan signed, …", "After the column moved, …", "The bench has the audit summary now, so …", "Now that the contractor's pulled out, …".
+
+NO generic "the room exhales" filler unless tied to a specific prop. NO random scene changes. The chain reads as ONE story.`;
   } else {
     // Linear spine — each c(i).accept advances to c(i+1), each
     // c(i).decline ends the chain with a sharp consequence. The
@@ -13386,13 +13400,24 @@ Shape:
 - c2 .. c${chainLength - 1}: each card is the consequence of the PREVIOUS card's ACCEPT swipe. The story advances on accept; decline = the player tries to bail.
 - c${chainLength} (climax): the moment the choice cycle resolves. After this, the chain ends.
 
-For every card c2..c${chainLength}:
-- situation MUST open with a transition phrase referencing the prior card's accept outcome ("With the bill on the floor, …", "After the strike vote, …", "The marshal's signed, so …")
-- Each beat must escalate one notch — new face in the room, harder ask, narrower exit
-- New speakers introduced gradually. NEVER use the same speaker twice in a row unless the narrative explicitly requires it
-- Decline outcomes are FULL exits ("the matter dies here, …") — they don't continue the arc
+CRITICAL — CONTINUITY (every card consistent with the parent's accept/decline):
 
-NO random scene changes. NO repeating beats. Every card adds new information the player didn't have before.`;
+  • Each card c(i) where i ≥ 2 MUST explicitly reference a SPECIFIC NOUN from c(i-1).accept.outcome (the loan, the column, the bill, the contractor, the name on the leak — whatever the previous accept produced).
+  • The c(i) speaker reacts to that specific consequence; they're not introducing a fresh topic.
+  • Same prop carries forward across multiple cards when natural: if c2 names "the loan," c3 can mention "the repayment terms," c4 "the IMF inspector," etc. — same world, advancing detail.
+  • Read your chain bottom-up before finishing. If any link breaks (a card mentions something not introduced earlier), rewrite that card.
+
+For every card c2..c${chainLength}:
+- situation MUST open with a transition phrase that NAMES the prop from the prior card's accept outcome:
+  • "With the bill on the floor, …"
+  • "After the strike vote, …"
+  • "The marshal's signed, so …"
+  • "Now that the contractor pulled out, …"
+- Each beat must escalate one notch — new face in the room, harder ask, narrower exit.
+- New speakers introduced gradually. NEVER use the same speaker twice in a row unless the narrative explicitly requires it.
+- Decline outcomes are FULL exits ("I drop the matter; the file goes cold") — they don't continue the arc, they end it for that branch.
+
+NO random scene changes. NO generic "the room moves on" filler. The chain reads as ONE STORY with named props that ladder.`;
   }
   // Player ask 2026-05: 'i said create a military coup ending chain
   // but this ending is weird. there must be tension excitement
@@ -14392,6 +14417,69 @@ Output ONLY this JSON (no prose):
   }
 }
 document.getElementById("f-autowrite-outcomes")?.addEventListener("click", autoWriteOutcomes);
+
+// 2026-05-12 — 🎲 Random Card button (top-right of modal header).
+// Generates a COMPLETE card in one click: speaker, ministry, topic,
+// situation, both outcomes, meter shifts, memory fragment. Uses the
+// AI when a key is configured (richer / more varied), otherwise
+// falls back to `localGenerateCard` which always produces a coherent
+// draft. Re-clicking generates a different card each time.
+async function generateRandomCardIntoForm() {
+  const btn = document.getElementById("f-random-card");
+  if (btn) btn.disabled = true;
+  const keys = loadAIKeys();
+  let key = keys.anthropic || keys.claude || null;
+  let provider = key ? "claude" : null;
+  if (!key && keys.gemini) { key = keys.gemini; provider = "gemini"; }
+
+  // Local fast path. Always lands a result.
+  const localCard = localGenerateCard({});
+  plumbCardIntoForm(localCard);
+
+  // Memory fragment auto-fill from speaker registry.
+  const memEl = document.getElementById("f-memory");
+  if (memEl && localCard.speaker) {
+    memEl.value = MEMORY_FRAGMENTS[localCard.speaker] || memEl.value || "";
+  }
+
+  // AI upgrade — async-replace with a richer / more contextual card.
+  if (provider && key) {
+    const speakerLines = Object.entries(SPEAKERS_BY_MINISTRY)
+      .map(([m, names]) => `  ${m}: ${names.join(", ")}`).join("\n");
+    const prompt = `Generate ONE Presidenter decision card from scratch. Pick a plausible speaker + topic combo, write a witty/cynical/mysterious situation in FIRST-PERSON voice (speaker talking to the President), then write BOTH outcomes also in first-person with concrete meter shifts.
+
+CRITICAL — VOICE: WRONG: "Halvik prints six lines." RIGHT: "I'll print six lines." Both situation and outcomes stay in the speaker's first person.
+
+Constraints:
+- speaker: from the 50-cast below.
+- ministry: matches speaker.
+- topic: tricky / scandal / economy / military / diplomacy / health / simple / education / environment / energy / justice / funnyFlavor.
+- situation: ≤140 chars, ≤2 sentences, ends in "?", no em-dashes.
+- accept.outcome: ≤140 chars, no em-dashes, first-person.
+- decline.outcome: ≤140 chars, no em-dashes, first-person.
+- Both outcomes meaningful — sum of |abs| meter shifts ≥ 2 per side.
+- Both swipes leak something the player wanted to protect (moral dilemma).
+
+Cast (speaker → ministry):
+${speakerLines}
+
+Output ONLY this JSON (no prose):
+{"speaker":"...","ministry":"...","topic":"...","situation":"...","accept":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0},"decline":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0}}`;
+    try {
+      const text = await callAITextPlain(provider, key, prompt);
+      const aiCard = extractJSONFromAIText(text);
+      plumbCardIntoForm(aiCard);
+      if (memEl && aiCard.speaker) {
+        memEl.value = MEMORY_FRAGMENTS[aiCard.speaker] || memEl.value || "";
+      }
+    } catch (e) {
+      console.warn("🎲 AI upgrade failed:", e.message);
+    }
+  }
+  if (btn) btn.disabled = false;
+  showCopyToast("🎲 Random card landed — edit any field, then save.");
+}
+document.getElementById("f-random-card")?.addEventListener("click", generateRandomCardIntoForm);
 
 
 async function grammarCheckCard() {
