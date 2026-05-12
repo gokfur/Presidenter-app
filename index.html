@@ -5249,11 +5249,19 @@ function persist() {
   // and after your edits it disappeared! don't make my info
   // disappear like that."
   persistRooms();
-  const payload = { CHAINS, ROOMS, activeRoom, savedAt: new Date().toISOString() };
+  const savedAtIso = new Date().toISOString();
+  const savedAtMs = Date.now();
+  const payload = { CHAINS, ROOMS, activeRoom, savedAt: savedAtIso };
   // Best-effort localStorage write — fast path for next cold launch.
   if (!persistLocalStorageDead) {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(CHAINS));
+      // 2026-05-12 — stamp the mtime hint so the reconcile-from-IDB
+      // path can detect a newer IDB payload regardless of card count.
+      // Sibling key (not embedded in the array) keeps STORAGE_KEY's
+      // value shape backwards-compatible with builds that read it as
+      // a raw CHAINS array.
+      localStorage.setItem(STORAGE_KEY + ":savedAt", String(savedAtMs));
     } catch (e) {
       // Almost always QuotaExceededError when the deck overflows
       // ~5 MB. Latch so we stop retrying every save.
@@ -10977,7 +10985,11 @@ function runValidation() {
   const speakerOnCast = CAST.has(speaker);
 
   counter.textContent = `${len} / 140 chars · ${sentences} sentences`;
-  counter.classList.toggle("warn", len > 140 || sentences > 3 || !endsInQ);
+  // 2026-05-12 — tightened from `> 3` to `> 2` so the counter `.warn`
+  // class matches the validator pill's ≤2-sentence rule (v30 STYLE
+  // GUIDE §11). The old threshold left the counter green while the
+  // pill failed at 3 sentences — visually inconsistent.
+  counter.classList.toggle("warn", len > 140 || sentences > 2 || !endsInQ);
   counter.classList.toggle("ok", lenOk && sentencesOk && endsInQ && subjectOk);
 
   // Style-guide exception — when checked, every v29 pill becomes
@@ -11371,6 +11383,14 @@ function saveCard() {
     // Alternative phrasings — collected from the variants list
     const variants = readVariantsList();
     if (variants.length) card.situationVariants = variants; else delete card.situationVariants;
+    // 2026-05-12 — mode-aware authoring restriction. modal load
+    // restores these checkboxes (openModal) and reset clears them
+    // (closeModal); the edit save path used to drop the array
+    // silently, leaving the user's checkbox state effectively
+    // read-only on edit. Round-trip here so flipping a checkbox
+    // and saving actually changes the card.
+    const modes = readModesList();
+    if (modes) card.modes = modes; else delete card.modes;
     // requiredFlags compatibility — engine uses array
     if (card.requires) {
       card.requiredFlags = [card.requires];
@@ -11971,27 +11991,41 @@ const NATION_TOKEN_TARGET_IDS = ["f-situation", "f-accept-outcome",
       target.dispatchEvent(new Event("input", { bubbles: true }));
     });
   }
-  // Validator: scan situation for {...} sequences and flag any that
-  // aren't in the supported set. Runs on every input event via the
-  // existing runValidation chain (situation's input listener already
-  // fires; we hook the warning rerender here).
+  // Validator: scan situation + both outcomes + tricky-clue for
+  // {...} sequences and flag any that aren't in the supported set.
+  // The warning chip lives under the situation field for visibility,
+  // but the scan covers every text input that the chip-insert helper
+  // writes into — so a typo in an outcome ({monarc} instead of
+  // {leader}) doesn't silently ship.
+  // 2026-05-12 — extended from situation-only after audit found
+  // the warning never fired for typos in outcomes / tricky clue.
   function refreshTokenWarning() {
-    const sit = document.getElementById("f-situation")?.value || "";
     const warn = document.getElementById("f-situation-token-warning");
     if (!warn) return;
-    const found = sit.match(/\{[a-zA-Z_]+\}/g) || [];
-    const unknown = [...new Set(found)].filter(t => !NATION_TOKEN_SET.has(t));
-    if (unknown.length === 0) {
+    const sources = NATION_TOKEN_TARGET_IDS.map(id => ({
+      id,
+      text: document.getElementById(id)?.value || "",
+    }));
+    const unknownByField = [];
+    for (const src of sources) {
+      const found = src.text.match(/\{[a-zA-Z_]+\}/g) || [];
+      const bad = [...new Set(found)].filter(t => !NATION_TOKEN_SET.has(t));
+      if (bad.length) unknownByField.push({ id: src.id, tokens: bad });
+    }
+    if (unknownByField.length === 0) {
       warn.style.display = "none";
       warn.textContent = "";
     } else {
+      const labels = { "f-situation": "situation", "f-accept-outcome": "accept", "f-decline-outcome": "decline", "f-trickyclue": "tricky" };
+      const parts = unknownByField.map(u => `${labels[u.id] || u.id}: ${u.tokens.join(", ")}`);
       warn.style.display = "block";
-      warn.textContent = "⚠ Unknown token" + (unknown.length > 1 ? "s" : "")
-        + ": " + unknown.join(", ")
+      warn.textContent = "⚠ Unknown token in " + parts.join(" · ")
         + " — engine only substitutes {leader} {country} {honorific} {nation} {president}.";
     }
   }
-  document.getElementById("f-situation")?.addEventListener("input", refreshTokenWarning);
+  for (const id of NATION_TOKEN_TARGET_IDS) {
+    document.getElementById(id)?.addEventListener("input", refreshTokenWarning);
+  }
   // Chip styling (inline since the rest of the modal uses inline CSS
   // for one-offs like the topic chips).
   const style = document.createElement("style");
@@ -13871,6 +13905,10 @@ function readConditionFromBuilder() {
 
 function openInspector(cardId) {
   inspectorCardId = cardId;
+  // 2026-05-12 — re-arm the undo snapshot latch each time a new
+  // card is focused so each inspector session produces one undo
+  // frame (rather than zero or hundreds).
+  inspectorSnapshotArmedFor = null;
   const card = CHAINS.flatMap(c => c.cards).find(x => x.id === cardId);
   if (!card) return;
   const chain = CHAINS.find(c => c.cards.includes(card));
@@ -13984,6 +14022,7 @@ function openInspector(cardId) {
 
 function closeInspector() {
   inspectorCardId = null;
+  inspectorSnapshotArmedFor = null;
   document.body.classList.remove("inspector-open");
 }
 
@@ -13994,22 +14033,40 @@ function runInspectorValidation() {
   const endsQ = sit.trim().endsWith("?");
   const counter = document.getElementById("ins-sit-counter");
   counter.textContent = `${len} / 140 chars · ${sents} sentences`;
-  counter.classList.toggle("warn", len > 140 || sents > 3 || !endsQ);
-  counter.classList.toggle("ok", len > 0 && len <= 140 && sents > 0 && sents <= 3 && endsQ);
+  // 2026-05-12 — same `> 3` → `> 2` tightening as the modal counter
+  // (v30 STYLE GUIDE §11 caps at 2 sentences). Also rewords the pill
+  // label so it matches.
+  counter.classList.toggle("warn", len > 140 || sents > 2 || !endsQ);
+  counter.classList.toggle("ok", len > 0 && len <= 140 && sents > 0 && sents <= 2 && endsQ);
   const v = document.getElementById("ins-validation");
   const pills = [
     { ok: len > 0 && len <= 140, label: "≤140" },
-    { ok: sents > 0 && sents <= 3, label: "≤3 sentences" },
+    { ok: sents > 0 && sents <= 2, label: "≤2 sentences" },
     { ok: endsQ, label: "ends in ?" },
     { ok: !sit.includes("—"), label: "no em-dash" },
   ];
   v.innerHTML = pills.map(p => `<span class="ins-chip ${p.ok ? "" : "fail"}">${p.ok ? "✓" : "✗"} ${p.label}</span>`).join("");
 }
 
+// 2026-05-12 — undo coverage for inspector edits. The inspector
+// fires `saveInspectorField` on every keystroke and mutates the
+// card in place; without this gate the undo stack never recorded
+// a frame for inspector sessions and Cmd-Z would jump past the
+// entire session. We snapshot ONCE per (open inspector × card)
+// when the first dirty edit lands so a long inspector session
+// produces one logical undo step instead of zero (or one per
+// character, which would blow out the 30-deep cap in seconds).
+// Reset by `setFocusedCard` / inspector close so the next focus
+// re-arms.
+let inspectorSnapshotArmedFor = null;
 function saveInspectorField() {
   if (inspectorSilent || !inspectorCardId) return;
   const card = CHAINS.flatMap(c => c.cards).find(x => x.id === inspectorCardId);
   if (!card) return;
+  if (inspectorSnapshotArmedFor !== inspectorCardId) {
+    snapshot();
+    inspectorSnapshotArmedFor = inspectorCardId;
+  }
   // Speaker change → auto-fill ministry + memory fragment
   const newSpeaker = document.getElementById("ins-speaker").value;
   if (newSpeaker !== card.speaker) {
@@ -14197,6 +14254,10 @@ document.getElementById("room-new").addEventListener("click", () => {
     alert("Room already exists.");
     return;
   }
+  // 2026-05-12 — snapshot before mutation so an accidentally-created
+  // room can be undone with ↶. The rename / delete handlers below
+  // already snapshot; this one was the odd one out.
+  snapshot();
   ROOMS.push(trimmed);
   activeRoom = trimmed;
   persistRooms();
@@ -14739,15 +14800,35 @@ function bootRender() {
 }
 bootRender();
 
-// Step 10 — reconcile from IndexedDB. If IDB has a deck that
-// localStorage doesn't (because we hit quota previously and the
-// localStorage cache is stale OR empty), pull from IDB and re-render.
-// Player ask: 'switch from localStorage to IndexedDB'.
+// 2026-05-12 — reconcile from IndexedDB using `savedAt` timestamp,
+// not card count. The old `length > CHAINS.length` check missed the
+// case where the same number of chains had different content (rename,
+// content edit, swap one chain for another) — IDB writes are
+// authoritative but localStorage was always preferred on the fast
+// path, so an edit persisted only to IDB silently lost on reload
+// when the cached localStorage CHAINS count happened to match.
+//
+// New rule: if IDB's `savedAt` is newer than the localStorage's
+// cached timestamp (read from a synthetic STORAGE_KEY entry written
+// alongside CHAINS), hydrate from IDB. localStorage stores only
+// CHAINS as a JSON array (legacy shape), so we have to fall back on
+// "IDB has anything more recent than the in-memory state at boot"
+// — which is exactly the case we want to honour.
+//
+// Chained with the undo-stack hydration below so the undo stack
+// always restores against the deck shape we just landed on, never
+// against the pre-reconcile stale array.
 idbDeckGet().then(idbPayload => {
-  if (!idbPayload || !Array.isArray(idbPayload.CHAINS)) return;
-  // If localStorage cache has equal/more cards we keep the fast path.
-  // If IDB has more (the case when localStorage hit quota), hydrate.
-  if (idbPayload.CHAINS.length > CHAINS.length) {
+  if (!idbPayload || !Array.isArray(idbPayload.CHAINS)) return false;
+  // Prefer IDB whenever its savedAt is newer than the localStorage
+  // mtime hint we stamped at persist time. If the hint is missing
+  // (first run on a build that didn't stamp it), fall back to the
+  // old count comparison so we don't regress existing decks.
+  const idbSavedAt = idbPayload.savedAt ? Date.parse(idbPayload.savedAt) : 0;
+  const cachedSavedAt = parseInt(localStorage.getItem(STORAGE_KEY + ":savedAt") || "0", 10);
+  const idbWins = (idbSavedAt > 0 && idbSavedAt > cachedSavedAt)
+                || idbPayload.CHAINS.length > CHAINS.length;
+  if (idbWins) {
     CHAINS.length = 0;
     idbPayload.CHAINS.forEach(c => CHAINS.push(c));
     if (Array.isArray(idbPayload.ROOMS)) {
@@ -14757,17 +14838,22 @@ idbDeckGet().then(idbPayload => {
     if (idbPayload.activeRoom) activeRoom = idbPayload.activeRoom;
     document.querySelectorAll(".card, .chain-header").forEach(el => el.remove());
     bootRender();
-    showCopyToast(`Restored ${CHAINS.length} chains from IndexedDB (localStorage was capped).`);
+    if (idbSavedAt > cachedSavedAt) {
+      showCopyToast(`Restored ${CHAINS.length} chains from IndexedDB (newer than localStorage).`);
+    } else {
+      showCopyToast(`Restored ${CHAINS.length} chains from IndexedDB (localStorage was capped).`);
+    }
   }
-}).catch(() => {});
-
-// 2026-05-12 — cross-session undo hydration. Pulls the persisted
-// undoStack from IDB so the ↶ button reads as armed on a fresh page
-// load. If the stack is empty or the read fails, fall through
-// silently — the in-memory stack just starts empty (current behaviour).
-// Capped at UNDO_MAX in case a future build's MAX is smaller than
-// what was persisted on disk.
-idbUndoGet().then(persistedStack => {
+  return true;
+}).catch(() => false).then(() => {
+  // 2026-05-12 — undo-stack hydration is chained AFTER deck-reconcile
+  // so the snapshots we restore are always paired with the deck shape
+  // they were captured against. The prior parallel `then()` chain
+  // could land undo first → Cmd-Z would restore phantom state that
+  // referenced pre-reconcile CHAINS array entries.
+  return idbUndoGet();
+}).then(persistedStack => {
+  if (!persistedStack) return;
   if (!Array.isArray(persistedStack) || persistedStack.length === 0) return;
   undoStack.length = 0;
   const trimmed = persistedStack.slice(-UNDO_MAX);
