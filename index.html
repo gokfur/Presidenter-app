@@ -1009,8 +1009,7 @@
     padding: 0 4px;
   }
   .modal-card .parallel-add {
-    width: 100%;
-    padding: 8px 12px;
+    padding: 8px 14px;
     border: 1px dashed var(--cascade);
     background: transparent;
     color: var(--cascade);
@@ -1019,9 +1018,44 @@
     cursor: pointer;
     letter-spacing: 0.08em;
     font-weight: 700;
+    white-space: nowrap;
   }
   .modal-card .parallel-add:hover {
     background: rgba(227,185,105,0.08);
+  }
+  /* Bulk-parallel row — "How many? [N] [Generate]". Player ask
+     2026-05: "instead of making me generating parallel options, just
+     ask me how many parallel cards i wanna create and you generate
+     those cards." */
+  .modal-card .parallel-bulk {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: var(--bg-deep);
+    border: 1px dashed var(--hairline);
+    border-radius: 8px;
+  }
+  .modal-card .parallel-bulk label {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .modal-card .parallel-bulk input[type="number"] {
+    width: 70px;
+    padding: 8px 10px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 700;
+    border: 1px solid var(--hairline);
+    border-radius: 6px;
+    background: var(--surface2);
+    color: var(--text-primary);
   }
 
   /* Chain header actions — regenerate the entire chain at once */
@@ -3363,18 +3397,18 @@
       <h2 id="modal-title">Add a card</h2>
       <button class="modal-close-x" data-fires="modal-cancel" aria-label="Close">×</button>
     </div>
-    <div class="modal-sub">v30 rules: ≤140 chars, <b>≤2 short sentences</b>, ends in a yes/no question, no other cast as subject. Tone is <b>witty, slightly cynical, mysterious</b>. Both swipes must feel like a cost — every card is a <b>moral dilemma</b>. Leave the chain set to <b>Orphan</b> to draft a single card and wire it later.</div>
+    <div class="modal-sub">v30 rules: ≤140 chars, <b>≤2 short sentences</b>, ends in a yes/no question, no other cast as subject. Tone is <b>witty, slightly cynical, mysterious</b>. Both swipes must feel like a cost — every card is a <b>moral dilemma</b>.</div>
+    <div class="modal-sub" style="margin-top: -4px; color: var(--gold);">⭐ Every new card lands as <b>standalone</b>. Wire it into a chain later by dragging, or click <b>Generate chain from this card</b> on the canvas to grow a story around it.</div>
 
-    <div class="row">
-      <div>
-        <label>Chain <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(optional)</span></label>
-        <select id="f-chain"></select>
-      </div>
-      <div>
-        <label id="f-parent-label">Attach under (parent · side)</label>
-        <select id="f-parent"></select>
-      </div>
-    </div>
+    <!-- Chain + parent dropdowns retired 2026-05 (player ask: "remove
+         chains in this dropdown cos if i have 300 chains it wont fit.
+         instead all standalone single cards will be standalone and i
+         can connect it to a chain later or i can generate chains
+         from that card"). Hidden inputs kept so existing JS that
+         reads f-chain / f-parent doesn't crash; values pinned to the
+         orphan path. -->
+    <input id="f-chain" type="hidden" value="__orphan__">
+    <input id="f-parent" type="hidden" value="">
 
     <div class="row">
       <div>
@@ -3393,7 +3427,7 @@
 
     <div class="row">
       <div>
-        <label>Topic</label>
+        <label>Topic <span style="color: var(--text-faint); font-weight: 500; text-transform: none; letter-spacing: 0;">(optional — auto-picks from ministry if left on 'auto')</span></label>
         <select id="f-topic"></select>
       </div>
       <div>
@@ -3528,7 +3562,11 @@
       <div class="parallel-block" id="parallel-accept">
         <div class="parallel-label">Parallel options · the game picks one at random</div>
         <div class="parallel-list" id="parallel-accept-list">none yet — leads straight to the target card</div>
-        <button type="button" class="parallel-add" id="parallel-add-accept">+ Generate parallel option</button>
+        <div class="parallel-bulk">
+          <label>How many?</label>
+          <input id="parallel-count-accept" type="number" min="1" max="10" value="2" aria-label="Number of parallel options to generate on Accept">
+          <button type="button" class="parallel-add" id="parallel-add-accept">✨ Generate</button>
+        </div>
       </div>
     </div>
 
@@ -3595,7 +3633,11 @@
       <div class="parallel-block" id="parallel-decline">
         <div class="parallel-label">Parallel options · the game picks one at random</div>
         <div class="parallel-list" id="parallel-decline-list">none yet — leads straight to the target card</div>
-        <button type="button" class="parallel-add" id="parallel-add-decline">+ Generate parallel option</button>
+        <div class="parallel-bulk">
+          <label>How many?</label>
+          <input id="parallel-count-decline" type="number" min="1" max="10" value="2" aria-label="Number of parallel options to generate on Decline">
+          <button type="button" class="parallel-add" id="parallel-add-decline">✨ Generate</button>
+        </div>
       </div>
     </div>
 
@@ -7992,6 +8034,7 @@ function renderCard(chain, card) {
       <button class="drag-link" title="Drag onto another card to create a connection (trigger or pool)" aria-label="Drag to connect">↗</button>
       <button class="regenerate" title="Regenerate this card (R)" aria-label="Regenerate">↻</button>
       ${card.level === 0 && chain.cards.length < 5 ? `<button class="complete-chain" title="Auto-generate the remaining cards in this chain" aria-label="Complete chain">⫶</button>` : ""}
+      <button class="spawn-chain" title="Generate a new chain from this card — pick Accept or Decline as the source" aria-label="Generate chain from this card">🌱</button>
       <button class="edit" title="Edit this card" aria-label="Edit">✎</button>
       <button class="delete" title="Delete this card" aria-label="Delete">×</button>
     </div>
@@ -8144,6 +8187,26 @@ function renderCard(chain, card) {
     e.stopPropagation();
     deleteCard(card.id);
   });
+  // Generate chain FROM this card. Player ask 2026-05: "in a chain
+  // when i clicked a card, let me create a new chain from that card.
+  // allow me to select the end point accept or decline and generate
+  // a new chain from there." Routes through the existing chain-
+  // options wizard with sourceCtx so the AI continues the story.
+  const spawnBtn = el.querySelector(".card-actions .spawn-chain");
+  if (spawnBtn) {
+    spawnBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      // Ask which side
+      const sideAnswer = confirm(
+        `Generate a new chain branching from "${card.speaker}".\n\n` +
+        `OK = continue from ACCEPT swipe\n` +
+        `Cancel = continue from DECLINE swipe`
+      );
+      const side = sideAnswer ? "accept" : "decline";
+      extendLeafWithWizard(card.id, side);
+    });
+  }
   el.addEventListener("mouseenter", () => {
     if (focusedCardId) return;
     setHoverCard(card.id);
@@ -9049,7 +9112,12 @@ function populateModalDropdowns() {
 
   // Topic dropdown — strict full enum from Topic.swift
   const topicSel = document.getElementById("f-topic");
-  topicSel.innerHTML = TOPICS.map(t => `<option value="${t}">.${t}</option>`).join("");
+  // Player ask 2026-05: "do we need a topic here? is it important?"
+  // Topic still drives the engine's draw weighting + balance audit,
+  // but the user no longer has to set it manually. Default option
+  // 'auto' picks based on ministry when the card saves.
+  topicSel.innerHTML = `<option value="__auto__">auto (pick from ministry)</option>` +
+    TOPICS.map(t => `<option value="${t}">.${t}</option>`).join("");
   // Topic change: show trickyClue row only when topic = .tricky
   topicSel.addEventListener("change", () => {
     const row = document.getElementById("f-trickyclue-row");
@@ -10028,6 +10096,27 @@ function runValidation() {
   saveBtn.disabled = !allOk;
 }
 
+// Auto-resolve the topic when the user leaves the picker on 'auto'.
+// Maps ministry → most-likely topic so the engine's draw weighting
+// still works without the author having to set it. Player ask
+// 2026-05: "do we need a topic here? is it important?"
+const MINISTRY_TOPIC = {
+  "Audit": "tricky", "Treasury": "economy", "Justice": "scandal",
+  "Defense": "military", "Foreign Affairs": "diplomacy",
+  "Health": "health", "Education": "simple", "Economy": "economy",
+  "Energy": "environment", "Environment": "environment",
+  "Interior": "scandal", "Labor": "economy", "Tourism": "simple",
+  "Culture": "simple", "Heritage": "simple", "Science": "tricky",
+  "Press": "scandal", "Opposition": "scandal", "Cabinet": "scandal",
+  "Family": "family", "The Public": "simple", "Foreign": "diplomacy",
+  "Diplomatic Corps": "diplomacy", "Religion": "tricky",
+  "Royal Court": "scandal", "Civic": "simple", "Activism": "scandal",
+};
+function resolveTopic(topicVal, ministry) {
+  if (topicVal && topicVal !== "__auto__") return topicVal;
+  return MINISTRY_TOPIC[ministry] || "simple";
+}
+
 function buildCardJSON() {
   const chainId = document.getElementById("f-chain").value;
   // Orphan-card path — no chain wiring, no parent set-flag.
@@ -10040,7 +10129,7 @@ function buildCardJSON() {
       col: "center",
       speaker: document.getElementById("f-speaker").value.trim(),
       ministry: document.getElementById("f-ministry").value.trim(),
-      topic: document.getElementById("f-topic").value,
+      topic: resolveTopic(document.getElementById("f-topic").value, document.getElementById("f-ministry").value.trim()),
       situation: document.getElementById("f-situation").value.trim(),
       requires: null,
       accept: makeBranch("accept"),
@@ -10069,7 +10158,7 @@ function buildCardJSON() {
       col: existing.col,
       speaker: document.getElementById("f-speaker").value.trim(),
       ministry: document.getElementById("f-ministry").value.trim(),
-      topic: document.getElementById("f-topic").value,
+      topic: resolveTopic(document.getElementById("f-topic").value, document.getElementById("f-ministry").value.trim()),
       situation: document.getElementById("f-situation").value.trim(),
       requires: existing.requires,
       requiredFlags: existing.requires ? [existing.requires] : (existing.requiredFlags || []),
@@ -10101,7 +10190,7 @@ function buildCardJSON() {
     col: "authored",
     speaker: document.getElementById("f-speaker").value.trim(),
     ministry: document.getElementById("f-ministry").value.trim(),
-    topic: document.getElementById("f-topic").value,
+    topic: resolveTopic(document.getElementById("f-topic").value, document.getElementById("f-ministry").value.trim()),
     situation: document.getElementById("f-situation").value.trim(),
     requires: setFlag,
     accept: makeBranch("accept"),
@@ -10145,7 +10234,7 @@ function saveCard() {
     snapshot();
     card.speaker = document.getElementById("f-speaker").value.trim();
     card.ministry = document.getElementById("f-ministry").value.trim();
-    card.topic = document.getElementById("f-topic").value;
+    card.topic = resolveTopic(document.getElementById("f-topic").value, document.getElementById("f-ministry").value.trim());
     card.situation = document.getElementById("f-situation").value.trim();
     const cond = readAddCardCondition();
     if (cond) card.condition = cond;
@@ -10599,23 +10688,31 @@ modalBackdrop.addEventListener("click", (e) => {
   if (e.target === modalBackdrop) tryCloseModal();
 });
 
-// "+ Generate parallel option" buttons in the edit modal. Adds a
-// new pool member to the parent's Accept or Decline branch and
-// refreshes the list inline (no modal close).
+// Bulk parallel generator — "How many? [N] [Generate]". Player ask
+// 2026-05: "ask me how many parallel cards i wanna create and you
+// generate those cards. by default always create 2 parallel cards
+// for every single card." Each generated parallel is context-aware
+// (uses the parent's situation as the seed) and follows v30 tone +
+// dilemma rules.
 for (const side of ["accept", "decline"]) {
   document.getElementById("parallel-add-" + side).addEventListener("click", () => {
     if (!editingCardId) {
       alert("Save this card first, then add parallel options.");
       return;
     }
-    const newCard = addParallelOption(editingCardId, side);
-    if (newCard) {
+    const countInput = document.getElementById("parallel-count-" + side);
+    let n = parseInt(countInput && countInput.value || "2", 10);
+    if (isNaN(n) || n < 1) n = 1;
+    if (n > 10) n = 10;
+    const made = [];
+    for (let i = 0; i < n; i++) {
+      const c = addParallelOption(editingCardId, side);
+      if (c) made.push(c);
+    }
+    if (made.length) {
       refreshParallelUI(side);
-      // Re-render the canvas so the new pool card appears
       rerenderAll();
-      // Re-open the parent edit modal (rerenderAll doesn't close it
-      // but we need to ensure the parallel UI stays current)
-      showCopyToast("Parallel option added · " + newCard.speaker);
+      showCopyToast(`✨ Generated ${made.length} parallel option${made.length === 1 ? "" : "s"} on ${side.toUpperCase()}`);
     }
   });
 }
@@ -12451,6 +12548,25 @@ const persisted = loadPersisted();
 // the user's deck that bin/sync-pages copies into the Pages mirror.
 // If it lands, hydrate from it; otherwise stay empty. Hydration runs
 // async so the canvas paints immediately.
+// TODO (player ask 2026-05): "this fires logic, I will select always
+// fires but later when I created all of the cards I will ask you to
+// come up with a logic that we see all of the cards in the chain
+// cos this is a chain. also same chain doesn't happen anytime soon."
+// Implementation plan when the user requests it:
+//   1. Per-chain "first-pass mode": engine guarantees every card in
+//      the chain fires at least once before any card in that chain
+//      fires twice (rotate through unfired cards on a single-cycle
+//      queue). After cycle completes, switch to weighted draw.
+//   2. Same-chain cooldown: after a chain seed fires, the same chain
+//      can't fire again for N days (configurable per-chain field
+//      `chainCooldownDays`, default ~30). Other chains free to fire.
+//   3. Combined: rotation guarantees coverage; cooldown guarantees
+//      spacing. Together they mean the player sees breadth before
+//      repetition.
+// Hooks needed: chain-load metadata, per-card `firedCount`, draw
+// filter at the engine layer. Not implemented yet — the UI stays at
+// "always fires" until the user gives the green light.
+
 function bootRender() {
   CHAINS.forEach(renderChainHeader);
   CHAINS.forEach(chain => chain.cards.forEach(card => renderCard(chain, card)));
