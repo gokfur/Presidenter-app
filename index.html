@@ -2265,6 +2265,67 @@
     outline: 2px solid var(--gold);
     outline-offset: 2px;
   }
+  /* Style-guide exception toggle — sits below the validation pills.
+     Gold border so the author sees it's a deliberate escape hatch. */
+  .modal-card .styleguide-override {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin-top: 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    background: var(--bg-deep);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .modal-card .styleguide-override:hover {
+    border-color: var(--gold);
+  }
+  .modal-card .styleguide-override input[type="checkbox"] {
+    width: 18px; height: 18px;
+    margin-top: 2px;
+    flex-shrink: 0;
+    accent-color: var(--gold);
+    cursor: pointer;
+  }
+  .modal-card .styleguide-override b {
+    font-size: 12px;
+    color: var(--text-primary);
+  }
+  .modal-card .styleguide-override .sub {
+    display: block;
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin-top: 2px;
+    font-weight: 400;
+  }
+  .modal-card .styleguide-override input:checked ~ span b {
+    color: var(--gold);
+  }
+  .modal-card .validation-summary.exception .v-pill.fail {
+    background: transparent;
+    color: var(--text-faint);
+    border-color: var(--hairline);
+    text-decoration: line-through;
+  }
+  /* Chip on the rendered card so the author can spot exception
+     cards on the canvas. Gold border + diagonal hatch. */
+  .card .exception-chip {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-weight: 700;
+    background: rgba(212, 168, 80, 0.08);
+  }
+
   /* Condition builder (Add Card "Fires only if") — three controls
      on one row: meter dropdown, comparator dropdown, threshold input.
      Touch targets ≥40px tall; uses native focus rings amplified by
@@ -3206,6 +3267,17 @@
         <textarea id="f-situation" maxlength="220" placeholder="Two sentences of setup, one yes/no question. Speaker = the one presenting the choice."></textarea>
         <div class="counter" id="f-situation-counter">0 / 140 chars · 0 sentences</div>
         <div class="validation-summary" id="f-situation-validation"></div>
+        <!-- Style-guide override — when checked, all v29 hard rules
+             become advisory pills. Player ask 2026-05: "add a
+             checkbox that says make styleguide exception. so, i can
+             create some out of box card." -->
+        <label class="styleguide-override">
+          <input type="checkbox" id="f-styleguide-exception">
+          <span>
+            <b>Make style-guide exception</b>
+            <span class="sub">All v29 rules become advisory. The card ships even if it's over the length cap, doesn't end in a yes/no, names another cast member, etc. Use sparingly — the chip on the card surfaces "Style-guide exception" so you can find these later.</span>
+          </span>
+        </label>
       </div>
     </div>
 
@@ -5436,32 +5508,43 @@ function runHealthCheck() {
     }
 
     for (const c of ch.cards) {
+      // Style-guide exception (player ask 2026-05) — author waived
+      // the v29 / em-dash / meter style rules on this card on
+      // purpose. We skip the soft style checks but keep the
+      // engine-level checks (cast-50 drift, wiring, flags, era
+      // ordering) running so the card stays loadable.
+      const skipStyle = !!c.styleguideException;
       // ===== v29 rules (STYLE_GUIDE.md §11) =====
-      if (c.situation.length > 220) {
-        issues.v29.push({ card: c, kind: "long-hard", detail: c.situation.length + " chars (>220 hard cap)", ref: "STYLE_GUIDE §11 hard cap", fix: "long-hard" });
-      } else if (c.situation.length > 140) {
-        issues.v29.push({ card: c, kind: "long-soft", detail: c.situation.length + " chars (>140 soft cap)", ref: "STYLE_GUIDE §11 soft cap", fix: "long-soft" });
+      if (!skipStyle) {
+        if (c.situation.length > 220) {
+          issues.v29.push({ card: c, kind: "long-hard", detail: c.situation.length + " chars (>220 hard cap)", ref: "STYLE_GUIDE §11 hard cap", fix: "long-hard" });
+        } else if (c.situation.length > 140) {
+          issues.v29.push({ card: c, kind: "long-soft", detail: c.situation.length + " chars (>140 soft cap)", ref: "STYLE_GUIDE §11 soft cap", fix: "long-soft" });
+        }
+        const sents = (c.situation.match(/[.!?]/g) || []).length;
+        if (sents > 3) issues.v29.push({ card: c, kind: "sentences", detail: sents + " sentences (>3)", ref: "STYLE_GUIDE §11", fix: "sentences" });
+        if (sents < 1) issues.v29.push({ card: c, kind: "no-terminator", detail: "no sentence terminators", ref: "STYLE_GUIDE §11", fix: "no-q" });
+        if (!c.situation.trim().endsWith("?")) issues.v29.push({ card: c, kind: "no-q", detail: "missing closing ? (binary swipe needs yes/no question)", ref: "STYLE_GUIDE §11", fix: "no-q" });
+        const otherCast = [...CAST].filter(n => n !== c.speaker && new RegExp("\\b" + n.replace(/\./g, "\\.") + "\\b").test(c.situation));
+        if (otherCast.length) issues.v29.push({ card: c, kind: "other-cast", detail: "names " + otherCast.join(", ") + " (speaker must be the subject)", ref: "STYLE_GUIDE §11", fix: "speaker-subject" });
+        // Em-dashes across all player-facing strings
+        const playerFacing = [
+          c.situation,
+          c.accept && c.accept.outcome,
+          c.decline && c.decline.outcome,
+        ].filter(Boolean);
+        if (playerFacing.some(s => s.includes("—"))) {
+          issues.v29.push({ card: c, kind: "em-dash", detail: "contains — (use comma or period)", ref: "CLAUDE §3 em-dash gate", fix: "em-dash" });
+        }
+        // Outcomes non-empty (CLAUDE §6 + CONTENT_AUTHORING §1)
+        if (c.accept && !c.accept.outcome) issues.v29.push({ card: c, kind: "no-accept-outcome", detail: "Accept has no outcome string", ref: "CONTENT_AUTHORING §1" });
+        if (c.decline && !c.decline.outcome) issues.v29.push({ card: c, kind: "no-decline-outcome", detail: "Decline has no outcome string", ref: "CONTENT_AUTHORING §1" });
       }
-      const sents = (c.situation.match(/[.!?]/g) || []).length;
-      if (sents > 3) issues.v29.push({ card: c, kind: "sentences", detail: sents + " sentences (>3)", ref: "STYLE_GUIDE §11", fix: "sentences" });
-      if (sents < 1) issues.v29.push({ card: c, kind: "no-terminator", detail: "no sentence terminators", ref: "STYLE_GUIDE §11", fix: "no-q" });
-      if (!c.situation.trim().endsWith("?")) issues.v29.push({ card: c, kind: "no-q", detail: "missing closing ? (binary swipe needs yes/no question)", ref: "STYLE_GUIDE §11", fix: "no-q" });
-      const otherCast = [...CAST].filter(n => n !== c.speaker && new RegExp("\\b" + n.replace(/\./g, "\\.") + "\\b").test(c.situation));
-      if (otherCast.length) issues.v29.push({ card: c, kind: "other-cast", detail: "names " + otherCast.join(", ") + " (speaker must be the subject)", ref: "STYLE_GUIDE §11", fix: "speaker-subject" });
-      // Em-dashes across all player-facing strings
-      const playerFacing = [
-        c.situation,
-        c.accept && c.accept.outcome,
-        c.decline && c.decline.outcome,
-      ].filter(Boolean);
-      if (playerFacing.some(s => s.includes("—"))) {
-        issues.v29.push({ card: c, kind: "em-dash", detail: "contains — (use comma or period)", ref: "CLAUDE §3 em-dash gate", fix: "em-dash" });
-      }
-      // Outcomes non-empty (CLAUDE §6 + CONTENT_AUTHORING §1)
-      if (c.accept && !c.accept.outcome) issues.v29.push({ card: c, kind: "no-accept-outcome", detail: "Accept has no outcome string", ref: "CONTENT_AUTHORING §1" });
-      if (c.decline && !c.decline.outcome) issues.v29.push({ card: c, kind: "no-decline-outcome", detail: "Decline has no outcome string", ref: "CONTENT_AUTHORING §1" });
 
       // ===== Meter rules (CLAUDE §6 + GAME_RULES) =====
+      // Meter cap (±10) still applies — that's an engine ceiling, not
+      // a style rule. The weak/imbalance pills are style guidance and
+      // get skipped for exception cards.
       for (const side of ["accept", "decline"]) {
         const b = c[side]; if (!b) continue;
         for (const m of ["env", "mil", "wel", "eco"]) {
@@ -5471,21 +5554,23 @@ function runHealthCheck() {
           }
         }
       }
-      const isFunny = c.topic === "funnyFlavor" || c.topic === "funnyAccident";
-      if (!isFunny) {
-        for (const side of ["accept", "decline"]) {
-          const b = c[side]; if (!b) continue;
-          const sum = ["env","mil","wel","eco"].reduce((s,m) => s + Math.abs(b[m]||0), 0);
-          if (sum < 2) {
-            issues.meters.push({ card: c, kind: "weak", detail: `${side} only shifts ${sum} meter pts (need ≥2)`, ref: "CLAUDE §6 meter rule", fix: "weak" });
+      if (!skipStyle) {
+        const isFunny = c.topic === "funnyFlavor" || c.topic === "funnyAccident";
+        if (!isFunny) {
+          for (const side of ["accept", "decline"]) {
+            const b = c[side]; if (!b) continue;
+            const sum = ["env","mil","wel","eco"].reduce((s,m) => s + Math.abs(b[m]||0), 0);
+            if (sum < 2) {
+              issues.meters.push({ card: c, kind: "weak", detail: `${side} only shifts ${sum} meter pts (need ≥2)`, ref: "CLAUDE §6 meter rule", fix: "weak" });
+            }
           }
         }
-      }
-      const acceptSum = c.accept ? (c.accept.env||0)+(c.accept.mil||0)+(c.accept.wel||0)+(c.accept.eco||0) : 0;
-      const declineSum = c.decline ? (c.decline.env||0)+(c.decline.mil||0)+(c.decline.wel||0)+(c.decline.eco||0) : 0;
-      const balance = Math.abs(acceptSum - declineSum);
-      if (balance > 8) {
-        issues.meters.push({ card: c, kind: "imbalance", detail: `Accept sum ${acceptSum > 0 ? "+" : ""}${acceptSum}, Decline sum ${declineSum > 0 ? "+" : ""}${declineSum} — |diff|=${balance} (suggest <8)`, ref: "CONTENT_AUTHORING balance rule", fix: "imbalance" });
+        const acceptSum = c.accept ? (c.accept.env||0)+(c.accept.mil||0)+(c.accept.wel||0)+(c.accept.eco||0) : 0;
+        const declineSum = c.decline ? (c.decline.env||0)+(c.decline.mil||0)+(c.decline.wel||0)+(c.decline.eco||0) : 0;
+        const balance = Math.abs(acceptSum - declineSum);
+        if (balance > 8) {
+          issues.meters.push({ card: c, kind: "imbalance", detail: `Accept sum ${acceptSum > 0 ? "+" : ""}${acceptSum}, Decline sum ${declineSum > 0 ? "+" : ""}${declineSum} — |diff|=${balance} (suggest <8)`, ref: "CONTENT_AUTHORING balance rule", fix: "imbalance" });
+        }
       }
 
       // ===== Speaker + ministry (CAST_50.md) =====
@@ -7385,9 +7470,23 @@ function countSentences(s) {
 }
 
 function auditCard(card) {
-  const sit = card.situation;
+  const sit = card.situation || "";
   const tail = sit.trim();
   const otherNames = [...CAST].filter(n => n !== card.speaker && new RegExp("\\b" + n.replace(/\./g, "\\.") + "\\b").test(sit));
+  // Style-guide exception (player ask 2026-05) — author waived the
+  // v29 soft rules on this card deliberately. Mark every rule as
+  // green so the card chip's audit dot reads OK, but keep the raw
+  // values so authors can still see how far over they are.
+  if (card.styleguideException) {
+    return {
+      exception: true,
+      len: true, lenValue: sit.length,
+      sentences: true, sentencesValue: countSentences(sit),
+      yesno: true,
+      speakerSubject: true,
+      otherNames,
+    };
+  }
   return {
     len: sit.length <= 140,
     lenValue: sit.length,
@@ -7695,6 +7794,7 @@ function renderCard(chain, card) {
     ${(card.minEra || card.maxEra) ? `<div class="era-chip">era ${card.minEra || "*"} → ${card.maxEra || "*"}</div>` : ""}
     ${card.scheme ? `<div class="scheme-chip">fires ${card.scheme}</div>` : ""}
     ${card.tutorialOnly ? `<div class="tutorial-chip">tutorial</div>` : ""}
+    ${card.styleguideException ? `<div class="exception-chip" title="This card was authored with the v29 style-guide rules waived. The health check will skip the soft-rule pills for this card.">⚠ style-guide exception</div>` : ""}
     ${card.notes ? `<div class="notes-pin" title="${card.notes.replace(/"/g, "&quot;")}">📝</div>` : ""}
     ${card.shipped ? `<div class="shipped-pin" title="Already added to the game">✓</div>` : ""}
     ${card.branchedFrom ? (() => {
@@ -8794,6 +8894,7 @@ function openModal(presetParentId, editId) {
       topicEl.dispatchEvent(new Event("change"));
       document.getElementById("f-situation").value = editCard.situation || "";
       populateAddCardCondition(editCard.condition || "");
+      document.getElementById("f-styleguide-exception").checked = !!editCard.styleguideException;
       document.getElementById("f-trickyclue").value = editCard.trickyClue || "";
       document.getElementById("f-memory").value = editCard.memoryFragment || (MEMORY_FRAGMENTS[editCard.speaker] || "");
       // Alt phrasings restore into the variants list (one row per phrasing)
@@ -8860,6 +8961,8 @@ function closeModal() {
   }
   renderVariantsList([]);
   populateAddCardCondition("");
+  const exBox = document.getElementById("f-styleguide-exception");
+  if (exBox) exBox.checked = false;
   document.getElementById("f-trickyclue-row").style.display = "none";
   document.getElementById("f-speaker").value = "";
   document.getElementById("f-ministry").value = "";
@@ -9664,7 +9767,15 @@ function runValidation() {
   counter.classList.toggle("warn", len > 140 || sentences > 3 || !endsInQ);
   counter.classList.toggle("ok", lenOk && sentencesOk && endsInQ && subjectOk);
 
+  // Style-guide exception — when checked, every v29 pill becomes
+  // advisory (strikethrough, gray). Save button still requires the
+  // bare-minimum trio: speaker, situation non-empty, parent slot
+  // (or orphan). Without those the card has no body to ship.
+  const exception = document.getElementById("f-styleguide-exception")?.checked || false;
+  validation.classList.toggle("exception", exception);
+
   validation.innerHTML = `
+    ${exception ? `<span class="v-pill" style="background:var(--gold); color:var(--bg-deep); border-color:var(--gold);">⚠ Style-guide exception ON</span>` : ""}
     <span class="v-pill ${lenOk ? "" : "fail"}" title="Soft cap from v29: keep the situation short enough to swipe quickly.">${lenOk ? "✓" : "✗"} ≤140 chars</span>
     <span class="v-pill ${sentencesOk ? "" : "fail"}">${sentencesOk ? "✓" : "✗"} ≤3 sentences</span>
     <span class="v-pill ${endsInQ ? "" : "fail"}" title="Card must end in a yes/no question for the binary Accept/Decline swipe.">${endsInQ ? "✓" : "✗"} ends in ?</span>
@@ -9677,9 +9788,19 @@ function runValidation() {
     ${speaker ? `<span class="v-pill ${speakerOnCast ? "" : "fail"}" title="${speakerOnCast ? "Speaker is on the cast list." : "Not in cast — consider one of the 18 registered names."}">${speakerOnCast ? "✓" : "⚠"} cast 50</span>` : `<span class="v-pill fail">✗ speaker required</span>`}
   `;
 
-  const allOk = lenOk && sentencesOk && endsInQ && subjectOk && emDashOk
-              && outcomesOk && meterAcceptOk && meterDeclineOk && parentOk
-              && speaker && ministry;
+  // Save-enable rule:
+  //   normal mode  → every v29 pill green AND speaker AND ministry
+  //   exception mode → just the bare minimum (speaker, situation,
+  //                    parent slot / orphan) so the card has a body
+  let allOk;
+  if (exception) {
+    const sitNonEmpty = sit.trim().length > 0;
+    allOk = !!speaker && !!ministry && sitNonEmpty && parentOk;
+  } else {
+    allOk = lenOk && sentencesOk && endsInQ && subjectOk && emDashOk
+         && outcomesOk && meterAcceptOk && meterDeclineOk && parentOk
+         && speaker && ministry;
+  }
   saveBtn.disabled = !allOk;
 }
 
@@ -9706,6 +9827,9 @@ function buildCardJSON() {
     const trickyClue = document.getElementById("f-trickyclue").value.trim();
     if (trickyClue) card.trickyClue = trickyClue;
     if (variants.length) card.situationVariants = variants;
+    if (document.getElementById("f-styleguide-exception")?.checked) {
+      card.styleguideException = true;
+    }
     return JSON.stringify(card, null, 2);
   }
   const chain = CHAINS.find(c => c.id === chainId);
@@ -9765,6 +9889,9 @@ function buildCardJSON() {
   if (trickyClue) card.trickyClue = trickyClue;
   const variants = readVariantsList();
   if (variants.length) card.situationVariants = variants;
+  if (document.getElementById("f-styleguide-exception")?.checked) {
+    card.styleguideException = true;
+  }
   return JSON.stringify(card, null, 2);
 }
 
@@ -9799,6 +9926,11 @@ function saveCard() {
     const cond = readAddCardCondition();
     if (cond) card.condition = cond;
     else delete card.condition;
+    if (document.getElementById("f-styleguide-exception").checked) {
+      card.styleguideException = true;
+    } else {
+      delete card.styleguideException;
+    }
     // New fields wired into the data model:
     const tricky = document.getElementById("f-trickyclue").value.trim();
     if (tricky) card.trickyClue = tricky; else delete card.trickyClue;
@@ -10171,6 +10303,15 @@ for (const id of ["f-accept-outcome", "f-decline-outcome", "f-accept-cond",
   el.addEventListener("input", runValidation);
   el.addEventListener("change", runValidation);
 }
+// Style-guide exception checkbox — runs validation on toggle so the
+// pills + save button reflect the new mode instantly. Player ask
+// 2026-05.
+(function wireStyleguideException(){
+  const el = document.getElementById("f-styleguide-exception");
+  if (!el) return;
+  el.addEventListener("change", runValidation);
+})();
+
 // Show/hide the flag-name fallback when the meter dropdown toggles
 // to "Requires flag…" — and refresh validation on any change.
 (function wireAddCardConditionBuilder(){
