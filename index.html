@@ -3510,7 +3510,7 @@
     <div id="co-status" style="background: var(--bg-deep); padding: 10px; border-radius: 8px; font-size: 11px; line-height: 1.5; color: var(--text-muted); min-height: 24px; margin-top: 12px;"></div>
 
     <div class="modal-actions">
-      <button id="co-generate" class="primary">Generate chain</button>
+      <button id="co-generate" class="primary">🪄 Generate chain</button>
       <button id="co-cancel" style="display:none;" aria-hidden="true"></button>
     </div>
   </div>
@@ -3998,7 +3998,7 @@
             <div class="parallel-bulk">
               <label>How many?</label>
               <input id="parallel-count-accept" type="number" min="1" max="10" value="2" aria-label="Number of parallel options to generate on Accept">
-              <button type="button" class="parallel-add" id="parallel-add-accept">✨ Generate</button>
+              <button type="button" class="parallel-add" id="parallel-add-accept">🪄 Generate</button>
             </div>
           </div>
           <div class="parallel-block" id="parallel-decline" style="margin-top: 12px;">
@@ -4007,7 +4007,7 @@
             <div class="parallel-bulk">
               <label>How many?</label>
               <input id="parallel-count-decline" type="number" min="1" max="10" value="2" aria-label="Number of parallel options to generate on Decline">
-              <button type="button" class="parallel-add" id="parallel-add-decline">✨ Generate</button>
+              <button type="button" class="parallel-add" id="parallel-add-decline">🪄 Generate</button>
             </div>
           </div>
         </div>
@@ -6949,21 +6949,54 @@ function showAnalysisReport() {
 // button for 'Add all to the game' and once clicked add these to
 // the game... make sure we don't add the same card twice!"
 // ===================================================================
-function addAllToGame() {
+async function addAllToGame() {
+  // Player ask 2026-05-12: "Ship all unshipped cards should send all
+  // cards to the game, local storage AND github. Avoid duplications."
+  // Three-step pipeline:
+  //   1. Mark every unshipped card as shipped (idempotent — already-
+  //      shipped cards aren't re-marked).
+  //   2. persist() writes to localStorage.
+  //   3. githubCommit() pushes the full deck to gokfur/Presidenter-deck
+  //      so the Pages mirror picks it up on next sync-pages run.
+  // No duplications: shipped cards are skipped on every pass. The
+  // deck.json on GitHub is overwritten (not appended) so cards can't
+  // be double-listed there either.
   const unshipped = CHAINS.flatMap(c => c.cards).filter(c => !c.shipped);
-  if (!unshipped.length) {
-    showCopyToast("All cards already in the game");
+  const ghKeys = (function() {
+    try { return JSON.parse(localStorage.getItem("presidenter:github:v1") || "{}"); }
+    catch (e) { return {}; }
+  })();
+  const hasGh = !!(ghKeys.token && ghKeys.repo);
+  if (!unshipped.length && !hasGh) {
+    showCopyToast("All cards already shipped. (Save a GitHub token in ⎇ Sync to also push to git.)");
     return;
   }
-  if (!confirm(`Add ${unshipped.length} new card${unshipped.length === 1 ? "" : "s"} to the game?\n(Already-shipped cards stay where they are — this is idempotent.)`)) return;
-  snapshot();
-  for (const c of unshipped) {
-    c.shipped = true;
-    c.shippedAt = new Date().toISOString().slice(0, 10);
+  const msg = unshipped.length
+    ? `Ship ${unshipped.length} new card${unshipped.length === 1 ? "" : "s"}?`
+    : "All cards are already shipped. Push the current deck to GitHub anyway?";
+  if (!confirm(`${msg}\n\nThis will:\n  · Mark cards as shipped (localStorage)${hasGh ? "\n  · Push deck.json to GitHub" : "\n  · (No GitHub token — local only)"}\n\nIdempotent — re-shipping is a no-op.`)) return;
+  if (unshipped.length) {
+    snapshot();
+    for (const c of unshipped) {
+      c.shipped = true;
+      c.shippedAt = new Date().toISOString().slice(0, 10);
+    }
   }
   persist();
   rerenderAll();
-  showCopyToast(`✓ Shipped ${unshipped.length} cards to the game`);
+  if (hasGh) {
+    showCopyToast(unshipped.length
+      ? `✓ Shipped ${unshipped.length} cards · pushing to GitHub…`
+      : "Pushing deck to GitHub…");
+    try {
+      await githubCommit();
+      showCopyToast(`✓ Shipped ${unshipped.length} · pushed to GitHub.`);
+    } catch (e) {
+      showCopyToast("Local save OK · GitHub push failed (see ⎇ Sync modal).");
+    }
+  } else {
+    showCopyToast(`✓ Shipped ${unshipped.length} cards locally. Save a GitHub token in ⎇ Sync to also push.`);
+  }
 }
 
 // ===================================================================
@@ -11765,12 +11798,18 @@ async function generateChainFromOptions() {
   // race with a second click. Cleared immediately so cancel works.
   const extend = pendingLeafExtend;
   pendingLeafExtend = null;
-  const length = parseInt(document.getElementById("co-length").value, 10);
+  // BUGFIX 2026-05-12 — co-method radio was retired in favour of a
+  // single hidden input pinned to "claude". The old code queried
+  // input[name='co-method']:checked which is null for hidden inputs,
+  // and the resulting `.value` of null crashed the handler silently.
+  // That's why + → Chain → Generate did nothing, and 🌱 → Generate
+  // (which routes through the same modal) did nothing either.
+  const lengthRaw = parseInt(document.getElementById("co-length").value, 10);
+  const length = isNaN(lengthRaw) ? 5 : Math.max(3, Math.min(50, lengthRaw));
   const theme = document.getElementById("co-theme").value || null;
   const speaker = document.getElementById("co-speaker").value || null;
   const endingId = document.getElementById("co-ending").value;
   const customEnding = document.getElementById("co-custom-ending").value.trim();
-  const method = document.querySelector("input[name='co-method']:checked").value;
   const status = document.getElementById("co-status");
 
   let endingPrompt = null;
@@ -12286,7 +12325,11 @@ function computeCoachSuggestions() {
   }
 
   // === CHAIN STRUCTURE — leaf dead-ends ===
+  // Player ask 2026-05-12: "Instead of saying skip suggest me
+  // things." Find the first dead-end card so the CTA can jump
+  // directly to it (where the gold + extend button lives).
   let leafCount = 0;
+  let firstLeafCard = null;
   for (const ch of CHAINS) {
     for (const c of (ch.cards || [])) {
       for (const side of ["accept", "decline"]) {
@@ -12294,19 +12337,29 @@ function computeCoachSuggestions() {
         if (!b) continue;
         const hasTarget = b.target || (b.poolTargets && b.poolTargets.length);
         const hasTrigger = b.triggersChain || b.forcesEnding;
-        if (!hasTarget && !hasTrigger) leafCount++;
+        if (!hasTarget && !hasTrigger) {
+          leafCount++;
+          if (!firstLeafCard) firstLeafCard = c;
+        }
       }
     }
   }
-  if (leafCount >= 6 && total >= 10) {
+  if (leafCount >= 6 && total >= 10 && firstLeafCard) {
     out.push({
       severity: "medium",
       title: `${leafCount} swipe paths dead-end into nothing`,
-      reason: "Cards with 'CHAIN ENDS' on both swipes feel incomplete. Click the gold + button on any leaf to extend it into a continuation chain — the AI uses your card's outcome as the seed.",
+      reason: "Cards with 'CHAIN ENDS' on both swipes feel incomplete. Jump to the first one and click its gold + button to extend it into a continuation chain.",
       evidence: `${leafCount} leaf path${leafCount === 1 ? "" : "s"} across ${CHAINS.length} chain${CHAINS.length === 1 ? "" : "s"}`,
-      cta: "Skip",
-      action: "skip",
-      onClick: () => { /* informational */ },
+      cta: "Jump to first dead-end",
+      onClick: () => {
+        const targetChain = CHAINS.find(c => c.cards.includes(firstLeafCard));
+        if (targetChain && targetChain.room && targetChain.room !== activeRoom && activeRoom !== "__all__") {
+          activeRoom = targetChain.room;
+          persistRooms();
+          rerenderAll();
+        }
+        setTimeout(() => setFocusedCard(firstLeafCard.id, false), 100);
+      },
     });
   }
 
