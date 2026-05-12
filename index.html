@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>Presidenter — 4 Chains, Interactive Flow Map</title>
+<title>Presidenter Card Bank</title>
 <style>
   :root {
     --bg-deep: #0a0813;
@@ -1543,33 +1543,108 @@
   #health-modal .h-section h3 .badge.ok { background: var(--accept); }
   #health-modal .h-issue {
     background: var(--surface2);
-    border-left: 3px solid var(--decline);
-    padding: 8px 10px;
-    margin-bottom: 6px;
+    border-left: 4px solid var(--decline);
+    padding: 10px 12px;
+    margin-bottom: 8px;
     border-radius: 8px;
     font-size: 12px;
-    display: flex; justify-content: space-between; align-items: center;
-    gap: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  #health-modal .h-issue.sev-critical { border-left-color: var(--decline); }
+  #health-modal .h-issue.sev-high     { border-left-color: #e58a49; }
+  #health-modal .h-issue.sev-medium   { border-left-color: var(--gold); }
+  #health-modal .h-issue.sev-low      { border-left-color: var(--accept); }
+  #health-modal .h-issue .h-issue-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  #health-modal .h-issue .h-issue-head b {
+    color: var(--text-primary);
+    font-weight: 700;
+  }
+  #health-modal .h-issue .h-detail {
+    color: var(--text-muted);
+    font-size: 11px;
+    line-height: 1.45;
   }
   #health-modal .h-issue .h-meta {
-    color: var(--text-muted);
+    color: var(--text-faint);
     font-size: 10px;
-    font-family: SF Mono, monospace;
+    font-family: SF Mono, ui-monospace, monospace;
   }
-  #health-modal .h-issue button {
+  #health-modal .h-issue .h-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  #health-modal .h-issue .h-actions button {
     flex-shrink: 0;
-    padding: 4px 10px;
+    padding: 5px 10px;
     border-radius: 6px;
-    border: 1px solid var(--gold);
+    border: 1px solid var(--hairline);
     background: transparent;
-    color: var(--gold);
+    color: var(--text-muted);
     cursor: pointer;
     font-size: 10px;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     font-weight: 700;
+    transition: all 0.15s;
   }
-  #health-modal .h-issue button:hover { background: var(--gold); color: var(--bg-deep); }
+  #health-modal .h-issue .h-actions button:hover {
+    background: var(--surface);
+    color: var(--text-primary);
+    border-color: var(--gold);
+  }
+  #health-modal .h-issue .h-actions button.act-focus  { color: var(--gold); border-color: var(--gold); }
+  #health-modal .h-issue .h-actions button.act-fix    { background: var(--gold); color: var(--bg-deep); border-color: var(--gold); }
+  #health-modal .h-issue .h-actions button.act-fix:hover { filter: brightness(1.08); }
+  #health-modal .h-issue .h-actions button.act-delete { color: var(--decline); border-color: var(--decline); }
+  #health-modal .h-issue .h-actions button.act-delete:hover { background: var(--decline); color: white; }
+  #health-modal .h-issue .h-actions .manual-tag {
+    padding: 5px 10px;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  #health-modal .h-toc {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--hairline);
+  }
+  #health-modal .h-toc a {
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--surface2);
+    color: var(--text-muted);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+    text-decoration: none;
+    border: 1px solid var(--hairline);
+    transition: all 0.15s;
+  }
+  #health-modal .h-toc a:hover {
+    color: var(--gold);
+    border-color: var(--gold);
+  }
+  #health-modal .h-toc a .count {
+    margin-left: 4px;
+    background: var(--decline);
+    color: white;
+    padding: 0 5px;
+    border-radius: 4px;
+  }
+  #health-modal .h-toc a .count.ok { background: var(--accept); }
   /* Prototype play card — looks like an in-game card for click-thru */
   #proto-card-view .pc {
     background: var(--bg-mid);
@@ -2840,7 +2915,7 @@
 <body>
 
 <div id="header">
-  <h1>Presidenter — Four Chains, One Cabinet <button id="legend-toggle" title="Show legend / help" style="background:transparent;border:1px solid var(--hairline);color:var(--text-muted);border-radius:6px;padding:2px 8px;font-size:10px;letter-spacing:0.14em;cursor:pointer;margin-left:10px;text-transform:uppercase;">Help</button></h1>
+  <h1>Presidenter Card Bank <button id="legend-toggle" title="Show legend / help" style="background:transparent;border:1px solid var(--hairline);color:var(--text-muted);border-radius:6px;padding:2px 8px;font-size:10px;letter-spacing:0.14em;cursor:pointer;margin-left:10px;text-transform:uppercase;">Help</button></h1>
 </div>
 
 <div id="legend">
@@ -3239,23 +3314,15 @@
       </div>
     </div>
 
-    <div class="row full">
-      <div>
-        <label>Generation method</label>
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 4px;">
-          <label class="ins-checkbox" style="background: var(--surface2); border: 1px solid var(--hairline); padding: 8px; border-radius: 8px; justify-content: center; cursor: pointer;">
-            <input type="radio" name="co-method" value="template" checked> Template
-          </label>
-          <label class="ins-checkbox" style="background: var(--surface2); border: 1px solid var(--hairline); padding: 8px; border-radius: 8px; justify-content: center; cursor: pointer;">
-            <input type="radio" name="co-method" value="claude"> Claude AI
-          </label>
-          <label class="ins-checkbox" style="background: var(--surface2); border: 1px solid var(--hairline); padding: 8px; border-radius: 8px; justify-content: center; cursor: pointer;">
-            <input type="radio" name="co-method" value="gemini"> Gemini AI
-          </label>
-        </div>
-        <div id="co-method-hint" style="font-size: 11px; color: var(--text-faint); margin-top: 6px;">Template uses your hand-written STORY_ARCS library — instant, no API key needed.</div>
-      </div>
-    </div>
+    <!-- 2026-05 — generation-method radio retired (player ask:
+         "no need template mode, all generations must be context
+         aware. no random generation if i am creating a chain from
+         a single card"). The wizard always runs the context-aware
+         path: AI if a Claude/Gemini key is configured, otherwise
+         the local v30 context engine using the source card's
+         situation + outcome. No more random STORY_ARCS picks. -->
+    <input type="hidden" name="co-method" value="claude">
+    <div id="co-method-hint" style="font-size: 11px; color: var(--text-faint); margin-top: 4px;">Generation reads your card's situation, outcome and chain context and writes the continuation around it. If a Claude or Gemini key is saved in Settings, it's used for higher-quality output.</div>
 
     <div id="co-status" style="background: var(--bg-deep); padding: 10px; border-radius: 8px; font-size: 11px; line-height: 1.5; color: var(--text-muted); min-height: 24px; margin-top: 12px;"></div>
 
@@ -3421,7 +3488,7 @@
 </div>
 
 <div id="health-backdrop" class="modal-backdrop-v2" style="display:none;">
-  <div class="modal-card" style="max-width: 700px;">
+  <div id="health-modal" class="modal-card" style="max-width: 720px;">
     <div class="modal-header">
       <h2 id="health-title">Health check</h2>
       <button class="modal-close-x" data-fires="health-close" aria-label="Close">×</button>
@@ -3846,12 +3913,16 @@ function cardPosition(chain, card) {
       .filter(c => c && c.col === "parallel");
     const sibIdx = siblings.findIndex(c => c.id === card.id);
     // 3 cards per row inside this parent's band, wrap to next row
-    // when more siblings exist.
+    // when more siblings exist. Player ask 2026-05: "when I mass
+    // generated cards they are still overlaying on eachother."
+    // Bumped per-row spacing 360→440 and per-card column width
+    // 280→340 so card bodies (320px wide) never overlap horizontally.
     const SIBS_PER_ROW = 3;
+    const ROW_H = 440;
+    const COL_W = 340;
     const sibCol = sibIdx % SIBS_PER_ROW;
     const sibRow = Math.floor(sibIdx / SIBS_PER_ROW);
     // Cumulative y offset = sum of previous parents' band heights.
-    // Each parent's band height = ceil(maxSiblings / SIBS_PER_ROW) × 360.
     let yOffset = 0;
     for (let i = 0; i < zoneIdx; i++) {
       const p = parentsWithPools[i];
@@ -3864,9 +3935,9 @@ function cardPosition(chain, card) {
           .filter(c => c && c.col === "parallel");
         if (valid.length > count) count = valid.length;
       }
-      yOffset += Math.max(1, Math.ceil(count / SIBS_PER_ROW)) * 360 + 60;
+      yOffset += Math.max(1, Math.ceil(count / SIBS_PER_ROW)) * ROW_H + 80;
     }
-    return { x: baseX + 20 + sibCol * 280, y: 1300 + yOffset + sibRow * 360 };
+    return { x: baseX + 20 + sibCol * COL_W, y: 1380 + yOffset + sibRow * ROW_H };
   }
   // Pool cards lay out as a vertical stack in the right column,
   // tighter spacing than regular cards because the pool typically
@@ -4913,23 +4984,32 @@ function handleQuickConnectClick(cardId) {
   if (sourceCard && targetCard) {
     const sourceChain = CHAINS.find(c => c.cards.includes(sourceCard));
     const targetChain = CHAINS.find(c => c.cards.includes(targetCard));
-    const accept = confirm(`Connect ${sourceCard.speaker} (${quickConnectSource}) → ${targetCard.speaker} (${cardId})\n\nOK = on ACCEPT swipe\nCancel = on DECLINE swipe`);
-    const side = accept ? "accept" : "decline";
-    snapshot();
-    if (sourceChain.id === targetChain.id) {
-      if (!sourceCard[side].setFlag) sourceCard[side].setFlag = quickConnectSource + "_" + side;
-      sourceCard[side].target = cardId;
-      if (!targetCard.requires) targetCard.requires = sourceCard[side].setFlag;
-    } else {
-      const triggers = normalizeTriggers(sourceCard[side].triggersChain);
-      if (!triggers.some(t => t.id === targetChain.id)) triggers.push({ id: targetChain.id, if: null });
-      sourceCard[side].triggersChain = triggers.length === 1
-        ? (triggers[0].if ? triggers[0] : triggers[0].id)
-        : triggers.map(t => t.if ? t : t.id);
-    }
-    persist();
-    rerenderAll();
-    showCopyToast(`Linked: ${sourceCard.speaker} ${side} → ${targetCard.speaker}`);
+    // Player ask 2026-05: "in the quick connect mode instead of
+    // making the cancel button 'on decline swipe' create specific
+    // buttons. cancel means cancel." Reuses the showSidePicker
+    // popover with two real Accept / Decline buttons.
+    const targetEl = document.getElementById(cardId);
+    const r = targetEl ? targetEl.getBoundingClientRect() : { left: window.innerWidth/2, top: 60, width: 0, height: 0 };
+    showSidePicker(r.left + r.width / 2, r.top + r.height / 2, sourceCard, targetCard, (side) => {
+      snapshot();
+      if (sourceChain.id === targetChain.id) {
+        if (!sourceCard[side].setFlag) sourceCard[side].setFlag = quickConnectSource + "_" + side;
+        sourceCard[side].target = cardId;
+        if (!targetCard.requires) targetCard.requires = sourceCard[side].setFlag;
+      } else {
+        const triggers = normalizeTriggers(sourceCard[side].triggersChain);
+        if (!triggers.some(t => t.id === targetChain.id)) triggers.push({ id: targetChain.id, if: null });
+        sourceCard[side].triggersChain = triggers.length === 1
+          ? (triggers[0].if ? triggers[0] : triggers[0].id)
+          : triggers.map(t => t.if ? t : t.id);
+      }
+      persist();
+      rerenderAll();
+      showCopyToast(`Linked: ${sourceCard.speaker} ${side} → ${targetCard.speaker}`);
+      quickConnectSource = null;
+      document.querySelectorAll(".card.qc-source").forEach(el => el.classList.remove("qc-source"));
+    });
+    return true;
   }
   quickConnectSource = null;
   return true;
@@ -6044,73 +6124,145 @@ function showHealthReport() {
     ? `<span style="color: var(--accept);">✓ ${cardCount} cards · all checks passed against CLAUDE.md, STYLE_GUIDE.md, GAME_RULES.md, CAST_50.md and CHAIN_AUTHORING.md</span>`
     : `${total} issue${total === 1 ? "" : "s"} across ${cardCount} cards. References to <code>docs/*.md</code> appear under each issue.`;
   fixBtn.style.display = total === 0 ? "none" : "inline-block";
+
+  // Severity map per category — what color the left stripe gets
+  const severity = {
+    v29: "high",
+    meters: "high",
+    drift: "medium",
+    wiring: "critical",
+    flags: "medium",
+    chain: "medium",
+  };
+  const categories = [
+    { key: "v29",     title: "v30 rule violations",            doc: "STYLE_GUIDE.md §11 + §12" },
+    { key: "wiring",  title: "Wiring · broken graph",          doc: "CHAIN_AUTHORING.md" },
+    { key: "drift",   title: "Speaker / ministry drift",       doc: "CAST_50.md" },
+    { key: "meters",  title: "Meter rules",                    doc: "CLAUDE.md §6 + GAME_RULES.md" },
+    { key: "flags",   title: "Flag balance",                   doc: "CHAIN_AUTHORING.md §3" },
+    { key: "chain",   title: "Chain shape",                    doc: "CHAIN_AUTHORING.md §1–2" },
+  ];
+
   let html = "";
-  function section(title, list, badgeKind) {
-    if (!list.length) return;
-    html += `<div class="h-section"><h3>${title} <span class="badge ${badgeKind || ""}">${list.length}</span></h3>`;
+  // Sticky table-of-contents bar — counts per category, jump links
+  const tocCells = categories
+    .filter(c => issues[c.key] && issues[c.key].length)
+    .map(c => `<a href="#h-sec-${c.key}"><span>${c.title}</span><span class="count">${issues[c.key].length}</span></a>`)
+    .join("");
+  if (tocCells) html += `<div class="h-toc">${tocCells}</div>`;
+
+  function renderSection(cat) {
+    const list = issues[cat.key] || [];
+    if (!list.length) return "";
+    const sev = severity[cat.key] || "medium";
+    let out = `<div class="h-section" id="h-sec-${cat.key}"><h3>${cat.title} <span class="badge">${list.length}</span> <span style="color: var(--text-faint); font-weight: 500; letter-spacing: 0.04em; text-transform: none; margin-left: 6px;">${cat.doc}</span></h3>`;
     for (const i of list) {
-      const label = i.card ? `<b>${i.card.speaker}</b> · ${i.card.id}` : (i.chain ? `chain "<b>${i.chain.name}</b>"` : "—");
-      const refHTML = i.ref ? `<div class="h-meta" style="color: var(--text-faint); margin-top: 2px;">↳ ${i.ref}</div>` : "";
-      const isManual = !i.fix;
-      const dataChain = i.chain ? ` data-chain="${i.chain.id}"` : "";
-      const fixHTML = i.fix
-        ? `<button data-fix="${i.fix}" data-card="${i.card ? i.card.id : ""}"${dataChain}>Auto-fix</button>`
-        : `<span class="manual-tag">Manual edit</span>`;
-      html += `<div class="h-issue${isManual ? " manual-only" : ""}"><div><div>${label}</div><div class="h-meta">${i.detail}</div>${refHTML}</div>${fixHTML}</div>`;
+      const label = i.card ? `<b>${i.card.speaker}</b> · <code style="color: var(--text-faint); font-size: 10px;">${i.card.id}</code>` : (i.chain ? `chain "<b>${i.chain.name}</b>"` : "—");
+      const refHTML = i.ref ? `<div class="h-meta">↳ ${i.ref}</div>` : "";
+      const cardAttr = i.card ? ` data-card="${i.card.id}"` : "";
+      const chainAttr = i.chain ? ` data-chain="${i.chain.id}"` : "";
+      // Action set: 🔍 Focus (zoom to card), ✎ Open (inspector), 🗑 Delete (cards only), Auto-fix (if available)
+      const actions = [];
+      if (i.card) {
+        actions.push(`<button class="act-focus"${cardAttr} title="Zoom the canvas to this card">🔍 Focus</button>`);
+        actions.push(`<button class="act-open"${cardAttr} title="Open the inspector for this card">✎ Open</button>`);
+        // "Wiring" issues often resolve by deleting the dead card
+        if (cat.key === "wiring" || cat.key === "chain") {
+          actions.push(`<button class="act-delete"${cardAttr} title="Delete this card (cascades to children in the same chain)">🗑 Delete card</button>`);
+        }
+      } else if (i.chain) {
+        actions.push(`<button class="act-focus"${chainAttr} data-anchor="seed" title="Jump to the chain's trigger card">🔍 Focus chain</button>`);
+      }
+      if (i.fix) {
+        actions.push(`<button class="act-fix" data-fix="${i.fix}"${cardAttr}${chainAttr}>✓ Auto-fix</button>`);
+      } else {
+        actions.push(`<span class="manual-tag">Needs manual edit</span>`);
+      }
+      out += `
+        <div class="h-issue sev-${sev}">
+          <div class="h-issue-head">${label}</div>
+          <div class="h-detail">${i.detail}</div>
+          ${refHTML}
+          <div class="h-actions">${actions.join("")}</div>
+        </div>`;
     }
-    html += `</div>`;
+    out += `</div>`;
+    return out;
   }
-  section("v29 rule violations · STYLE_GUIDE.md §11", issues.v29);
-  section("Meter rules · CLAUDE.md §6 + GAME_RULES.md", issues.meters);
-  section("Speaker / ministry drift · CAST_50.md", issues.drift);
-  section("Wiring · CHAIN_AUTHORING.md graph integrity", issues.wiring);
-  section("Flag balance · CHAIN_AUTHORING.md §3", issues.flags);
-  section("Chain shape · CHAIN_AUTHORING.md §1–2", issues.chain);
+
+  for (const cat of categories) html += renderSection(cat);
+
   if (total === 0) {
     html = `<div class="h-all-clear">✓ All clear — every card passes audit against the project's MD rules.</div>`;
   }
   body.innerHTML = html;
-  // Wire per-issue auto-fix buttons
-  for (const btn of body.querySelectorAll("button[data-fix]")) {
+
+  // Helper: jump to a card on the canvas, switching rooms if needed.
+  function focusCardFromHealth(cardId) {
+    document.getElementById("health-backdrop").classList.remove("open");
+    const targetChain = CHAINS.find(c => c.cards.some(x => x.id === cardId));
+    if (targetChain && targetChain.room && targetChain.room !== activeRoom && activeRoom !== "__all__") {
+      activeRoom = targetChain.room;
+      persistRooms();
+      rerenderAll();
+    }
+    setTimeout(() => setFocusedCard(cardId, false), 100);
+  }
+  function focusChainFromHealth(chainId) {
+    document.getElementById("health-backdrop").classList.remove("open");
+    const ch = CHAINS.find(c => c.id === chainId);
+    if (ch && ch.cards[0]) {
+      if (ch.room && ch.room !== activeRoom && activeRoom !== "__all__") {
+        activeRoom = ch.room;
+        persistRooms();
+        rerenderAll();
+      }
+      setTimeout(() => setFocusedCard(ch.cards[0].id, false), 100);
+    }
+  }
+
+  // Wire action buttons
+  for (const btn of body.querySelectorAll(".act-focus")) {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const cid = btn.getAttribute("data-card");
+      const chid = btn.getAttribute("data-chain");
+      if (cid) focusCardFromHealth(cid);
+      else if (chid) focusChainFromHealth(chid);
+    });
+  }
+  for (const btn of body.querySelectorAll(".act-open")) {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const cid = btn.getAttribute("data-card");
+      if (cid) {
+        document.getElementById("health-backdrop").classList.remove("open");
+        setTimeout(() => { setFocusedCard(cid, false); }, 100);
+      }
+    });
+  }
+  for (const btn of body.querySelectorAll(".act-delete")) {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const cid = btn.getAttribute("data-card");
+      if (cid && confirm(`Delete this card?\n\nCascades to children in the same chain. Cross-chain references are cleaned up.`)) {
+        deleteCard(cid);
+        showHealthReport();
+      }
+    });
+  }
+  for (const btn of body.querySelectorAll(".act-fix")) {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       const fix = btn.getAttribute("data-fix");
       const cardId = btn.getAttribute("data-card");
       const chainId = btn.getAttribute("data-chain");
-      if (chainId && !cardId) {
-        autoFixChainIssue(fix, chainId);
-      } else {
-        autoFixIssue(fix, cardId);
-      }
+      if (chainId && !cardId) autoFixChainIssue(fix, chainId);
+      else autoFixIssue(fix, cardId);
       showHealthReport();
     });
   }
-  // Click an issue row → close modal and focus the offending card
-  // Player ask 2026-05: "when I clicked on the issues from the
-  // health check I wanna be able to go to that issue focused."
-  for (const row of body.querySelectorAll(".h-issue")) {
-    row.style.cursor = "pointer";
-    row.addEventListener("click", () => {
-      // Find the card id either from a fix button or from the issue text
-      const fixBtn = row.querySelector("button[data-card]");
-      const cardId = fixBtn ? fixBtn.getAttribute("data-card") : null;
-      const chainId = fixBtn ? fixBtn.getAttribute("data-chain") : null;
-      document.getElementById("health-backdrop").classList.remove("open");
-      if (cardId) {
-        // If the card is in another room, switch first
-        const targetChain = CHAINS.find(c => c.cards.some(x => x.id === cardId));
-        if (targetChain && targetChain.room && targetChain.room !== activeRoom && activeRoom !== "__all__") {
-          activeRoom = targetChain.room;
-          persistRooms();
-          rerenderAll();
-        }
-        setTimeout(() => setFocusedCard(cardId, false), 100);
-      } else if (chainId) {
-        const ch = CHAINS.find(c => c.id === chainId);
-        if (ch && ch.cards[0]) setTimeout(() => setFocusedCard(ch.cards[0].id, false), 100);
-      }
-    });
-  }
+
   document.getElementById("health-backdrop").classList.add("open");
 }
 
@@ -8297,14 +8449,13 @@ function renderCard(chain, card) {
     spawnBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       e.preventDefault();
-      // Ask which side
-      const sideAnswer = confirm(
-        `Generate a new chain branching from "${card.speaker}".\n\n` +
-        `OK = continue from ACCEPT swipe\n` +
-        `Cancel = continue from DECLINE swipe`
-      );
-      const side = sideAnswer ? "accept" : "decline";
-      extendLeafWithWizard(card.id, side);
+      const r = spawnBtn.getBoundingClientRect();
+      // Use the universal side picker — explicit Accept / Decline
+      // buttons, plus a real Cancel. Player ask 2026-05: no more
+      // OK=Accept / Cancel=Decline dialogs.
+      showSidePicker(r.left + r.width / 2, r.bottom, card, { speaker: "new chain", id: "" }, (side) => {
+        extendLeafWithWizard(card.id, side);
+      });
     });
   }
   el.addEventListener("mouseenter", () => {
@@ -9133,45 +9284,10 @@ function refreshParallelUI(side) {
 }
 
 function populateModalDropdowns() {
-  // Chain dropdown — includes an "Orphan" option so the author can
-  // drop a single card without wiring it into a chain. Player ask
-  // 2026-05: "when i am adding a single card it doesnt have to be
-  // part of a chain. my plan is i will add a single card and later
-  // connect it to a chain."
-  const chainSel = document.getElementById("f-chain");
-  chainSel.innerHTML =
-    '<option value="__orphan__">— Orphan card (no chain yet) —</option>' +
-    CHAINS.filter(c => c.id !== "orphans").map(c => `<option value="${c.id}">${c.name}</option>`).join("");
-
-  // Parent dropdown — hidden when chain == orphan, shown otherwise
-  const parentSel = document.getElementById("f-parent");
-  const parentLabel = document.getElementById("f-parent-label");
-  function refreshParents() {
-    const chainId = chainSel.value;
-    if (chainId === "__orphan__") {
-      // Orphan mode — no parent wiring; show a friendly note instead
-      parentSel.style.display = "none";
-      parentLabel.innerHTML = 'Attach under (parent · side) <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">— skipped for orphan cards</span>';
-      return;
-    }
-    parentSel.style.display = "";
-    parentLabel.textContent = "Attach under (parent · side)";
-    const chain = CHAINS.find(c => c.id === chainId);
-    if (!chain) return;
-    const opts = [];
-    for (const card of chain.cards) {
-      const acceptFree = !card.accept || (!card.accept.target && !card.accept.poolTargets);
-      const declineFree = !card.decline || (!card.decline.target && !card.decline.poolTargets);
-      if (acceptFree) opts.push(`<option value="${card.id}|accept">${card.speaker} (${card.id}) — Accept</option>`);
-      if (declineFree) opts.push(`<option value="${card.id}|decline">${card.speaker} (${card.id}) — Decline</option>`);
-    }
-    if (!opts.length) {
-      opts.unshift('<option value="">No open swipe slots in this chain</option>');
-    }
-    parentSel.innerHTML = opts.join("");
-  }
-  chainSel.addEventListener("change", refreshParents);
-  refreshParents();
+  // 2026-05 — chain/parent dropdowns retired (player ask: dropdowns
+  // don't scale to 300 chains). f-chain and f-parent are now hidden
+  // inputs pinned to the orphan path. saveCard's orphan-card branch
+  // does the wiring. No-op here.
 
   // Speaker dropdown — optgroup by ministry, strict (no free-text)
   const speakerSel = document.getElementById("f-speaker");
@@ -9249,30 +9365,9 @@ function openModal(presetParentId, editId) {
       editingCardId = null;
     } else {
       document.getElementById("modal-title").textContent = "Edit card · " + editCard.id;
-      const chainId = CHAINS.find(c => c.cards.includes(editCard)).id;
-      const chainSel = document.getElementById("f-chain");
-      chainSel.value = chainId;
-      chainSel.disabled = true;
-      chainSel.dispatchEvent(new Event("change"));
-      // Find the parent — the card whose accept.target or decline.target == editId
-      const parentSel = document.getElementById("f-parent");
-      let parentVal = "";
-      for (const c of CHAINS.flatMap(ch => ch.cards)) {
-        if (c.accept && c.accept.target === editingCardId) parentVal = c.id + "|accept";
-        if (c.decline && c.decline.target === editingCardId) parentVal = c.id + "|decline";
-        if (c.accept && c.accept.poolTargets && c.accept.poolTargets.includes(editingCardId)) parentVal = c.id + "|accept";
-      }
-      // Edit-mode parent dropdown shows ALL slots (not just free ones)
-      const opts = [];
-      const chain = CHAINS.find(c => c.id === chainId);
-      for (const c of chain.cards) {
-        if (c.id === editingCardId) continue;
-        opts.push(`<option value="${c.id}|accept">${c.speaker} (${c.id}) — Accept</option>`);
-        opts.push(`<option value="${c.id}|decline">${c.speaker} (${c.id}) — Decline</option>`);
-      }
-      parentSel.innerHTML = opts.join("");
-      if (parentVal) parentSel.value = parentVal;
-      parentSel.disabled = true;
+      // 2026-05 chain-dropdown retirement — no chain/parent UI to
+      // populate. Card stays wherever it is (chains are reshaped via
+      // drag-connect / 🌱 spawn buttons, not from the edit modal).
       // Fill all the other fields
       document.getElementById("f-speaker").value = editCard.speaker || "";
       const m = MINISTRY_OF[editCard.speaker];
@@ -9305,27 +9400,13 @@ function openModal(presetParentId, editId) {
       saveBtn.textContent = "Save changes";
     }
   } else {
-    // ===== NEW mode
+    // ===== NEW mode — every new card lands as orphan (standalone).
+    // 2026-05 chain-dropdown retirement. The presetParentId branch
+    // is gone: no auto-attach. Author wires the card later via drag
+    // or the 🌱 spawn-chain button.
     document.getElementById("modal-title").textContent = "Add a card";
-    document.getElementById("f-chain").disabled = false;
-    document.getElementById("f-parent").disabled = false;
     document.getElementById("f-ministry").disabled = false;
     saveBtn.textContent = "Add to canvas";
-    if (presetParentId) {
-      const card = CHAINS.flatMap(c => c.cards).find(c => c.id === presetParentId);
-      if (card) {
-        const chainId = presetParentId.split("-")[0];
-        document.getElementById("f-chain").value = chainId;
-        document.getElementById("f-chain").dispatchEvent(new Event("change"));
-        const parentSel = document.getElementById("f-parent");
-        for (const opt of parentSel.options) {
-          if (opt.value.startsWith(presetParentId + "|")) {
-            parentSel.value = opt.value;
-            break;
-          }
-        }
-      }
-    }
   }
 
   modalBackdrop.classList.add("open");
@@ -10871,6 +10952,15 @@ for (const id of ["f-accept-outcome", "f-decline-outcome", "f-accept-cond",
 //   in the field, not the shortcut handler.
 document.addEventListener("keydown", (e) => {
   const inModalInput = e.target.matches("input, textarea, select");
+  // Delete / Backspace on a mass-selection drops every selected card.
+  // Skip when an input has focus so typing in a form doesn't trigger
+  // the delete. Player ask 2026-05: "when I clicked shift and selected
+  // multiple cards, let me hit delete key and delete them all."
+  if ((e.key === "Delete" || e.key === "Backspace") && !inModalInput && selectedCards.size > 0) {
+    e.preventDefault();
+    bulkDeleteSelected();
+    return;
+  }
   if (e.key === "Escape") {
     if (modalBackdrop.classList.contains("open")) tryCloseModal();
     else if (document.getElementById("health-backdrop").classList.contains("open")) {
@@ -11121,13 +11211,10 @@ function showChainOptionsModal() {
 document.getElementById("co-ending").addEventListener("change", (e) => {
   document.getElementById("co-custom-ending-row").style.display = e.target.value === "__custom__" ? "block" : "none";
 });
-document.querySelectorAll("input[name='co-method']").forEach(r => r.addEventListener("change", () => {
-  const v = document.querySelector("input[name='co-method']:checked").value;
-  const hint = document.getElementById("co-method-hint");
-  if (v === "template") hint.textContent = "Template uses your hand-written STORY_ARCS library — instant, no API key needed.";
-  else if (v === "claude") hint.textContent = "Best quality. Uses Claude if you've saved a key in Settings; otherwise falls back to the template library automatically.";
-  else hint.textContent = "Best quality. Uses Gemini if you've saved a key in Settings; otherwise falls back to the template library automatically.";
-}));
+// Generation-method radio retired 2026-05 (player ask: "no need
+// template mode, all generations must be context aware"). The
+// hidden input still exists so generateChainFromOptions keeps its
+// existing branch — value is pinned to "claude".
 document.getElementById("co-cancel").addEventListener("click", () => {
   document.getElementById("chainopt-backdrop").classList.remove("open");
   pendingLeafExtend = null;
@@ -11173,6 +11260,118 @@ function wireLeafExtend(newChain, extend) {
   if (typeof autoFixIssue === "function") autoFixIssue("narrative-rewrite", newSeed.id);
 }
 
+// Local context-aware chain generator — runs when no Claude/Gemini
+// key is saved. Reads the source card's situation / outcome (when
+// extending a leaf) and builds a chain whose c1 picks up directly
+// from that moment. NO random STORY_ARCS picks. Player ask 2026-05:
+// "no need template mode, all generations must be context aware.
+// no random generation if i am creating a chain from a single card."
+function buildLocalContextChain(opts) {
+  const length = opts.length || 5;
+  const theme = opts.theme || "civic";
+  const sourceCtx = opts.sourceCtx;
+  const requestedSpeakerName = opts.speaker || null;
+
+  // Helpers
+  const inSpeakers = (m) => SPEAKERS_BY_MINISTRY[m] || [];
+  const allSpeakers = Object.values(SPEAKERS_BY_MINISTRY).flat();
+  function speakerFor(notThese) {
+    if (requestedSpeakerName && !notThese.has(requestedSpeakerName)) return requestedSpeakerName;
+    const pool = allSpeakers.filter(s => !notThese.has(s));
+    return pickRandom(pool.length ? pool : allSpeakers);
+  }
+
+  // Continuation copy generators — reference the source card's
+  // decision moment instead of inventing a new scene.
+  function makeC1(notThese) {
+    const sp = speakerFor(notThese);
+    const m = MINISTRY_OF[sp] || "Cabinet";
+    const sourceLine = sourceCtx && sourceCtx.outcome
+      ? `With "${sourceCtx.outcome.replace(/\.$/,"")}", `
+      : sourceCtx && sourceCtx.situation
+      ? `After ${sourceCtx.speaker || "the room"} settled, `
+      : "";
+    const ask = sourceCtx
+      ? `${sp.split(" ").slice(-1)[0]} wants a hard answer before lunch. Sign?`
+      : `${sp.split(" ").slice(-1)[0]} brings a thin file. The cabinet is split two and two. Decide?`;
+    return {
+      speaker: sp, ministry: m, topic: resolveTopic("__auto__", m),
+      situation: (sourceLine + ask).slice(0, 200),
+    };
+  }
+  function makeChild(parent, notThese, rolePhrase) {
+    const sp = speakerFor(notThese);
+    const m = MINISTRY_OF[sp] || "Cabinet";
+    const cite = `After ${parent.speaker.split(" ").slice(-1)[0]}'s call, `;
+    return {
+      speaker: sp, ministry: m, topic: resolveTopic("__auto__", m),
+      situation: (cite + rolePhrase).slice(0, 200),
+    };
+  }
+
+  // Build c1..c5 (or however many fit `length`)
+  const notThese = new Set([sourceCtx ? sourceCtx.speaker : null]);
+  const c1 = makeC1(notThese); notThese.add(c1.speaker);
+  const c2 = makeChild(c1, notThese, "the room wants a public statement. Issue it?"); notThese.add(c2.speaker);
+  const c3 = makeChild(c1, notThese, "the rival faction wants a meeting first. Take it?"); notThese.add(c3.speaker);
+  const c4 = makeChild(c2, notThese, "the bench has filed three motions overnight. Respond to all of them?"); notThese.add(c4.speaker);
+  const c5 = makeChild(c3, notThese, "the unions want a number on the contract. Give them one?");
+  const sketches = [c1, c2, c3, c4, c5].slice(0, Math.max(5, length));
+
+  // Wrap each sketch with full outcomes + meter shifts via the local
+  // outcome templates (v30 tone). Build wiring c1→c2/c3, c2→c4, c3→c5.
+  const id = (sourceCtx ? `cont_${(sourceCtx.speaker||"x").toLowerCase().replace(/\s+/g,"_")}` : `local_${Date.now().toString(36)}`).slice(0, 24);
+  const cards = sketches.map((sk, i) => {
+    const stub = `${id}-c${i+1}`;
+    const acceptOutcome  = localOutcomeFor("accept",  sk.situation, sk.speaker);
+    const declineOutcome = localOutcomeFor("decline", sk.situation, sk.speaker);
+    return {
+      id: stub,
+      role: i === 0 ? "Trigger" : i <= 2 ? `Card ${i+1}` : `Grandchild ${i+1}`,
+      level: i === 0 ? 0 : (i <= 2 ? 1 : 2),
+      col:   i === 0 ? "center" : (i === 1 ? "right" : i === 2 ? "left" : i === 3 ? "right" : "left"),
+      speaker: sk.speaker, ministry: sk.ministry, topic: sk.topic,
+      situation: sk.situation,
+      accept:  { setFlag: null, target: null, outcome: acceptOutcome,  env: 0, mil: 0, wel: 2, eco: -1 },
+      decline: { setFlag: null, target: null, outcome: declineOutcome, env: 0, mil: 0, wel: -2, eco: 1 },
+    };
+  });
+  // wire c1→c2 (accept) / c1→c3 (decline); c2→c4 (accept); c3→c5 (accept)
+  if (cards.length >= 2) {
+    cards[0].accept.target = cards[1].id;
+    cards[0].accept.setFlag = id + "_c1_accept";
+    cards[1].requires = cards[0].accept.setFlag;
+  }
+  if (cards.length >= 3) {
+    cards[0].decline.target = cards[2].id;
+    cards[0].decline.setFlag = id + "_c1_decline";
+    cards[2].requires = cards[0].decline.setFlag;
+  }
+  if (cards.length >= 4) {
+    cards[1].accept.target = cards[3].id;
+    cards[1].accept.setFlag = id + "_c2_accept";
+    cards[3].requires = cards[1].accept.setFlag;
+  }
+  if (cards.length >= 5) {
+    cards[2].accept.target = cards[4].id;
+    cards[2].accept.setFlag = id + "_c3_accept";
+    cards[4].requires = cards[2].accept.setFlag;
+  }
+  const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + 920 : 80;
+  const name = sourceCtx
+    ? `From ${sourceCtx.speaker.split(" ").slice(-1)[0]}: ${cards[0].speaker.split(" ").slice(-1)[0]}'s call`
+    : `Local chain · ${cards[0].speaker.split(" ").slice(-1)[0]}`;
+  return {
+    id, name,
+    subtitle: sourceCtx ? `Continuation · ${theme}` : `Authored · ${theme}`,
+    chainTheme: theme,
+    color: "var(--gold)",
+    x: rightmostX,
+    room: (activeRoom === "__all__") ? "Main" : activeRoom,
+    cards,
+  };
+}
+
 async function generateChainFromOptions() {
   // Snapshot the pending leaf-extend so a slow async generate doesn't
   // race with a second click. Cleared immediately so cancel works.
@@ -11216,54 +11415,38 @@ async function generateChainFromOptions() {
     }
   }
 
-  if (method === "template") {
-    if (extend) {
-      // Template mode can't honor source context — warn the user up
-      // front. They can re-open the wizard and pick Claude/Gemini.
-      if (!confirm("Template mode picks a random hand-written arc — it won't continue your card's story.\n\nTo get a chain that builds on what you just wrote, pick Claude or Gemini instead.\n\nProceed with random template anyway?")) {
-        pendingLeafExtend = extend; // re-arm so the next click works
-        return;
-      }
-    }
-    document.getElementById("chainopt-backdrop").classList.remove("open");
-    const beforeLen = CHAINS.length;
-    addChain(null, null, length);
-    // addChain pushed exactly one chain at the end of CHAINS
-    if (extend && CHAINS.length > beforeLen) {
-      const newChain = CHAINS[CHAINS.length - 1];
-      snapshot();
-      wireLeafExtend(newChain, extend);
-      persist();
-      rerenderAll();
-      showCopyToast(`Extended ${extend.sourceSpeaker}'s ${extend.side} swipe → "${newChain.name}"`);
-    }
-    return;
-  }
-
+  // 2026-05 — generation is always context-aware. Method selection
+  // is gone. If a Claude/Gemini key is saved, use it for higher
+  // quality output. If neither key is set, run the local v30
+  // context engine (still source-aware, no random STORY_ARCS picks).
   const keys = loadAIKeys();
-  const key = method === "claude" ? keys.anthropic : keys.gemini;
+  let key = keys.anthropic || keys.claude || null;
+  let provider = key ? "claude" : null;
+  if (!key && (keys.gemini)) { key = keys.gemini; provider = "gemini"; }
   if (!key) {
-    // Player ask 2026-05: "remove that api thing!" If the user picks
-    // AI mode without a saved key, don't error out — fall through to
-    // the template flow and tell them what happened in a soft toast.
+    // No key — local context-aware generator (uses sourceCtx + the
+    // chain-options inputs to build a single-chain template that
+    // matches the wizard inputs without hitting an API).
     document.getElementById("chainopt-backdrop").classList.remove("open");
-    const beforeLen = CHAINS.length;
-    addChain(null, null, length);
-    if (extend && CHAINS.length > beforeLen) {
-      const newChain = CHAINS[CHAINS.length - 1];
+    const newChain = buildLocalContextChain({ length, theme, speaker, endingPrompt, sourceCtx });
+    if (newChain) {
       snapshot();
-      wireLeafExtend(newChain, extend);
+      CHAINS.push(newChain);
+      if (extend) wireLeafExtend(newChain, extend);
       persist();
       rerenderAll();
+      setTimeout(() => setFocusedCard(newChain.cards[0].id, false), 80);
+      showCopyToast(extend
+        ? `Extended ${extend.sourceSpeaker}'s ${extend.side} swipe → "${newChain.name}" (local context engine)`
+        : `Generated "${newChain.name}" (local context engine)`);
     }
-    showCopyToast(`No ${method === "claude" ? "Claude" : "Gemini"} key — used the template library instead. Add a key in Settings for AI-written chains.`);
     return;
   }
-  status.textContent = `Calling ${method === "claude" ? "Claude" : "Gemini"}…`;
+  status.textContent = `Calling ${provider === "claude" ? "Claude" : "Gemini"}…`;
   document.getElementById("co-generate").disabled = true;
 
   try {
-    const data = await generateChainWithAI(method, key, { length, theme, speaker, endingPrompt, sourceCtx });
+    const data = await generateChainWithAI(provider, key, { length, theme, speaker, endingPrompt, sourceCtx });
     document.getElementById("co-generate").disabled = false;
     if (!data || !data.cards || !data.cards.length) {
       status.innerHTML = `<span style="color: var(--decline);">No cards in AI response.</span>`;
