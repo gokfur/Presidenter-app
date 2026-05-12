@@ -14105,45 +14105,109 @@ function truncateSentence(s, max) {
 // Result: outcomes that always read as on-topic for the situation
 // the author wrote, even when no AI is available. The author can
 // edit / refine; the generator just gives them a sensible draft.
+// 2026-05-12 — rotation history so repeated clicks of Auto-write
+// outcomes cycle through fresh pairs. Reset whenever the situation
+// changes.
+const autoOutcomeHistory = { used: new Set(), _key: "" };
+
 function localSituationAwareOutcomes(situation, topic) {
   const t = (topic || "tricky").toString();
-  // Generic, situation-agnostic outcome templates. Each pair reads
-  // as a consequence of saying yes vs no to ANY ask. First person.
-  // No em-dashes. ≤140 chars each.
+  const sit = (situation || "").trim();
+
+  // Reset rotation if the situation changed.
+  const key = sit;
+  if (key !== autoOutcomeHistory._key) {
+    autoOutcomeHistory.used = new Set();
+    autoOutcomeHistory._key = key;
+  }
+
+  // Extract a noun phrase from the situation so outcomes can
+  // REFERENCE the player's text. Look for the first match against
+  // a few common patterns: "the X", "a X", quoted nouns, or the
+  // word right before the trailing question mark. Falls back to
+  // "the matter" when nothing matches — still better than random.
+  function extractNoun(s) {
+    if (!s) return "the matter";
+    const PATTERNS = [
+      /(?:the|a|an|my|our|this|that)\s+([a-z][a-z\-]+(?:\s+[a-z][a-z\-]+)?)/i,
+      /([a-z][a-z\-]+(?:\s+[a-z][a-z\-]+)?)\s*\?\s*$/i,
+    ];
+    for (const re of PATTERNS) {
+      const m = s.match(re);
+      if (m && m[1]) {
+        let phrase = m[1].trim().toLowerCase();
+        // Filter stopwords like "sign", "do", "approve" which read
+        // as verbs in the outcome context.
+        if (!/^(sign|do|approve|accept|refuse|grant|take|give|hold|move|leave|act|see|read|tell|let|say|consider|donate|talk|meet|see|hear|wait|come|go)$/i.test(phrase)) {
+          // Re-add "the" if the original had a determiner.
+          if (/the\s+/i.test(s.slice(Math.max(0, s.toLowerCase().indexOf(phrase) - 4), s.toLowerCase().indexOf(phrase)))) {
+            return "the " + phrase;
+          }
+          return phrase;
+        }
+      }
+    }
+    return "the matter";
+  }
+  const noun = extractNoun(sit);
+
+  // Larger pool — 12 paired templates. Each uses {N} as the
+  // noun-substitution slot so we can weave in the author's prop.
+  // First-person voice. ≤140 chars per line. No em-dashes.
   const PAIRS = [
-    {
-      accept: "I sign. The room takes the win and quietly notes who carried it.",
-      decline: "I refuse. The room reads the silence; the file does not stay closed for long."
-    },
-    {
-      accept: "I agree. We move on the matter today; the side effects land by Friday.",
-      decline: "I decline. The matter is held; the press fills the hour we just lost."
-    },
-    {
-      accept: "I do it. The cabinet exhales; someone in the back is already drafting the follow-up.",
-      decline: "I don't. The desk is clear by lunch; the absence travels faster than the page."
-    },
-    {
-      accept: "I grant the request. The room thanks me on the record; it costs me off the record.",
-      decline: "I withhold it. The request travels elsewhere; the answer comes back louder."
-    },
-    {
-      accept: "I say yes. The bench takes it as a precedent; the chamber rewrites the rule by Friday.",
-      decline: "I say no. The bench files it under \"signal\"; the next ask comes louder."
-    },
-    {
-      accept: "I move on it. The credit goes to the desk that asked; the cost stays mine.",
-      decline: "I leave it. The room closes politely; the ground shifts under our feet by morning."
-    },
+    { accept: `I sign. The room takes the win on {N}; the cost lands by Friday.`,
+      decline: `I refuse. The press notes the silence on {N}; the file doesn't stay closed.` },
+    { accept: `I move on {N} today. The cabinet exhales; the side effects show up next week.`,
+      decline: `I hold {N}. The desk clears by lunch; the absence travels louder than the page would have.` },
+    { accept: `I grant it. {N} ships with my name attached; the credit goes elsewhere.`,
+      decline: `I withhold {N}. The ask travels around me; the answer comes back doubled.` },
+    { accept: `I say yes to {N}. The bench treats it as precedent; the rule rewrites itself by Friday.`,
+      decline: `I say no to {N}. The bench files it under "signal"; the next request is louder.` },
+    { accept: `I do it. {N} clears today; the bill arrives quietly on Tuesday.`,
+      decline: `I don't. {N} stays open; rumour fills the hour we just lost.` },
+    { accept: `I authorise {N}. The room thanks me on the record; off the record they keep score.`,
+      decline: `I leave {N} alone. The press finds three other angles by morning.` },
+    { accept: `I take the offer. {N} closes before the press files; the receipt has my name.`,
+      decline: `I pass on {N}. Someone else picks it up at half price.` },
+    { accept: `I commit. {N} goes out under three signatures; mine is the one they'll remember.`,
+      decline: `I balk. {N} drifts to the next desk; the cabinet reads the hesitation.` },
+    { accept: `I approve {N}. The bench notes the speed; the audit will note it too.`,
+      decline: `I refuse {N}. The audit is shorter; the appeal is louder.` },
+    { accept: `I sign the order. {N} is in motion before lunch; the consequences are not.`,
+      decline: `I withhold the order. {N} stalls; the press has the leak by sundown.` },
+    { accept: `I put my name on it. {N} carries forward; the cost ledger opens a new line.`,
+      decline: `I keep my name off it. {N} carries forward anyway; the credit shifts.` },
+    { accept: `I greenlight it. {N} ships today; the file thickens overnight.`,
+      decline: `I block it. {N} dies politely; the next ask wears a different hat.` },
   ];
-  // Pick deterministically based on situation length so the same
-  // situation always yields the same pair on repeat clicks.
-  const hash = (situation || "").length + (situation || "").charCodeAt(0) || 0;
-  const pair = PAIRS[hash % PAIRS.length];
+
+  // Substitute the noun into the templates.
+  const filled = PAIRS.map(p => ({
+    accept: p.accept.replace(/\{N\}/g, noun),
+    decline: p.decline.replace(/\{N\}/g, noun),
+  }));
+
+  // Pick the first pair not already used in this session. Cycles
+  // back to the start once all 12 have been shown.
+  let pair = null;
+  for (const p of filled) {
+    const sig = p.accept + "|" + p.decline;
+    if (!autoOutcomeHistory.used.has(sig)) {
+      autoOutcomeHistory.used.add(sig);
+      pair = p;
+      break;
+    }
+  }
+  if (!pair) {
+    autoOutcomeHistory.used.clear();
+    pair = filled[0];
+    autoOutcomeHistory.used.add(pair.accept + "|" + pair.decline);
+  }
 
   // Meter shifts — use the topic-based suggestion table when
   // available; otherwise fall back to a small wellness/economy
-  // swing.
+  // swing. Add small per-click jitter so repeated clicks also
+  // produce slightly different numbers.
   const meterSugg = (typeof TOPIC_METER_SUGGESTIONS !== "undefined")
     ? TOPIC_METER_SUGGESTIONS[t] || {}
     : {};
@@ -14388,9 +14452,20 @@ async function autoWriteOutcomes() {
     return;
   }
 
+  // 2026-05-12 — pass any current outcome text in as "previous
+  // drafts to avoid" so repeated clicks of Auto-write outcomes
+  // produce a fresh take each time.
+  const prevAccept  = document.getElementById("f-accept-outcome")?.value?.trim() || "";
+  const prevDecline = document.getElementById("f-decline-outcome")?.value?.trim() || "";
+  const avoidBlock = (prevAccept || prevDecline)
+    ? `\n\nPREVIOUS DRAFTS (already on screen — write a DIFFERENT take, different aftermath, different verbs):\n${prevAccept ? '  accept: "' + prevAccept + '"' : ''}${prevDecline ? '\n  decline: "' + prevDecline + '"' : ''}\n`
+    : "";
+
   const prompt = `You write the Accept and Decline outcomes for ONE Presidenter card. The card's situation is given. The speaker is "${speaker || 'unknown'}". The topic is ${topic || 'tricky'}.
 
 CRITICAL — FIRST-PERSON VOICE: outcomes are the speaker NARRATING what happened. WRONG: "Halvik prints six lines." RIGHT: "I'll print six lines under your name." Both outcomes stay in the speaker's first person.
+
+CRITICAL — REFERENCE THE SITUATION: each outcome MUST name a specific prop from the situation (the donation, the loan, the strike, the press release — whatever the situation is about). Generic "the matter" / "it" only when no prop is nameable.
 
 Rules:
 - Each outcome ≤140 chars, NO em-dashes, period-terminated (not ?).
@@ -14398,8 +14473,7 @@ Rules:
 - Meter shifts integer in [-5, 5], total |abs| per side ≥ 2.
 - Use {leader} / {country} tokens where natural.
 
-Situation: "${situation}"
-
+Situation: "${situation}"${avoidBlock}
 Output ONLY this JSON (no prose):
 {"accept":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0},"decline":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0}}`;
   try {
