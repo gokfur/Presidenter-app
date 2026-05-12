@@ -3562,7 +3562,12 @@
       <button class="ac-tile" data-ac="single">
         <div class="ac-icon">📄</div>
         <div class="ac-title">Single card</div>
-        <div class="ac-sub">One standalone card. Optional flavor (funny / royal / family / disaster / civic) when you want a quick pre-themed one.</div>
+        <div class="ac-sub">One standalone card. The default kind.</div>
+      </button>
+      <button class="ac-tile" data-ac="artifact">
+        <div class="ac-icon">📜</div>
+        <div class="ac-title">Artifact card</div>
+        <div class="ac-sub">Faceless evidence on the desk — anonymous note, confiscated file, leaked photo. No speaker portrait, just an object glyph.</div>
       </button>
       <button class="ac-tile" data-ac="chain">
         <div class="ac-icon">⛓</div>
@@ -4085,23 +4090,13 @@
       v30 voice: <b>witty · slightly cynical · mysterious</b>. Two short sentences, ends in a yes/no question, both swipes carry a cost. Lands as a standalone — wire it later.
     </div>
 
-    <!-- 2026-05-12 — Inline AI helpers above the form. Author types
-         ONE LINE in `f-ai-seed` and clicks ✨ AI Fill to have every
-         field below filled. Grammar check runs the situation +
-         outcomes through a lighter AI pass that suggests fixes
-         without changing meaning. Both buttons no-op silently when
-         no API key is configured. -->
-    <div class="row full" style="margin-bottom: 8px;">
-      <div>
-        <label>✨ AI helpers <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(optional — one-line scenario + grammar check)</span></label>
-        <div style="display:flex; gap:8px; align-items:stretch;">
-          <input id="f-ai-seed" type="text" placeholder="Optional — leave empty to let AI invent, or type a one-line scenario (e.g. Treasurer panics about a bond auction shortfall)" style="flex:1;">
-          <button type="button" id="f-ai-fill" title="AI fills every field below from your one-line scenario" style="background:rgba(255,200,80,0.15); border:1px solid rgba(255,200,80,0.45); color:var(--gold); padding:4px 12px; border-radius:6px; font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer; white-space:nowrap;">✨ AI Fill</button>
-          <button type="button" id="f-grammar-check" title="Run grammar / style check on the situation + both outcomes — keeps meaning, suggests fixes" style="background:rgba(120,200,255,0.10); border:1px solid rgba(120,200,255,0.40); color:#9cf; padding:4px 12px; border-radius:6px; font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer; white-space:nowrap;">📝 Grammar</button>
-        </div>
-        <div id="f-ai-status" style="font-size:11px; color:var(--text-faint); margin-top:6px; min-height:14px;"></div>
-      </div>
-    </div>
+    <!-- 2026-05-12 — Top-row AI helpers retired. The universal
+         actions (✨ Improve, 📝 Grammar, ✨ Auto-write outcomes)
+         now sit RIGHT NEXT to the situation textarea below. Hidden
+         inputs preserved so any code path that wrote to f-ai-seed
+         or f-ai-status doesn't trip a null read. -->
+    <input id="f-ai-seed" type="hidden" value="">
+    <div id="f-ai-status" style="display:none;"></div>
 
     <!-- Chain + parent dropdowns retired 2026-05 (player ask: "remove
          chains in this dropdown cos if i have 300 chains it wont fit.
@@ -4113,6 +4108,49 @@
     <input id="f-chain" type="hidden" value="__orphan__">
     <input id="f-parent" type="hidden" value="">
 
+    <!-- 2026-05-12 — REORDERED. Player ask: "Here is the card order:
+         I write the card's question. I select the speaker. I select
+         the topic. You generate the memory fragment and ministry."
+         Game-modes section retired ("cards will be available for all
+         game modes"). Artifact toggle moved out of Advanced into a
+         standalone +-menu card type. -->
+
+    <!-- STEP 1 — Situation -->
+    <div class="row full">
+      <div>
+        <label>Situation (the question on the card)</label>
+        <!-- Nation tokens: engine substitutes at render-time. Click a
+             chip to insert at cursor. Validator below flags unknown {…}. -->
+        <div class="nation-token-row" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; font-size:12px;">
+          <span style="color:var(--text-faint); align-self:center;">Tokens:</span>
+          <button type="button" class="nation-token-chip" data-token="{leader}" title="The player's leader name">{leader}</button>
+          <button type="button" class="nation-token-chip" data-token="{country}" title="The player's country name">{country}</button>
+          <button type="button" class="nation-token-chip" data-token="{honorific}" title="President / Queen / Chancellor">{honorific}</button>
+          <button type="button" class="nation-token-chip" data-token="{nation}" title="Composed: 'the Republic of …'">{nation}</button>
+          <button type="button" class="nation-token-chip" data-token="{president}" title="Legacy alias for the leader">{president}</button>
+        </div>
+        <textarea id="f-situation" maxlength="220" placeholder="Type your idea — anything from 'Niro wants money' to a polished question. Click ✨ Improve and I'll rewrite it in the speaker's voice, fix grammar, attach tokens."></textarea>
+        <div class="counter" id="f-situation-counter">0 / 140 chars · 0 sentences</div>
+        <div class="nation-token-warning" id="f-situation-token-warning" style="display:none; margin-top:4px; padding:4px 8px; background:rgba(255,170,40,0.12); border-left:3px solid #fa3; font-size:12px; color:#fc6;"></div>
+        <!-- 2026-05-12 — universal action buttons attached to the
+             situation: rewrite to obey style guide + attach tokens,
+             grammar fix, and (after speaker/topic are set) auto-write
+             outcomes. -->
+        <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:6px;">
+          <button type="button" id="f-improve-situation" title="AI rewrite — keeps your meaning, applies v30 style, fixes grammar, attaches nation tokens. Works on whatever you've typed." style="background:rgba(255,200,80,0.15); border:1px solid rgba(255,200,80,0.45); color:var(--gold); padding:3px 10px; border-radius:5px; font-size:11px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer;">✨ Improve</button>
+          <button type="button" id="f-grammar-only" title="Grammar pass only — keeps wording, fixes typos / missing '?' / em-dashes" style="background:rgba(120,200,255,0.10); border:1px solid rgba(120,200,255,0.40); color:#9cf; padding:3px 10px; border-radius:5px; font-size:11px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer;">📝 Grammar</button>
+          <button type="button" id="f-autowrite-outcomes" title="Auto-write both Accept and Decline outcomes based on the situation + speaker + topic. Universal action." style="background:rgba(140,255,170,0.10); border:1px solid rgba(140,255,170,0.40); color:#9ec; padding:3px 10px; border-radius:5px; font-size:11px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer;">✨ Auto-write outcomes</button>
+          <label style="margin-left:auto; display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text-faint); cursor:pointer; text-transform:none; letter-spacing:0; font-weight:500;">
+            <input type="checkbox" id="f-styleguide-exception">
+            <span>Style-guide exception</span>
+          </label>
+        </div>
+        <!-- Slim validation status — collapses pills into one line. -->
+        <div class="validation-summary slim" id="f-situation-validation" style="margin-top:6px;"></div>
+      </div>
+    </div>
+
+    <!-- STEP 2 — Speaker -->
     <div class="row">
       <div>
         <label>Speaker</label>
@@ -4121,92 +4159,45 @@
         </select>
       </div>
       <div>
-        <label>Ministry <span style="color: var(--text-faint); font-weight: 500; text-transform: none; letter-spacing: 0;">(auto-fills)</span></label>
+        <label>Ministry <span style="color: var(--text-faint); font-weight: 500; text-transform: none; letter-spacing: 0;">(auto-fills from speaker)</span></label>
         <select id="f-ministry">
           <option value="">— select a speaker first —</option>
         </select>
       </div>
     </div>
 
+    <!-- STEP 3 — Topic -->
     <div class="row">
       <div>
         <label>Topic <span style="color: var(--text-faint); font-weight: 500; text-transform: none; letter-spacing: 0;">(optional — auto-picks from ministry if left on 'auto')</span></label>
         <select id="f-topic"></select>
       </div>
       <div>
-        <!-- Memory fragment surfaces here only when the speaker has a
-             canonical fragment in SPEAKERS.md. Otherwise the row hides.
-             Player ask 2026-05: role label was redundant — removed. -->
-        <label>Memory fragment <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(auto-fills)</span></label>
+        <!-- Memory fragment — auto-fills from speaker registry. -->
+        <label>Memory fragment <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(auto-fills from speaker)</span></label>
         <input id="f-memory" placeholder="e.g. the audit ledger">
       </div>
     </div>
 
-    <!-- 2026-05-12 — Mode-aware authoring. The engine has three game
-         modes (classic / realistic / calm) but cards aren't currently
-         filtered by mode. This row authors a `modes` array on each
-         card; the engine will gain a `Card.availableInModes` field
-         + CardDirector filter in a follow-up Swift commit. Empty
-         (none checked) = available in every mode. Multi-select so
-         a card can be e.g. "classic + realistic only" without
-         appearing in the calm-mode pool. -->
-    <div class="row full">
-      <div>
-        <label>Game modes <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(blank = all modes; check to restrict)</span></label>
-        <div class="modes-row" style="display:flex; gap:14px; padding-top:4px; font-size:13px;">
-          <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:400; text-transform:none; letter-spacing:0;">
-            <input type="checkbox" id="f-mode-classic" data-mode="classic">
-            <span>Classic</span>
-            <span style="color:var(--text-faint); font-size:11px;">(fast)</span>
-          </label>
-          <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:400; text-transform:none; letter-spacing:0;">
-            <input type="checkbox" id="f-mode-realistic" data-mode="realistic">
-            <span>Realistic</span>
-            <span style="color:var(--text-faint); font-size:11px;">(mid)</span>
-          </label>
-          <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:400; text-transform:none; letter-spacing:0;">
-            <input type="checkbox" id="f-mode-calm" data-mode="calm">
-            <span>Calm</span>
-            <span style="color:var(--text-faint); font-size:11px;">(live-paced)</span>
-          </label>
-        </div>
-      </div>
-    </div>
+    <!-- 2026-05-12 — Game modes section RETIRED per player ask
+         ("cards will be available for all game modes. remove this
+         section"). Hidden mode checkboxes preserved so any code that
+         reads them on save (`readModesList`) returns null instead of
+         tripping a null-pointer; the engine's availableInModes stays
+         nil which means "every mode." -->
+    <input type="checkbox" id="f-mode-classic" style="display:none;">
+    <input type="checkbox" id="f-mode-realistic" style="display:none;">
+    <input type="checkbox" id="f-mode-calm" style="display:none;">
+
+    <!-- 2026-05-12 — Hidden artifact flag. Set by the + → Artifact
+         card flow; no longer an Advanced-fold checkbox. -->
+    <input type="checkbox" id="f-is-artifact" style="display:none;">
 
     <!-- Trickyclue shown only when topic = .tricky (CLAUDE.md §6 + DeckAudit) -->
     <div class="row full" id="f-trickyclue-row" style="display:none;">
       <div>
         <label>Tricky clue <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(required on .tricky cards)</span></label>
         <input id="f-trickyclue" placeholder="A short clue the player sees on a .tricky card">
-      </div>
-    </div>
-
-    <div class="row full">
-      <div>
-        <label>Situation (the question on the card)</label>
-        <!-- 2026-05-12 — Nation tokens. The engine substitutes these 5
-             placeholders at render-time using the player's chosen
-             NationProfile (country, leader name, ceremonial honorific
-             etc.). Clicking a chip inserts the token at the cursor in
-             whichever editable text field had focus last (situation,
-             outcomes, trickyClue). Validator below flags any {...}
-             pattern outside this set so authors don't ship a card with
-             {monarch} when only {leader} exists. -->
-        <div class="nation-token-row" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; font-size:12px;">
-          <span style="color:var(--text-faint); align-self:center;">Tokens:</span>
-          <button type="button" class="nation-token-chip" data-token="{leader}" title="The player's leader name (e.g. Mira Halen)">{leader}</button>
-          <button type="button" class="nation-token-chip" data-token="{country}" title="The player's country name (e.g. Karelya)">{country}</button>
-          <button type="button" class="nation-token-chip" data-token="{honorific}" title="Honorific from leader title (e.g. President, Queen, Chancellor)">{honorific}</button>
-          <button type="button" class="nation-token-chip" data-token="{nation}" title="Composed: 'the Republic of Karelya' / 'the Kingdom of Karelya' etc.">{nation}</button>
-          <button type="button" class="nation-token-chip" data-token="{president}" title="Legacy alias for the leader's first name (kept for back-compat)">{president}</button>
-        </div>
-        <textarea id="f-situation" maxlength="220" placeholder="Two sentences of setup, one yes/no question. Speaker = the one presenting the choice."></textarea>
-        <div class="counter" id="f-situation-counter">0 / 140 chars · 0 sentences</div>
-        <div class="nation-token-warning" id="f-situation-token-warning" style="display:none; margin-top:4px; padding:4px 8px; background:rgba(255,170,40,0.12); border-left:3px solid #fa3; font-size:12px; color:#fc6;"></div>
-        <!-- Slim validation status — collapses 8 pills into one line.
-             Click to expand the full breakdown. Player ask 2026-05:
-             "add a card UI is still too much. Simplify." -->
-        <div class="validation-summary slim" id="f-situation-validation"></div>
       </div>
     </div>
 
@@ -4346,18 +4337,12 @@
     <details class="advanced-fold">
       <summary>⚙ Advanced (optional)</summary>
       <div class="advanced-body">
-        <!-- 2026-05-12 — Reigns-style artifact toggle. When checked,
-             the engine's CardView swaps the speaker portrait for a
-             stylised object glyph + uppercase label ("ANONYMOUS NOTE")
-             so the card reads as evidence on the desk rather than a
-             person across from the President. -->
-        <label class="styleguide-override">
-          <input type="checkbox" id="f-is-artifact">
-          <span>
-            <b>📜 Render as artifact (no portrait)</b>
-            <span class="sub">Swap the speaker portrait for a topic-appropriate object glyph (envelope, scroll, leaf, etc.) + uppercase label ("CONFIDENTIAL FILE", "INTERCEPTED CABLE"). Reigns-style faceless beat for anonymous tips and evidence cards.</span>
-          </span>
-        </label>
+        <!-- 2026-05-12 — Artifact toggle moved out of Advanced; it's
+             now a dedicated tile in the +-menu. Style-guide
+             exception moved to a small checkbox next to the
+             Situation input. Both removed from this fold to keep
+             Advanced focused on the niche fields (Fires-only-if,
+             Cross-chain triggers, custom condition builder, etc.). -->
 
         <!-- 2026-05-12 — Conscience beat override. The engine
              auto-picks one of 50 italic chips after heavy swipes;
@@ -4366,15 +4351,6 @@
           <label>Conscience beat override <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(italic chip after this swipe — optional; engine auto-picks if blank)</span></label>
           <input id="f-conscience-beat" type="text" maxlength="80" placeholder="e.g. The chamberlain crosses something out and writes it again.">
         </div>
-
-        <!-- Style-guide override -->
-        <label class="styleguide-override">
-          <input type="checkbox" id="f-styleguide-exception">
-          <span>
-            <b>Make style-guide exception</b>
-            <span class="sub">All v30 rules become advisory. The card ships even if it's over the length cap, doesn't end in a yes/no, etc. The chip on the card surfaces "Style-guide exception."</span>
-          </span>
-        </label>
 
         <!-- Fires only if -->
         <div class="adv-row">
@@ -10409,6 +10385,12 @@ function closeModal() {
   document.getElementById("f-accept-trigger").value = "";
   document.getElementById("f-decline-trigger").value = "";
   document.getElementById("modal-title").textContent = "Add a card";
+  // 2026-05-12 — reset the modal sub-line back to default when the
+  // form is opened for a regular Single card. The Artifact tile
+  // overwrites this after openModal returns; this reset ensures
+  // a subsequent Single-card open doesn't keep the artifact wording.
+  const subDefault = document.querySelector("#add-card-modal .modal-sub");
+  if (subDefault) subDefault.textContent = "v30 voice: witty · slightly cynical · mysterious. Two short sentences, ends in a yes/no question, both swipes carry a cost. Lands as a standalone — wire it later.";
   saveBtn.textContent = "Add to canvas";
 }
 
@@ -12486,9 +12468,27 @@ document.querySelectorAll("#addchoice-backdrop .ac-tile").forEach(t => {
     const kind = t.getAttribute("data-ac");
     document.getElementById("addchoice-backdrop").classList.remove("open");
     setTimeout(() => {
-      if (kind === "single") openModal(focusedCardId);
-      else if (kind === "chain") showChainOptionsModal();
-      else if (kind === "special") {
+      if (kind === "single") {
+        openModal(focusedCardId);
+      } else if (kind === "artifact") {
+        // 2026-05-12 — Artifact card flow. Opens the standard
+        // add-card modal but pre-flips the hidden f-is-artifact
+        // checkbox, retitles the modal header, and clears the
+        // speaker selection (artifacts are faceless). The card
+        // saves with `card.isArtifact: true` so the engine renders
+        // the topic glyph instead of the speaker portrait.
+        openModal(focusedCardId);
+        const artEl = document.getElementById("f-is-artifact");
+        if (artEl) artEl.checked = true;
+        const titleEl = document.getElementById("modal-title");
+        if (titleEl) titleEl.textContent = "Add an artifact card";
+        const speakerSel = document.getElementById("f-speaker");
+        if (speakerSel) speakerSel.value = "";
+        const subEl = document.querySelector("#add-card-modal .modal-sub");
+        if (subEl) subEl.textContent = "Artifact card — faceless evidence on the desk. The card renders a topic-appropriate object glyph (envelope, scroll, leaf …) instead of a speaker portrait. Speaker is optional; leave blank for a true anonymous source.";
+      } else if (kind === "chain") {
+        showChainOptionsModal();
+      } else if (kind === "special") {
         // 2026-05-12 — open the special-type picker sub-modal.
         document.getElementById("specialtype-backdrop").classList.add("open");
         document.getElementById("specialtype-backdrop").style.display = "flex";
@@ -13964,7 +13964,266 @@ function truncateSentence(s, max) {
   if (s.length <= max) return s;
   return s.slice(0, max - 1).trim() + "…";
 }
-document.getElementById("f-ai-fill").addEventListener("click", aiFillFromSeed);
+// 2026-05-12 — `f-ai-fill` element is gone (the top-row helper row
+// retired). Wire the listener defensively so old paths that still
+// reference it don't crash.
+document.getElementById("f-ai-fill")?.addEventListener("click", aiFillFromSeed);
+
+// 2026-05-12 — Universal action: ✨ IMPROVE.
+//
+// Reads the author's current situation text (could be anything from
+// "Niro wants money" to a partial sentence), pipes it through the
+// AI with style-guide instructions, and rewrites in place. AI:
+//   - Keeps the MEANING the author wrote.
+//   - Rewrites in the speaker's FIRST-PERSON voice (or picks a
+//     plausible speaker if none was set).
+//   - Obeys v30 rules: ≤140 chars, ≤2 sentences, ends in "?", no
+//     em-dashes, witty / slightly cynical / mysterious tone.
+//   - Attaches relevant nation tokens ({leader}, {country},
+//     {honorific}, {nation}) where natural.
+//
+// Falls back to a local rewrite when no API key is configured —
+// the local pass cleans common typos, enforces "?" ending, swaps
+// em-dashes for periods.
+async function improveSituation() {
+  const sitEl = document.getElementById("f-situation");
+  if (!sitEl) return;
+  const original = sitEl.value.trim();
+  if (!original) {
+    sitEl.placeholder = "Type something first — even one line. I'll rewrite it.";
+    sitEl.focus();
+    return;
+  }
+  const btn = document.getElementById("f-improve-situation");
+  if (btn) btn.disabled = true;
+  const speaker = document.getElementById("f-speaker")?.value?.trim() || "";
+  const topic = document.getElementById("f-topic")?.value || "";
+
+  const keys = loadAIKeys();
+  let key = keys.anthropic || keys.claude || null;
+  let provider = key ? "claude" : null;
+  if (!key && keys.gemini) { key = keys.gemini; provider = "gemini"; }
+
+  // No-key path: local cleanup. Capitalises, adds "?" if missing,
+  // strips em-dashes, ensures ≤140 chars.
+  if (!key) {
+    let s = original
+      .replace(/—/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (s && !/[?]$/.test(s)) {
+      s = s.replace(/[.!]+$/, "") + "?";
+    }
+    s = truncateSentence(s, 140);
+    sitEl.value = s.charAt(0).toUpperCase() + s.slice(1);
+    runValidation();
+    if (btn) btn.disabled = false;
+    return;
+  }
+
+  const speakerLine = speaker
+    ? `The speaker is "${speaker}" — rewrite in their first-person voice.`
+    : `No speaker chosen yet. If the meaning suggests one of the cast, pick the speaker; otherwise keep it open.`;
+  const topicLine = topic && topic !== "__auto__" ? `Topic context: ${topic}.` : "";
+
+  const prompt = `You rewrite ONE decision card's situation for "Presidenter", a Reigns-style swipe game. Keep the AUTHOR'S MEANING — do not invent a new card. Just polish, fix grammar, apply v30 style, and (when natural) attach nation tokens.
+
+CRITICAL — FIRST-PERSON VOICE: The situation is the speaker TALKING TO THE PRESIDENT. WRONG: "Niro wants money." RIGHT: "I'm raising for the south district shelter. Donate?" WRONG: "Halvik prints six lines." RIGHT: "I'll print six lines under your name."
+
+RULES (v30):
+- ≤140 chars total.
+- 1 or 2 SHORT sentences. Setup + ask.
+- ENDS in "?".
+- NO em-dashes ("—") — use periods or commas.
+- TONE: witty, slightly cynical, mysterious.
+- TOKENS: where natural, embed nation placeholders. Available: {leader} {country} {honorific} {nation} {president}. The engine substitutes these at render-time. Example: "Dear President {leader}, I'd love your charity for our shelter. Donate?"
+
+${speakerLine}
+${topicLine}
+
+Author's raw text: "${original}"
+
+Output ONLY the rewritten situation as a single JSON string (no prose, no labels):
+"<rewritten>"`;
+
+  try {
+    const text = await callAITextPlain(provider, key, prompt);
+    // The model may emit a JSON string OR just plain text. Try both.
+    let rewritten = text.trim();
+    if (rewritten.startsWith('"')) {
+      try { rewritten = JSON.parse(rewritten); } catch (_) {}
+    } else {
+      // Strip code fences and surrounding whitespace.
+      rewritten = rewritten.replace(/^```(?:json|text)?\s*/i, "").replace(/```$/m, "").trim();
+      // Strip surrounding quotes if present.
+      rewritten = rewritten.replace(/^["']|["']$/g, "").trim();
+    }
+    rewritten = (rewritten || "").replace(/—/g, " ").replace(/\s+/g, " ").trim();
+    if (rewritten && !/[?]$/.test(rewritten)) {
+      rewritten = rewritten.replace(/[.!]+$/, "") + "?";
+    }
+    sitEl.value = truncateSentence(rewritten, 140);
+    runValidation();
+  } catch (err) {
+    // Fall back to local cleanup on error.
+    let s = original.replace(/—/g, " ").replace(/\s+/g, " ").trim();
+    if (s && !/[?]$/.test(s)) s = s.replace(/[.!]+$/, "") + "?";
+    sitEl.value = truncateSentence(s, 140);
+    runValidation();
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+document.getElementById("f-improve-situation")?.addEventListener("click", improveSituation);
+
+// 2026-05-12 — Universal action: 📝 GRAMMAR (situation-only). The
+// older grammarCheckCard ran a 3-string pass over situation +
+// outcomes. The new button focuses just on the situation; outcomes
+// have their own ✨ AI write buttons. Lighter scope, faster
+// turnaround, no per-field confirm dialogs.
+async function grammarFixSituation() {
+  const sitEl = document.getElementById("f-situation");
+  if (!sitEl) return;
+  const original = sitEl.value.trim();
+  if (!original) return;
+  const btn = document.getElementById("f-grammar-only");
+  if (btn) btn.disabled = true;
+
+  const keys = loadAIKeys();
+  let key = keys.anthropic || keys.claude || null;
+  let provider = key ? "claude" : null;
+  if (!key && keys.gemini) { key = keys.gemini; provider = "gemini"; }
+
+  // No-key local cleanup — typos / em-dashes / missing "?" only.
+  if (!key) {
+    let s = original.replace(/—/g, " ").replace(/\s+/g, " ").trim();
+    if (s && !/[?]$/.test(s)) s = s.replace(/[.!]+$/, "") + "?";
+    sitEl.value = truncateSentence(s, 140);
+    runValidation();
+    if (btn) btn.disabled = false;
+    return;
+  }
+
+  const prompt = `Grammar pass on a Reigns-style decision card's situation. KEEP THE MEANING AND WORDING UNCHANGED — only fix typos, missing punctuation, em-dashes (replace with periods), tense slips, and ensure the line ends in "?". ≤140 chars. NO em-dashes.
+
+Original: "${original}"
+
+Output ONLY the cleaned string as a JSON string. If nothing needs fixing, return the original verbatim:
+"<cleaned>"`;
+  try {
+    const text = await callAITextPlain(provider, key, prompt);
+    let cleaned = text.trim();
+    if (cleaned.startsWith('"')) {
+      try { cleaned = JSON.parse(cleaned); } catch (_) {}
+    } else {
+      cleaned = cleaned.replace(/^```(?:json|text)?\s*/i, "").replace(/```$/m, "").trim();
+      cleaned = cleaned.replace(/^["']|["']$/g, "").trim();
+    }
+    cleaned = (cleaned || "").replace(/—/g, " ").replace(/\s+/g, " ").trim();
+    if (cleaned && !/[?]$/.test(cleaned)) cleaned = cleaned.replace(/[.!]+$/, "") + "?";
+    sitEl.value = truncateSentence(cleaned, 140);
+    runValidation();
+  } catch (_) {
+    // Local fallback on error.
+    let s = original.replace(/—/g, " ").replace(/\s+/g, " ").trim();
+    if (s && !/[?]$/.test(s)) s = s.replace(/[.!]+$/, "") + "?";
+    sitEl.value = truncateSentence(s, 140);
+    runValidation();
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+document.getElementById("f-grammar-only")?.addEventListener("click", grammarFixSituation);
+
+// 2026-05-12 — Universal action: ✨ AUTO-WRITE OUTCOMES.
+//
+// Generates both Accept and Decline outcomes from the current
+// situation + speaker + topic. First-person voice, ≤140 chars
+// each, both shifting at least ≥2 |abs| meters per side. Falls
+// back to per-topic local templates when no API key.
+async function autoWriteOutcomes() {
+  const situation = document.getElementById("f-situation")?.value?.trim() || "";
+  if (!situation) {
+    const sitEl = document.getElementById("f-situation");
+    if (sitEl) {
+      sitEl.placeholder = "Write the situation first, then click Auto-write outcomes.";
+      sitEl.focus();
+    }
+    return;
+  }
+  const speaker = document.getElementById("f-speaker")?.value?.trim() || "";
+  const ministry = document.getElementById("f-ministry")?.value?.trim() || "";
+  const topic = resolveTopic(document.getElementById("f-topic")?.value || "__auto__", ministry);
+  const btn = document.getElementById("f-autowrite-outcomes");
+  if (btn) btn.disabled = true;
+
+  const keys = loadAIKeys();
+  let key = keys.anthropic || keys.claude || null;
+  let provider = key ? "claude" : null;
+  if (!key && keys.gemini) { key = keys.gemini; provider = "gemini"; }
+
+  // No-key local path: reuse the localGenerateCard outcome pools.
+  if (!key) {
+    const card = localGenerateCard({ seed: situation });
+    document.getElementById("f-accept-outcome").value = card.accept.outcome;
+    document.getElementById("f-accept-env").value = String(card.accept.env);
+    document.getElementById("f-accept-mil").value = String(card.accept.mil);
+    document.getElementById("f-accept-wel").value = String(card.accept.wel);
+    document.getElementById("f-accept-eco").value = String(card.accept.eco);
+    document.getElementById("f-decline-outcome").value = card.decline.outcome;
+    document.getElementById("f-decline-env").value = String(card.decline.env);
+    document.getElementById("f-decline-mil").value = String(card.decline.mil);
+    document.getElementById("f-decline-wel").value = String(card.decline.wel);
+    document.getElementById("f-decline-eco").value = String(card.decline.eco);
+    runValidation();
+    if (btn) btn.disabled = false;
+    return;
+  }
+
+  const prompt = `You write the Accept and Decline outcomes for ONE Presidenter card. The card's situation is given. The speaker is "${speaker || 'unknown'}". The topic is ${topic || 'tricky'}.
+
+CRITICAL — FIRST-PERSON VOICE: outcomes are the speaker NARRATING what happened. WRONG: "Halvik prints six lines." RIGHT: "I'll print six lines under your name." Both outcomes stay in the speaker's first person.
+
+Rules:
+- Each outcome ≤140 chars, NO em-dashes, period-terminated (not ?).
+- Both outcomes leak something the player wanted to protect (no free yes, no free no).
+- Meter shifts integer in [-5, 5], total |abs| per side ≥ 2.
+- Use {leader} / {country} tokens where natural.
+
+Situation: "${situation}"
+
+Output ONLY this JSON (no prose):
+{"accept":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0},"decline":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0}}`;
+  try {
+    const text = await callAITextPlain(provider, key, prompt);
+    const result = extractJSONFromAIText(text);
+    if (result.accept) {
+      document.getElementById("f-accept-outcome").value = result.accept.outcome || "";
+      document.getElementById("f-accept-env").value = String(result.accept.env ?? 0);
+      document.getElementById("f-accept-mil").value = String(result.accept.mil ?? 0);
+      document.getElementById("f-accept-wel").value = String(result.accept.wel ?? 0);
+      document.getElementById("f-accept-eco").value = String(result.accept.eco ?? 0);
+    }
+    if (result.decline) {
+      document.getElementById("f-decline-outcome").value = result.decline.outcome || "";
+      document.getElementById("f-decline-env").value = String(result.decline.env ?? 0);
+      document.getElementById("f-decline-mil").value = String(result.decline.mil ?? 0);
+      document.getElementById("f-decline-wel").value = String(result.decline.wel ?? 0);
+      document.getElementById("f-decline-eco").value = String(result.decline.eco ?? 0);
+    }
+    runValidation();
+  } catch (err) {
+    // Fall through to local path.
+    const card = localGenerateCard({ seed: situation });
+    document.getElementById("f-accept-outcome").value = card.accept.outcome;
+    document.getElementById("f-decline-outcome").value = card.decline.outcome;
+    runValidation();
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+document.getElementById("f-autowrite-outcomes")?.addEventListener("click", autoWriteOutcomes);
+
 
 async function grammarCheckCard() {
   const sit = document.getElementById("f-situation")?.value?.trim() || "";
@@ -14041,7 +14300,10 @@ Output ONLY this JSON:
     btn.disabled = false;
   }
 }
-document.getElementById("f-grammar-check").addEventListener("click", grammarCheckCard);
+// 2026-05-12 — `f-grammar-check` (top-row button) retired in
+// favour of the per-action buttons next to the Situation. Wire
+// defensively so old paths don't crash.
+document.getElementById("f-grammar-check")?.addEventListener("click", grammarCheckCard);
 
 // 2026-05-12 — 🚀 Batch generate. AI generates N standalone cards on
 // a theme; each lands as an orphan. Author plays watchdog — keep
