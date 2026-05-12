@@ -1034,6 +1034,23 @@
     color: var(--text-muted);
     margin-right: 4px;
   }
+  /* Card-type badge — only shows when cardType is not "swipe".
+     Letter / recurring / anniversary / meter-triggered cards each
+     get a distinct color so authors can scan the canvas and see
+     the special types at a glance. */
+  .card .cardtype-chip {
+    display: inline-block;
+    font-size: 9px; letter-spacing: 0.16em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 999px;
+    margin-right: 4px;
+    font-weight: 700;
+  }
+  .card .cardtype-chip.letter      { background: #c8a85f; color: var(--bg-deep); }
+  .card .cardtype-chip.recurring   { background: #5fb3c8; color: var(--bg-deep); }
+  .card .cardtype-chip.anniversary { background: #c85f9d; color: var(--bg-deep); }
+  .card .cardtype-chip.meter       { background: #9dc85f; color: var(--bg-deep); }
   .card .situation {
     font-size: 13px;
     line-height: 1.45;
@@ -2253,6 +2270,20 @@
         <div class="ins-control"><select id="ins-topic"></select></div>
       </div>
       <div class="ins-row">
+        <label>Card type</label>
+        <div class="ins-control">
+          <select id="ins-cardtype">
+            <option value="swipe">Swipe (binary choice)</option>
+            <option value="letter">Letter (info beat, no swipe)</option>
+            <option value="recurring">Recurring (every N days)</option>
+            <option value="anniversary">Anniversary (fires on a day)</option>
+            <option value="meter">Meter-triggered (auto-fires)</option>
+          </select>
+          <!-- cadenceDays shown only when cardType = recurring -->
+          <input id="ins-cadence-days" type="number" min="1" max="365" placeholder="cadence days (e.g. 7 for weekly)" style="display:none; margin-top:6px;">
+        </div>
+      </div>
+      <div class="ins-row">
         <label>Role</label>
         <div class="ins-control">
           <select id="ins-role">
@@ -2449,6 +2480,11 @@
       <div class="menu-section">Specials</div>
       <button data-add="standalone">⭐ Standalone card…</button>
       <button data-add="ending">⚑ Ending chain…</button>
+      <div class="menu-section">Special card types</div>
+      <button data-add="type-letter">✉ Letter card</button>
+      <button data-add="type-weekly">⟳ Weekly recurring</button>
+      <button data-add="type-anniversary">★ Anniversary card</button>
+      <button data-add="type-meter">⚡ Meter-triggered card</button>
     </div>
   </div>
   <div class="divider"></div>
@@ -7332,6 +7368,7 @@ function renderCard(chain, card) {
     <div class="ministry">${card.ministry}</div>
     <div>
       <span class="topic-chip">.${card.topic}</span>
+      ${card.cardType && card.cardType !== "swipe" ? `<span class="cardtype-chip ${card.cardType}">${card.cardType === "recurring" && card.cadenceDays ? `every ${card.cadenceDays}d` : card.cardType}</span>` : ""}
     </div>
     <div class="situation">${card.situation}</div>
     ${gameOverBadge}
@@ -9620,7 +9657,90 @@ addMenu.addEventListener("click", (e) => {
   else if (kind === "chain-options") showChainOptionsModal();
   else if (kind === "ending") showEndingModal();
   else if (kind === "standalone") showStandaloneModal();
+  else if (kind === "type-letter")      createSpecialTypeCard("letter");
+  else if (kind === "type-weekly")      createSpecialTypeCard("recurring", { cadenceDays: 7 });
+  else if (kind === "type-anniversary") createSpecialTypeCard("anniversary");
+  else if (kind === "type-meter")       createSpecialTypeCard("meter");
 });
+
+// ===================================================================
+// Special card-type spawner — adds an empty Letter / Weekly / Anniversary
+// / Meter-triggered placeholder card. Content (situation, outcomes,
+// trigger condition) is filled in by the player later via the inspector.
+// Drops the new card into a per-type bucket chain so they're easy to
+// find on the canvas.
+// ===================================================================
+function createSpecialTypeCard(cardType, extras = {}) {
+  snapshot();
+  const bucketId = {
+    letter:      "letters",
+    recurring:   "recurring",
+    anniversary: "anniversaries",
+    meter:       "meter_triggers",
+  }[cardType];
+  const bucketName = {
+    letter:      "Letter Cards",
+    recurring:   "Recurring Cards",
+    anniversary: "Anniversary Cards",
+    meter:       "Meter-Triggered Cards",
+  }[cardType];
+  const bucketSubtitle = {
+    letter:      "Info beats · no swipe",
+    recurring:   "Fires every N days",
+    anniversary: "Fires on a specific day",
+    meter:       "Auto-fires on threshold",
+  }[cardType];
+
+  let bucket = CHAINS.find(c => c.id === bucketId);
+  if (!bucket) {
+    const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + 920 : 80;
+    bucket = {
+      id: bucketId,
+      name: bucketName,
+      subtitle: bucketSubtitle,
+      chainTheme: "civic",
+      color: "var(--gold)",
+      x: rightmostX,
+      room: (activeRoom === "__all__") ? "Main" : activeRoom,
+      cards: [],
+    };
+    CHAINS.push(bucket);
+  }
+  const idx = bucket.cards.length + 1;
+  const placeholderSituation = {
+    letter:      "A sealed envelope arrives. Open it to read the letter inside.",
+    recurring:   "Weekly briefing. The desk has news to share.",
+    anniversary: "An anniversary lands today. The room pauses to mark it.",
+    meter:       "The pressure has crossed a line. Someone steps forward.",
+  }[cardType];
+  const placeholderOutcome = {
+    letter:      "The letter is read. The reign moves on.",
+    recurring:   "The briefing closes. The desk will return next time.",
+    anniversary: "The moment is noted. Life keeps moving.",
+    meter:       "The room reacts. The meters settle a beat.",
+  }[cardType];
+
+  const newCard = {
+    id: bucketId + "-" + idx,
+    role: { letter: "Letter", recurring: "Recurring", anniversary: "Anniversary", meter: "Meter-triggered" }[cardType],
+    level: 0,
+    col: "center",
+    speaker: "Press Secretary Lindi",
+    ministry: "Press",
+    topic: "simple",
+    cardType,
+    situation: placeholderSituation,
+    requires: null,
+    accept:  { setFlag: null, target: null, outcome: placeholderOutcome, env: 0, mil: 0, wel: 0, eco: 0 },
+    decline: { setFlag: null, target: null, outcome: placeholderOutcome, env: 0, mil: 0, wel: 0, eco: 0 },
+    ...extras,
+  };
+  bucket.cards.push(newCard);
+  persist();
+  rerenderAll();
+  setTimeout(() => setFocusedCard(newCard.id, false), 80);
+  showCopyToast(`Added ${cardType} card — open the inspector to fill in the content`);
+}
 
 // ===================================================================
 // CHAIN OPTIONS MODAL — AI-or-template chain generation with
@@ -10191,6 +10311,10 @@ function openInspector(cardId) {
     // lock it.
     document.getElementById("ins-ministry").disabled = false;
     document.getElementById("ins-topic").value = card.topic || "tricky";
+    // Card type — swipe is the default. Recurring shows a cadence-days input.
+    document.getElementById("ins-cardtype").value = card.cardType || "swipe";
+    document.getElementById("ins-cadence-days").value = card.cadenceDays || "";
+    document.getElementById("ins-cadence-days").style.display = (card.cardType === "recurring") ? "block" : "none";
     // Role dropdown — if the saved role is one of the preset options
     // pick it; otherwise pick "Custom..." and show the free input.
     const roleSel = document.getElementById("ins-role");
@@ -10335,6 +10459,24 @@ function saveInspectorField() {
     card.topic = newTopic;
     document.getElementById("ins-tricky-row").style.display = newTopic === "tricky" ? "block" : "none";
   }
+  // Card type — swipe is the default and stays implicit on the data
+  // object (omitted to keep deck.json clean). Anything else is
+  // persisted as cardType. Recurring also persists cadenceDays.
+  const newType = document.getElementById("ins-cardtype").value || "swipe";
+  if (newType === "swipe") {
+    delete card.cardType;
+    delete card.cadenceDays;
+  } else {
+    card.cardType = newType;
+    if (newType === "recurring") {
+      const cd = parseInt(document.getElementById("ins-cadence-days").value, 10);
+      if (!isNaN(cd) && cd > 0) card.cadenceDays = cd;
+      else delete card.cadenceDays;
+    } else {
+      delete card.cadenceDays;
+    }
+  }
+  document.getElementById("ins-cadence-days").style.display = (newType === "recurring") ? "block" : "none";
   // Role from dropdown — "__custom__" reveals the free text input
   const roleSel = document.getElementById("ins-role");
   const roleInput = document.getElementById("ins-role-custom");
@@ -10415,6 +10557,7 @@ function schedulePersistAndRerender() {
 function wireInspector() {
   const inputs = [
     "ins-speaker", "ins-ministry", "ins-topic",
+    "ins-cardtype", "ins-cadence-days",
     "ins-role", "ins-role-custom",
     "ins-situation", "ins-tricky", "ins-memory",
     "ins-cond-meter", "ins-cond-op", "ins-cond-value", "ins-condition",
