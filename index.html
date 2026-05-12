@@ -3375,6 +3375,31 @@
             <label class="ins-checkbox"><input type="checkbox" id="ins-tutorial"> Tutorial-only card</label>
           </div>
         </div>
+        <!-- 2026-05-12 — Reigns-ify + mode parity in inspector. -->
+        <div class="ins-row">
+          <label>&nbsp;</label>
+          <div class="ins-control">
+            <label class="ins-checkbox"><input type="checkbox" id="ins-is-artifact"> 📜 Artifact (faceless)</label>
+          </div>
+        </div>
+        <div class="ins-row">
+          <label>&nbsp;</label>
+          <div class="ins-control">
+            <label class="ins-checkbox"><input type="checkbox" id="ins-styleguide-exception"> Style-guide exception</label>
+          </div>
+        </div>
+        <div class="ins-row">
+          <label>Modes</label>
+          <div class="ins-control" style="display:flex; gap:10px; align-items:center; font-size:12px;">
+            <label class="ins-checkbox"><input type="checkbox" id="ins-mode-classic"> Classic</label>
+            <label class="ins-checkbox"><input type="checkbox" id="ins-mode-realistic"> Realistic</label>
+            <label class="ins-checkbox"><input type="checkbox" id="ins-mode-calm"> Live</label>
+          </div>
+        </div>
+        <div class="ins-row">
+          <label>Conscience</label>
+          <div class="ins-control"><input id="ins-conscience-beat" maxlength="80" placeholder="italic chip override (optional)"></div>
+        </div>
         <div style="margin-top:10px;">
           <label style="display:block; font-size:10px; letter-spacing:0.14em; text-transform:uppercase; font-weight:700; color:var(--text-faint); margin-bottom:4px;">A/B variants (one per line)</label>
           <textarea id="ins-variants" rows="2" placeholder="Alternative phrasing 1?&#10;Alternative phrasing 2?"></textarea>
@@ -13072,12 +13097,28 @@ async function generateChainFromOptions() {
       chain.forcesEnding = eId;
       // 2026-05-12 — preserve AI-generated cause-of-death stamp.
       // The engine consumes this via `ForcedEnding.causeOfDeathStamp`
-      // when a chain bakes into Swift with `emitAnyway: true`;
-      // otherwise it stays as authoring metadata for the human to
-      // copy into their Swift ending file.
+      // when a chain bakes into Swift; otherwise it stays as
+      // authoring metadata for the human to copy into their Swift
+      // ending file.
       if (typeof data.causeOfDeathStamp === "string" && data.causeOfDeathStamp.trim()) {
         chain.causeOfDeathStamp = data.causeOfDeathStamp.trim();
       }
+      // 2026-05-12 — inline the ending title + prose on the chain
+      // itself so bin/bake-swift can resolve forced endings without
+      // needing the full ENDING_SCENARIOS dictionary baked into
+      // deck.json. The bake script reads `customEndingTitle` and
+      // `customEndingMessage` (plus the optional stamp above) and
+      // emits a complete `ForcedEnding(title:..., message:...,
+      // causeOfDeathStamp:...)` on the climax card.
+      const lookup = ENDING_SCENARIOS.find(e => e.id === eId);
+      const fallbackTitle = endingId === "__custom__" ? customEnding.slice(0, 40) : (lookup?.name || eId);
+      const fallbackMessage = lookup?.final || endingPrompt;
+      chain.customEndingTitle = fallbackTitle;
+      chain.customEndingMessage = fallbackMessage;
+      // Mark this chain so bake-swift opts it in even though it
+      // carries forcesEnding (the legacy skip rule predated forced-
+      // ending baking support).
+      chain.emitAnyway = true;
       // 2026-05-12 — attach the ending to the FINAL card on long
       // linear-spine chains and to c4 on the 5-card branching tree
       // (matches the GAME-OVER MODE prompt's c4-is-the-guillotine
@@ -13085,8 +13126,15 @@ async function generateChainFromOptions() {
       // triggers the reign-ending beat.
       const endingIdx = (chain.cards.length <= 5) ? 3 : chain.cards.length - 1;
       const endingCard = chain.cards[endingIdx];
-      if (endingCard && endingCard.accept) {
-        endingCard.accept.forcesEnding = eId;
+      // 2026-05-12 — set BOTH sides to forcesEnding so the climax is
+      // truly terminal. The engine's Card.forcesEnding contract is
+      // "this card ends the reign no matter which side the player
+      // swipes"; side-specific framing comes from the two outcome
+      // strings. bake-swift detects this both-sides pattern and
+      // emits a proper ForcedEnding(...) on the card.
+      if (endingCard) {
+        if (endingCard.accept) endingCard.accept.forcesEnding = eId;
+        if (endingCard.decline) endingCard.decline.forcesEnding = eId;
       }
       if (endingId === "__custom__" && !ENDING_SCENARIOS.find(e => e.id === eId)) {
         ENDING_SCENARIOS.push({
@@ -14843,6 +14891,15 @@ function openInspector(cardId) {
     document.getElementById("ins-max-era").value = card.maxEra || "";
     document.getElementById("ins-scheme").value = card.scheme || "";
     document.getElementById("ins-tutorial").checked = !!card.tutorialOnly;
+    // 2026-05-12 — Reigns-ify + modes + styleguide-exception parity
+    // in the inspector. All modal-only fields now load here too.
+    document.getElementById("ins-is-artifact").checked = !!card.isArtifact;
+    document.getElementById("ins-styleguide-exception").checked = !!card.styleguideException;
+    document.getElementById("ins-conscience-beat").value = card.conscienceBeat || "";
+    const insModes = Array.isArray(card.modes) ? card.modes : [];
+    document.getElementById("ins-mode-classic").checked = insModes.includes("classic");
+    document.getElementById("ins-mode-realistic").checked = insModes.includes("realistic");
+    document.getElementById("ins-mode-calm").checked = insModes.includes("calm");
     document.getElementById("ins-variants").value = (card.situationVariants || []).join("\n");
     document.getElementById("ins-coup-threshold").value = card.coupTriggerThreshold || "";
     document.getElementById("ins-achievement").value = (card.accept && card.accept.firesAchievement) || "";
@@ -15030,6 +15087,24 @@ function saveInspectorField() {
   if (scheme) card.scheme = scheme; else delete card.scheme;
   card.tutorialOnly = document.getElementById("ins-tutorial").checked;
   if (!card.tutorialOnly) delete card.tutorialOnly;
+  // 2026-05-12 — Reigns-ify + modes + styleguideException parity.
+  if (document.getElementById("ins-is-artifact").checked) {
+    card.isArtifact = true;
+  } else {
+    delete card.isArtifact;
+  }
+  if (document.getElementById("ins-styleguide-exception").checked) {
+    card.styleguideException = true;
+  } else {
+    delete card.styleguideException;
+  }
+  const insCb = document.getElementById("ins-conscience-beat").value.trim();
+  if (insCb) card.conscienceBeat = insCb; else delete card.conscienceBeat;
+  const insModesPicked = [];
+  if (document.getElementById("ins-mode-classic").checked) insModesPicked.push("classic");
+  if (document.getElementById("ins-mode-realistic").checked) insModesPicked.push("realistic");
+  if (document.getElementById("ins-mode-calm").checked) insModesPicked.push("calm");
+  if (insModesPicked.length) card.modes = insModesPicked; else delete card.modes;
   const variants = document.getElementById("ins-variants").value.split("\n").map(s => s.trim()).filter(Boolean);
   if (variants.length) card.situationVariants = variants; else delete card.situationVariants;
   const coup = parseInt(document.getElementById("ins-coup-threshold").value, 10);
@@ -15079,6 +15154,9 @@ function wireInspector() {
     "ins-decline-outcome", "ins-decline-env", "ins-decline-mil", "ins-decline-wel", "ins-decline-eco",
     "ins-decline-trigger", "ins-decline-cond",
     "ins-min-era", "ins-max-era", "ins-scheme", "ins-tutorial",
+    // 2026-05-12 — Reigns-ify + modes parity in inspector.
+    "ins-is-artifact", "ins-styleguide-exception", "ins-conscience-beat",
+    "ins-mode-classic", "ins-mode-realistic", "ins-mode-calm",
     "ins-variants", "ins-coup-threshold", "ins-achievement", "ins-req-chain", "ins-fires-day",
     "ins-notes",
   ];
