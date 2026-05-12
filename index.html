@@ -3730,7 +3730,7 @@
     <div class="row full">
       <div>
         <label>Scenario seed</label>
-        <textarea id="qc-seed" rows="3" placeholder="e.g. Treasurer panics about an unexpected bond auction shortfall. Or: A child writes the President a thank-you note about a school bridge. Or: Whistleblower delivers an envelope with rocket-fuel receipts."></textarea>
+        <textarea id="qc-seed" rows="3" placeholder="Optional — leave empty to let AI invent. Or describe a scenario in one or two sentences (e.g. Treasurer panics about a bond auction shortfall)."></textarea>
       </div>
     </div>
     <div class="row">
@@ -4095,7 +4095,7 @@
       <div>
         <label>✨ AI helpers <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(optional — one-line scenario + grammar check)</span></label>
         <div style="display:flex; gap:8px; align-items:stretch;">
-          <input id="f-ai-seed" type="text" placeholder="Type a one-line scenario here for ✨ AI Fill (e.g. Treasurer panics about a bond auction shortfall)" style="flex:1;">
+          <input id="f-ai-seed" type="text" placeholder="Optional — leave empty to let AI invent, or type a one-line scenario (e.g. Treasurer panics about a bond auction shortfall)" style="flex:1;">
           <button type="button" id="f-ai-fill" title="AI fills every field below from your one-line scenario" style="background:rgba(255,200,80,0.15); border:1px solid rgba(255,200,80,0.45); color:var(--gold); padding:4px 12px; border-radius:6px; font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer; white-space:nowrap;">✨ AI Fill</button>
           <button type="button" id="f-grammar-check" title="Run grammar / style check on the situation + both outcomes — keeps meaning, suggests fixes" style="background:rgba(120,200,255,0.10); border:1px solid rgba(120,200,255,0.40); color:#9cf; padding:4px 12px; border-radius:6px; font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer; white-space:nowrap;">📝 Grammar</button>
         </div>
@@ -13390,6 +13390,8 @@ Card fields:
 - decline: same shape
 - NO em-dashes ("—") anywhere
 
+CRITICAL — FIRST-PERSON VOICE: Every card is the SPEAKER TALKING TO THE PRESIDENT. Write in FIRST PERSON as the speaker. WRONG: "Halvik prints six lines." RIGHT: "I'll print six lines." WRONG: "Halvik wants the brief signed." RIGHT: "I want the brief signed." Both situation AND outcomes stay in first person.
+
 TONE — every card hits all three at once:
 1. WITTY. One sharp turn of phrase. An understatement, a metaphor, a dry observation. Not a joke. The speaker is too tired for jokes; they're sharp because the room is sharp.
 2. SLIGHTLY CYNICAL. The speaker has seen this before. They know how it usually ends. Their cynicism is earned — they're not posturing. They bring you the choice anyway.
@@ -13402,7 +13404,7 @@ MORAL DILEMMA — every card MUST pass these five tests:
 - The speaker is conflicted too. They're asking the player to share the burden. They want a reason for the record.
 - No clean exit. Both swipes hurt. If the player can answer in under three seconds without flinching, the dilemma failed.
 
-Good example of voice + dilemma:
+Good example of FIRST-PERSON voice + dilemma:
   Treasurer Halen Vorr: "The bond markets close at noon and I'm short eight million. Sell the eastern reserve or default in public — sell?"
   (witty understatement: "default in public"; cynical: he frames both options as bad; mysterious: we never learn why eight million; dilemma: sell a prized asset vs national humiliation.)
 
@@ -13515,18 +13517,56 @@ document.querySelector("#quickcard-backdrop .modal-close-x")?.addEventListener("
 
 async function generateQuickCard() {
   const seed = document.getElementById("qc-seed").value.trim();
-  if (!seed) {
-    document.getElementById("qc-status").innerHTML = `<span style="color: var(--decline);">Type a one-line scenario first.</span>`;
-    return;
-  }
   const tone = document.getElementById("qc-tone").value || "";
   const cardType = document.getElementById("qc-cardtype").value || "swipe";
   const keys = loadAIKeys();
   let key = keys.anthropic || keys.claude || null;
   let provider = key ? "claude" : null;
   if (!key && keys.gemini) { key = keys.gemini; provider = "gemini"; }
+  document.getElementById("qc-generate").disabled = true;
+
+  // 2026-05-12 — empty-seed + no-key paths both work now. Empty seed
+  // means AI invents from scratch; no key means we generate locally
+  // with the same template engine the inline AI Fill uses. The
+  // author never hits a dead end.
   if (!key) {
-    document.getElementById("qc-status").innerHTML = `<span style="color: var(--decline);">No API key configured. Save a Claude or Gemini key in Settings first.</span>`;
+    document.getElementById("qc-status").textContent = `✨ Generating locally…`;
+    try {
+      const card = localGenerateCard({ seed });
+      if (cardType === "artifact") card.isArtifact = true;
+      snapshot();
+      let bucket = CHAINS.find(c => c.id === "orphans");
+      if (!bucket) {
+        const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + 920 : 80;
+        bucket = { id: "orphans", name: "Orphan Cards", subtitle: "AI ✨ quick cards · review and keep", chainTheme: "civic", color: "var(--gold)", x: rightmostX, room: (activeRoom === "__all__") ? "Main" : activeRoom, cards: [] };
+        CHAINS.push(bucket);
+      }
+      const seq = bucket.cards.length + 1;
+      const newCard = {
+        id: "orphans-" + seq,
+        role: "AI Quick",
+        level: 0,
+        col: "center",
+        speaker: card.speaker,
+        ministry: card.ministry,
+        topic: card.topic,
+        situation: card.situation,
+        requires: null,
+        accept: { setFlag: null, target: null, ...card.accept },
+        decline: { setFlag: null, target: null, ...card.decline },
+      };
+      if (card.isArtifact) newCard.isArtifact = true;
+      bucket.cards.push(newCard);
+      persist();
+      rerenderAll();
+      closeQuickCardModal();
+      setTimeout(() => setFocusedCard(newCard.id, false), 80);
+      showCopyToast(`Card landed: "${(newCard.situation || "").slice(0, 60)}…"`);
+    } catch (err) {
+      document.getElementById("qc-status").innerHTML = `<span style="color: var(--decline);">Error: ${err.message}</span>`;
+    } finally {
+      document.getElementById("qc-generate").disabled = false;
+    }
     return;
   }
   document.getElementById("qc-status").textContent = `Calling ${provider === "claude" ? "Claude" : "Gemini"}…`;
@@ -13539,18 +13579,24 @@ async function generateQuickCard() {
     ? `\n\nThis card is an ARTIFACT — it has no speaker. Set speaker to "" and ministry to "" and the situation should read as evidence on the desk (an anonymous note, a confiscated file, a leaked photograph). The two outcomes still apply.`
     : "";
 
-  const prompt = `You write decision cards for "Presidenter", a Reigns-style swipe game. The author has typed ONE scenario seed; you write the full card.
+  const seedLine = seed
+    ? `The author's scenario seed: "${seed}"`
+    : `No scenario seed — invent a plausible cabinet beat in v30 tone.`;
+
+  const prompt = `You write decision cards for "Presidenter", a Reigns-style swipe game.
 
 THE FORMAT (v30):
 Every card is ONE speaker leaning into the desk with TWO short sentences. Sentence 1 = the situation. Sentence 2 = the ask (yes/no question). ≤140 chars total, ≤2 sentences, NO em-dashes, ENDS in "?".
+
+CRITICAL — VOICE: The card is the SPEAKER TALKING TO THE PRESIDENT. Write FIRST PERSON as the speaker. WRONG: "Halvik prints six lines under your name." RIGHT: "I'll print six lines under your name." WRONG: "Halvik wants you to approve the press release." RIGHT: "I want the press release signed before noon." Both outcomes also stay in the speaker's voice — "I publish tonight" / "I bury the file."
 
 Card fields:
 - speaker: must be one of the 50 names below (or "" for artifact)
 - ministry: must match speaker's home ministry (or "" for artifact)
 - topic: one of [tricky, scandal, economy, military, diplomacy, health, simple, education, environment, energy, justice, funnyFlavor]
-- situation: ≤140 chars, ends in "?", in the speaker's voice
-- accept.outcome: ≤140 chars, in the same voice
-- decline.outcome: ≤140 chars, in the same voice
+- situation: ≤140 chars, ends in "?", FIRST-PERSON in the speaker's voice
+- accept.outcome: ≤140 chars, FIRST-PERSON in the same voice
+- decline.outcome: ≤140 chars, FIRST-PERSON in the same voice
 - Both outcomes meaningful (≥2 |abs| meter total per side)
 - NO em-dashes
 
@@ -13559,9 +13605,9 @@ TONE: witty, slightly cynical, mysterious. Every card is a moral dilemma — bot
 Cast:
 ${speakerLines}${toneBlock}${artifactNote}
 
-The author's scenario seed: "${seed}"
+${seedLine}
 
-Pick the most plausible speaker for this scenario. Output ONLY this JSON (no prose):
+Output ONLY this JSON (no prose):
 {"speaker":"...","ministry":"...","topic":"...","situation":"...","accept":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0},"decline":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0}}`;
 
   try {
@@ -13627,78 +13673,296 @@ function setAiHelperStatus(text, isError) {
 
 async function aiFillFromSeed() {
   const seed = document.getElementById("f-ai-seed")?.value?.trim() || "";
-  if (!seed) {
-    setAiHelperStatus("Type a one-line scenario first.", true);
-    return;
-  }
+  const fillBtn = document.getElementById("f-ai-fill");
+  fillBtn.disabled = true;
   const keys = loadAIKeys();
   let key = keys.anthropic || keys.claude || null;
   let provider = key ? "claude" : null;
   if (!key && keys.gemini) { key = keys.gemini; provider = "gemini"; }
+
+  // 2026-05-12 — no-API-key path now ALWAYS generates locally
+  // instead of erroring. Player ask: "what do you mean no api key?
+  // you will do them. fix this issue, remove api thing." The local
+  // generator picks a random speaker, topic, and writes the card
+  // in the speaker's first-person voice with v30 tone.
   if (!key) {
-    setAiHelperStatus("No API key configured. Save a Claude or Gemini key in Settings.", true);
+    setAiHelperStatus(seed
+      ? "✨ Generating from your scenario…"
+      : "✨ Generating a card from scratch…");
+    try {
+      const card = localGenerateCard({ seed });
+      plumbCardIntoForm(card);
+      setAiHelperStatus("✓ Filled. Edit any field, then save.");
+    } catch (err) {
+      setAiHelperStatus("Error: " + err.message, true);
+    } finally {
+      fillBtn.disabled = false;
+    }
     return;
   }
-  const fillBtn = document.getElementById("f-ai-fill");
-  fillBtn.disabled = true;
-  setAiHelperStatus(`Calling ${provider === "claude" ? "Claude" : "Gemini"}…`);
 
+  setAiHelperStatus(`Calling ${provider === "claude" ? "Claude" : "Gemini"}…`);
   const speakerLines = Object.entries(SPEAKERS_BY_MINISTRY)
     .map(([m, names]) => `  ${m}: ${names.join(", ")}`).join("\n");
 
+  // 2026-05-12 — first-person voice. Player ask: "each card will be
+  // written in the speaker's mouth. Instead of 'Osman says/wants',
+  // card should say 'I want…' Because this is from the speaker's
+  // mouth." Prompt now hard-requires "I want / I need / I'll do X"
+  // phrasing on both the situation and the outcomes.
+  const seedLine = seed
+    ? `Author's scenario seed: "${seed}"\n\nWrite a card that fits this seed.`
+    : `No scenario seed provided — invent a believable cabinet beat in v30 tone. Pick any reasonable speaker + topic.`;
+
   const prompt = `You write decision cards for "Presidenter", a Reigns-style swipe game.
 
-FORMAT (v30): Every card is ONE speaker leaning into the desk with TWO short sentences. Sentence 1 = situation. Sentence 2 = ask (yes/no question). ≤140 chars total. NO em-dashes. ENDS in "?". TONE: witty, slightly cynical, mysterious. Every card is a moral dilemma — both swipes hurt.
+FORMAT (v30): Every card is ONE speaker leaning into the desk with TWO short sentences. Sentence 1 = situation in FIRST PERSON ("I'll close the bridge tonight…"). Sentence 2 = ask in FIRST PERSON ("Sign?", "Approve?", "Pay them?"). ≤140 chars total. NO em-dashes. ENDS in "?". TONE: witty, slightly cynical, mysterious. Every card is a moral dilemma — both swipes hurt.
+
+CRITICAL — VOICE: The card is the SPEAKER TALKING to the President. Write FIRST PERSON as the speaker. WRONG: "Halvik prints six lines under your name." RIGHT: "I'll print six lines under your name." WRONG: "Halvik wants you to approve the press release." RIGHT: "I want the press release signed before noon." Both outcomes also stay in the speaker's voice — "I publish tonight" / "I bury the file."
 
 Cast (speaker → ministry):
 ${speakerLines}
 
-Author's scenario seed: "${seed}"
+${seedLine}
 
-Pick the most plausible speaker for the scenario. Output ONLY this JSON:
+Output ONLY this JSON:
 {"speaker":"...","ministry":"...","topic":"...","situation":"...","accept":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0},"decline":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0}}`;
 
   try {
     const text = await callAITextPlain(provider, key, prompt);
     const card = extractJSONFromAIText(text);
-    // Plumb into the existing form fields.
-    if (card.speaker) {
-      document.getElementById("f-speaker").value = card.speaker;
-      const m = MINISTRY_OF[card.speaker];
-      if (m) {
-        document.getElementById("f-ministry").value = m;
-        document.getElementById("f-ministry").disabled = true;
-      } else if (card.ministry) {
-        document.getElementById("f-ministry").value = card.ministry;
-      }
-    }
-    if (card.topic) {
-      const topicEl = document.getElementById("f-topic");
-      topicEl.value = card.topic;
-      topicEl.dispatchEvent(new Event("change"));
-    }
-    if (card.situation) document.getElementById("f-situation").value = card.situation;
-    if (card.accept) {
-      document.getElementById("f-accept-outcome").value = card.accept.outcome || "";
-      document.getElementById("f-accept-env").value = String(card.accept.env ?? 0);
-      document.getElementById("f-accept-mil").value = String(card.accept.mil ?? 0);
-      document.getElementById("f-accept-wel").value = String(card.accept.wel ?? 0);
-      document.getElementById("f-accept-eco").value = String(card.accept.eco ?? 0);
-    }
-    if (card.decline) {
-      document.getElementById("f-decline-outcome").value = card.decline.outcome || "";
-      document.getElementById("f-decline-env").value = String(card.decline.env ?? 0);
-      document.getElementById("f-decline-mil").value = String(card.decline.mil ?? 0);
-      document.getElementById("f-decline-wel").value = String(card.decline.wel ?? 0);
-      document.getElementById("f-decline-eco").value = String(card.decline.eco ?? 0);
-    }
-    runValidation();
+    plumbCardIntoForm(card);
     setAiHelperStatus("✓ Filled. Edit any field, then save.");
   } catch (err) {
-    setAiHelperStatus("Error: " + err.message, true);
+    // If the AI call failed for ANY reason, fall back to the local
+    // generator so the author never hits a dead end.
+    try {
+      const card = localGenerateCard({ seed });
+      plumbCardIntoForm(card);
+      setAiHelperStatus("✓ Filled (offline). Edit any field, then save.");
+    } catch (_) {
+      setAiHelperStatus("Error: " + err.message, true);
+    }
   } finally {
     fillBtn.disabled = false;
   }
+}
+
+// 2026-05-12 — single helper that plumbs a card-shaped object into
+// every form field below. Used by aiFillFromSeed (AI path AND local
+// fallback path) so the two stay in lockstep.
+function plumbCardIntoForm(card) {
+  if (card.speaker) {
+    document.getElementById("f-speaker").value = card.speaker;
+    const m = MINISTRY_OF[card.speaker];
+    if (m) {
+      document.getElementById("f-ministry").value = m;
+      document.getElementById("f-ministry").disabled = true;
+    } else if (card.ministry) {
+      document.getElementById("f-ministry").value = card.ministry;
+    }
+  }
+  if (card.topic) {
+    const topicEl = document.getElementById("f-topic");
+    topicEl.value = card.topic;
+    topicEl.dispatchEvent(new Event("change"));
+  }
+  if (card.situation) document.getElementById("f-situation").value = card.situation;
+  if (card.accept) {
+    document.getElementById("f-accept-outcome").value = card.accept.outcome || "";
+    document.getElementById("f-accept-env").value = String(card.accept.env ?? 0);
+    document.getElementById("f-accept-mil").value = String(card.accept.mil ?? 0);
+    document.getElementById("f-accept-wel").value = String(card.accept.wel ?? 0);
+    document.getElementById("f-accept-eco").value = String(card.accept.eco ?? 0);
+  }
+  if (card.decline) {
+    document.getElementById("f-decline-outcome").value = card.decline.outcome || "";
+    document.getElementById("f-decline-env").value = String(card.decline.env ?? 0);
+    document.getElementById("f-decline-mil").value = String(card.decline.mil ?? 0);
+    document.getElementById("f-decline-wel").value = String(card.decline.wel ?? 0);
+    document.getElementById("f-decline-eco").value = String(card.decline.eco ?? 0);
+  }
+  runValidation();
+}
+
+// 2026-05-12 — local card generator. No API call; weaves a random
+// speaker + topic + first-person template into a full card so the
+// author never hits "No API key configured" — they get a draft to
+// edit instead. Tries to use the seed string as a kernel when
+// non-empty.
+function localGenerateCard(opts = {}) {
+  const seed = (opts.seed || "").trim();
+  const allSpeakers = Object.values(SPEAKERS_BY_MINISTRY).flat();
+  const speaker = pickRandom(allSpeakers);
+  const ministry = MINISTRY_OF[speaker] || "Cabinet";
+  // Topic — auto-pick from ministry, fallback to scandal.
+  const topic = resolveTopic("__auto__", ministry) || "scandal";
+
+  // First-person situation templates. Each draws from the seed when
+  // present; otherwise uses a per-topic generic beat. Templates are
+  // tagged with placeholders that get replaced at composition time.
+  const seedKernel = seed ? truncateSentence(seed, 90) : null;
+  const SIT_BY_TOPIC = {
+    economy:    ["I'm short on the morning auction by the time you read this. Cover the shortfall?",
+                 "I need to sign the foreign-loan terms before noon. Sign?",
+                 "I have an offer on the table that closes the books. Take it?"],
+    military:   ["I want the garrison moved north tonight. Authorise?",
+                 "I'm asked to mobilise the western column by dawn. Mobilise?",
+                 "I have orders on the desk that need your seal. Sign?"],
+    diplomacy:  ["I have a foreign delegation parked at the south gate. Receive them?",
+                 "I'm holding the cable until you say yes or no. Send it?",
+                 "I want to open a back-channel before the press finds out. Open it?"],
+    scandal:    ["I have a story breaking by sundown. Bury it?",
+                 "I'm sitting on evidence that doesn't help anyone. Release?",
+                 "I want a public denial on the desk by morning. Issue it?"],
+    health:     ["I'm short on the cold-store medicine for two districts. Reroute?",
+                 "I need a public statement on the outbreak by dawn. Approve?",
+                 "I have a vaccine programme ready to roll out. Begin?"],
+    environment:["I'm asked to permit the new mill on the river. Permit?",
+                 "I have a clean-air bill drafted but no votes. Push it?",
+                 "I want the harbour dredging stopped. Stop?"],
+    education:  ["I'm short on chalk in three districts. Send funds?",
+                 "I need a curriculum vote by Friday. Push it through?",
+                 "I have the union at my door. See them?"],
+    energy:     ["I want the reactor restarted before winter. Restart?",
+                 "I'm asked to sign the long-haul power deal. Sign?",
+                 "I have the grid plan in front of me. Approve?"],
+    justice:    ["I have the pardon papers ready. Sign them?",
+                 "I'm asked to drop the prosecution. Drop it?",
+                 "I want the case before a fresh judge. Reassign?"],
+    family:     ["I want a quiet evening at the residence. Take one?",
+                 "I have a letter from my eldest. Read it now?",
+                 "I'm asked to attend a school visit tomorrow. Go?"],
+    tricky:     ["I have two memos. Both look reasonable. Pick the second?",
+                 "I want to ask before I act. Speak plainly?",
+                 "I have a small request that's actually not. Approve?"],
+    simple:    ["I want a quick answer on the bench order. Sign?",
+                 "I have a routine file that won't be routine tomorrow. Sign?",
+                 "I'm asked to confirm the appointments list. Confirm?"],
+    funnyFlavor:["I want to take the long way to lunch. Indulge me?",
+                 "I have a quiet question. Humour me?",
+                 "I'm asked about the office cat again. Comment?"],
+  };
+  const sitPool = SIT_BY_TOPIC[topic] || SIT_BY_TOPIC.scandal;
+  const situation = seedKernel
+    ? `${seedKernel.replace(/[.?!]+$/, "")} ${pickRandom(["Sign?", "Approve?", "Authorise?", "Do it?", "Confirm?"])}`
+    : pickRandom(sitPool);
+
+  // First-person outcomes — accept = "I do the thing", decline =
+  // "I sit on it / drop it / leave it alone." Pick from per-topic
+  // pools.
+  const ACC_OUT = {
+    economy:    ["I close the gap. The morning auction prints in the green.",
+                 "I sign. The treasury sleeps tonight; the cost lands by Friday.",
+                 "I take the offer. The receipts won't read well next quarter."],
+    military:   ["I move the column. The bench reads the briefing at breakfast.",
+                 "I sign. The garrison salutes; the cost lands later.",
+                 "I authorise. The press hears the boots before the order."],
+    diplomacy:  ["I receive them. The foreign desk takes the credit; we take the bill.",
+                 "I send the cable. By morning the answer is on a different desk.",
+                 "I open the channel. Nobody will admit they read the wire."],
+    scandal:    ["I bury it. The page is blank in tomorrow's edition.",
+                 "I release. The story moves; someone else's name goes first.",
+                 "I issue the denial. The cabinet looks at the wallpaper."],
+    health:     ["I reroute. The cold-store sleeps; the lights elsewhere flicker.",
+                 "I approve. The statement runs at six; the calls start at seven.",
+                 "I begin. The programme is on the road by Friday."],
+    environment:["I permit. The mill opens; the river loses a year.",
+                 "I push it. The vote is closer than the press will admit.",
+                 "I stop the dredging. The harbour clears its throat."],
+    education:  ["I send the funds. The chalk arrives by Thursday.",
+                 "I push the vote. The unions watch from the gallery.",
+                 "I see them. The minutes are kept by the chamberlain."],
+    energy:     ["I restart. The lights stay on; the river warms.",
+                 "I sign. The grid sleeps better; we owe the long-haul price.",
+                 "I approve. The plan goes out under three signatures."],
+    justice:    ["I sign the pardon. The court is polite; the press is not.",
+                 "I drop the case. The file is closed; the file is not gone.",
+                 "I reassign. The new judge will look fresher in the photograph."],
+    family:     ["I take the evening. The residence breathes for an hour.",
+                 "I read it now. I keep the letter in the drawer.",
+                 "I go. The school remembers; the press waits at the gate."],
+    tricky:    ["I pick the second. The first will come back later.",
+                 "I speak plainly. The room looks down.",
+                 "I approve. I make a note to come back to it."],
+    simple:    ["I sign. The bench reads it at breakfast.",
+                 "I sign. The routine becomes routine again.",
+                 "I confirm. The list goes out on time."],
+    funnyFlavor:["I take the long way. The chamberlain looks pleased.",
+                 "I humour you. The room exhales.",
+                 "I comment. The cat is mentioned in tomorrow's paper."],
+  };
+  const DEC_OUT = {
+    economy:    ["I don't sign. The market opens lower; the press finds the leak.",
+                 "I refuse. The treasury looks at the long calendar.",
+                 "I leave it. The offer is gone by lunch."],
+    military:   ["I hold the column. The barracks file a quiet objection.",
+                 "I refuse. The press writes about hesitation.",
+                 "I decline. The order goes out unsigned; someone else carries it."],
+    diplomacy:  ["I refuse the meeting. The delegation flies home loud.",
+                 "I withhold the cable. The wire grows by the hour.",
+                 "I close the back-channel. The press fills the silence."],
+    scandal:    ["I let it run. The page is brutal; the next page is worse.",
+                 "I keep the file. Someone leaks it by Thursday.",
+                 "I refuse to deny. The denial writes itself in the headlines."],
+    health:     ["I don't reroute. Two districts ration; the press takes note.",
+                 "I withhold the statement. By noon every paper has it.",
+                 "I delay. The programme misses its window."],
+    environment:["I refuse the permit. The mill takes its money elsewhere.",
+                 "I hold the bill. The bench notices it isn't on the floor.",
+                 "I leave the dredging. The harbour stays loud."],
+    education:  ["I refuse the funds. The classrooms write to the press.",
+                 "I hold the vote. The unions schedule a sit-in.",
+                 "I send them away. The lobby gets larger."],
+    energy:     ["I hold the restart. The lights flicker through the cold week.",
+                 "I refuse the deal. The price rises before the contract.",
+                 "I refuse the plan. The grid coughs in the new year."],
+    justice:    ["I refuse the pardon. The court reads it aloud.",
+                 "I keep the prosecution. The cabinet looks at the door.",
+                 "I leave the judge in place. The defence files appeals."],
+    family:     ["I work through. The residence is quiet but not rested.",
+                 "I leave the letter. The drawer fills.",
+                 "I don't go. The school keeps the chair empty."],
+    tricky:    ["I pick the first. It comes back as I feared.",
+                 "I keep my counsel. The room reads the silence.",
+                 "I refuse. The note ages well; the issue does not."],
+    simple:    ["I don't sign. The bench reads the omission at breakfast.",
+                 "I delay. The routine becomes paperwork.",
+                 "I withhold confirmation. The list grows."],
+    funnyFlavor:["I keep walking. The chamberlain pretends not to mind.",
+                 "I don't humour you. The room contracts.",
+                 "I decline. The cat is in the paper anyway."],
+  };
+  const accept_out = pickRandom(ACC_OUT[topic] || ACC_OUT.scandal);
+  const decline_out = pickRandom(DEC_OUT[topic] || DEC_OUT.scandal);
+
+  // Meter shifts — use the existing TOPIC_METER_SUGGESTIONS table.
+  const meterSugg = (typeof TOPIC_METER_SUGGESTIONS !== "undefined")
+    ? TOPIC_METER_SUGGESTIONS[topic] || {}
+    : {};
+  const a = meterSugg.accept || { wel: 1, eco: -1 };
+  const d = meterSugg.decline || { wel: -1, eco: 1 };
+
+  return {
+    speaker,
+    ministry,
+    topic,
+    situation: truncateSentence(situation, 140),
+    accept: {
+      outcome: truncateSentence(accept_out, 140),
+      env: a.env || 0, mil: a.mil || 0, wel: a.wel || 0, eco: a.eco || 0,
+    },
+    decline: {
+      outcome: truncateSentence(decline_out, 140),
+      env: d.env || 0, mil: d.mil || 0, wel: d.wel || 0, eco: d.eco || 0,
+    },
+  };
+}
+
+function truncateSentence(s, max) {
+  if (!s) return "";
+  if (s.length <= max) return s;
+  return s.slice(0, max - 1).trim() + "…";
 }
 document.getElementById("f-ai-fill").addEventListener("click", aiFillFromSeed);
 
@@ -13826,6 +14090,8 @@ async function generateBatch() {
 
 THE FORMAT (v30): Every card is ONE speaker, TWO short sentences (situation + ask). ≤140 chars, ends in "?", NO em-dashes. Both outcomes meaningful (≥2 |abs| meter total per side).
 TONE: witty, slightly cynical, mysterious. Every card is a moral dilemma — both swipes hurt.
+
+CRITICAL — VOICE: Write FIRST PERSON as the speaker talking to the President. WRONG: "Halvik prints six lines." RIGHT: "I'll print six lines." WRONG: "Halvik wants the press release signed." RIGHT: "I want the press release signed." Both outcomes ALSO stay in first person.
 
 Cast (speaker → ministry):
 ${speakerLines}${toneBlock}${artifactNote}
