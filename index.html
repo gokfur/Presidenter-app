@@ -5339,6 +5339,51 @@ function updateUndoButton() {
     : "Nothing to undo";
 }
 
+// 2026-05-12 — versioned deck.json schema. Stamps every export +
+// GitHub-push payload with `schemaVersion: DECK_SCHEMA_VERSION` so a
+// future reader can detect old shapes and migrate. The migration
+// table below runs sequentially from the file's version up to the
+// current version, applying each step in order. Files without a
+// schemaVersion field are assumed v1 (the implicit shape before this
+// versioning landed).
+const DECK_SCHEMA_VERSION = 2;
+const DECK_SCHEMA_MIGRATIONS = {
+  // v1 → v2: stamps the schemaVersion field on legacy files. No
+  // structural change — existing CHAINS arrays already match v2
+  // shape; this migration just labels them so future v2 → v3 work
+  // can detect what's been migrated and what's still raw v1.
+  1: function migrate_v1_to_v2(payload) {
+    payload.schemaVersion = 2;
+    return payload;
+  },
+  // Add 2: function migrate_v2_to_v3(payload) { ... } when needed.
+};
+
+// Apply the migration chain from `fromVersion` up to DECK_SCHEMA_VERSION.
+// Returns the (possibly mutated) payload — caller decides whether to
+// persist the result. Safe to call on a payload that's already current
+// (the loop body never fires).
+function migrateDeckPayload(payload) {
+  if (!payload || typeof payload !== "object") return payload;
+  let version = typeof payload.schemaVersion === "number" ? payload.schemaVersion : 1;
+  while (version < DECK_SCHEMA_VERSION) {
+    const step = DECK_SCHEMA_MIGRATIONS[version];
+    if (!step) {
+      console.warn(`No migration from v${version} to v${version + 1} — leaving payload as-is.`);
+      break;
+    }
+    try {
+      payload = step(payload);
+    } catch (e) {
+      console.warn(`Migration v${version} → v${version + 1} threw, leaving payload as-is.`, e);
+      break;
+    }
+    version += 1;
+  }
+  payload.schemaVersion = DECK_SCHEMA_VERSION;
+  return payload;
+}
+
 function exportJSONFile() {
   // Per-room export ask: if a specific room is active, ask whether
   // to export just that room or the whole deck. Player ask 2026-05:
@@ -5350,7 +5395,7 @@ function exportJSONFile() {
     const choice = confirm(`Export options:\n\nOK = Export just "${activeRoom}" (${roomChains.length} chains)\nCancel = Export the entire deck (${CHAINS.length} chains)`);
     if (choice) { chainsToExport = roomChains; suffix = "_" + activeRoom.replace(/[^a-z0-9]/gi, "_"); }
   }
-  const payload = { CHAINS: chainsToExport, ROOMS, activeRoom, exportedAt: new Date().toISOString(), partial: activeRoom !== "__all__" && chainsToExport.length < CHAINS.length };
+  const payload = { schemaVersion: DECK_SCHEMA_VERSION, CHAINS: chainsToExport, ROOMS, activeRoom, exportedAt: new Date().toISOString(), partial: activeRoom !== "__all__" && chainsToExport.length < CHAINS.length };
   const data = JSON.stringify(payload, null, 2);
   const blob = new Blob([data], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -5456,7 +5501,13 @@ function importJSONFile(file) {
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
-      const parsed = JSON.parse(e.target.result);
+      let parsed = JSON.parse(e.target.result);
+      // 2026-05-12 — run schema migrations before reading CHAINS so a
+      // future v3 file (e.g. with `modes: [...]` per card) imported
+      // by an older build won't strand the new fields.
+      if (parsed && !Array.isArray(parsed)) {
+        parsed = migrateDeckPayload(parsed);
+      }
       const incoming = Array.isArray(parsed) ? parsed : parsed.CHAINS;
       if (!Array.isArray(incoming) || !incoming.length) {
         alert("File doesn't look like a valid deck export.");
