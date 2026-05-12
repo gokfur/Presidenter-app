@@ -2443,6 +2443,9 @@
       <button data-add="chain-5">⛓ 5-card chain (standard)</button>
       <button data-add="chain-10">⛓ 10-card chain</button>
       <button data-add="chain-20">⛓ 20-card chain</button>
+      <button data-add="chain-50">⛓ 50-card chain</button>
+      <div class="menu-section">Generate with options</div>
+      <button data-add="chain-options">🪄 Custom chain… (AI / template)</button>
       <div class="menu-section">Specials</div>
       <button data-add="standalone">⭐ Standalone card…</button>
       <button data-add="ending">⚑ Ending chain…</button>
@@ -2464,6 +2467,82 @@
   <div class="save-indicator" id="save-indicator">·</div>
 </div>
 
+<!-- Chain creation options modal — pick length / speaker / theme /
+     ending / generation method (template / Claude / Gemini) -->
+<div id="chainopt-backdrop" class="modal-backdrop-v2" style="display:none;">
+  <div class="modal-card" style="max-width: 580px;">
+    <h2>Generate a chain</h2>
+    <div class="modal-sub">Pick the shape and ask the engine — or an AI — to fill it in. Press <b>Generate</b> to see it land on the canvas.</div>
+
+    <div class="row">
+      <div>
+        <label>Length</label>
+        <select id="co-length">
+          <option value="3">3 cards</option>
+          <option value="5" selected>5 cards (standard arc)</option>
+          <option value="10">10 cards</option>
+          <option value="20">20 cards</option>
+          <option value="50">50 cards</option>
+        </select>
+      </div>
+      <div>
+        <label>Theme (optional)</label>
+        <select id="co-theme">
+          <option value="">— random —</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Starting speaker (optional)</label>
+        <select id="co-speaker">
+          <option value="">— random / by theme —</option>
+        </select>
+      </div>
+      <div>
+        <label>Game-over ending (optional)</label>
+        <select id="co-ending">
+          <option value="">— no game-over (normal chain) —</option>
+          <option value="__custom__">Custom (type below)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row full" id="co-custom-ending-row" style="display:none;">
+      <div>
+        <label>Custom ending description</label>
+        <input id="co-custom-ending" placeholder="e.g. The bank fires you on national TV">
+      </div>
+    </div>
+
+    <div class="row full">
+      <div>
+        <label>Generation method</label>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 4px;">
+          <label class="ins-checkbox" style="background: var(--surface2); border: 1px solid var(--hairline); padding: 8px; border-radius: 8px; justify-content: center; cursor: pointer;">
+            <input type="radio" name="co-method" value="template" checked> Template
+          </label>
+          <label class="ins-checkbox" style="background: var(--surface2); border: 1px solid var(--hairline); padding: 8px; border-radius: 8px; justify-content: center; cursor: pointer;">
+            <input type="radio" name="co-method" value="claude"> Claude AI
+          </label>
+          <label class="ins-checkbox" style="background: var(--surface2); border: 1px solid var(--hairline); padding: 8px; border-radius: 8px; justify-content: center; cursor: pointer;">
+            <input type="radio" name="co-method" value="gemini"> Gemini AI
+          </label>
+        </div>
+        <div id="co-method-hint" style="font-size: 11px; color: var(--text-faint); margin-top: 6px;">Template uses your hand-written STORY_ARCS library — instant, no API key needed.</div>
+      </div>
+    </div>
+
+    <div id="co-status" style="background: var(--bg-deep); padding: 10px; border-radius: 8px; font-size: 11px; line-height: 1.5; color: var(--text-muted); min-height: 24px; margin-top: 12px;"></div>
+
+    <div class="modal-actions">
+      <button id="co-cancel">Cancel</button>
+      <button id="co-generate" class="primary">Generate</button>
+    </div>
+  </div>
+</div>
+
 <!-- Settings modal — danger-zone actions live here -->
 <div id="settings-backdrop" class="modal-backdrop-v2" style="display:none;">
   <div class="modal-card" style="max-width: 540px;">
@@ -2473,6 +2552,20 @@
     <div style="background: var(--surface2); padding: 14px; border-radius: 10px; margin-bottom: 12px;">
       <div style="font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; color: var(--text-muted); margin-bottom: 8px;">Stats</div>
       <div id="settings-stats" style="font-family: SF Mono, monospace; font-size: 12px; color: var(--text-primary); line-height: 1.6;"></div>
+    </div>
+
+    <div style="background: var(--surface2); padding: 14px; border-radius: 10px; margin-bottom: 12px;">
+      <div style="font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; color: var(--text-muted); margin-bottom: 10px;">AI generation keys</div>
+      <div style="font-size: 11px; color: var(--text-faint); line-height: 1.5; margin-bottom: 8px;">Stored in localStorage. Used when you pick Claude or Gemini in the "Generate a chain" dialog. Each call hits the provider's API directly from your browser.</div>
+      <label style="display:block; font-size:10px; letter-spacing:0.14em; text-transform:uppercase; font-weight:700; color:var(--text-faint); margin-bottom:4px;">Anthropic API key (Claude)</label>
+      <input id="settings-anthropic-key" type="password" placeholder="sk-ant-..." style="width:100%; background:var(--bg-deep); border:1px solid var(--hairline); color:var(--text-primary); border-radius:6px; padding:6px 8px; font-size:12px; font-family:SF Mono, monospace;">
+      <div style="font-size: 10px; color: var(--text-faint); margin: 4px 0 10px;">Get one at <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color: var(--gold);">console.anthropic.com/settings/keys</a></div>
+      <label style="display:block; font-size:10px; letter-spacing:0.14em; text-transform:uppercase; font-weight:700; color:var(--text-faint); margin-bottom:4px;">Google AI Studio key (Gemini)</label>
+      <input id="settings-gemini-key" type="password" placeholder="AIza..." style="width:100%; background:var(--bg-deep); border:1px solid var(--hairline); color:var(--text-primary); border-radius:6px; padding:6px 8px; font-size:12px; font-family:SF Mono, monospace;">
+      <div style="font-size: 10px; color: var(--text-faint); margin: 4px 0 0;">Get one at <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: var(--gold);">aistudio.google.com/app/apikey</a></div>
+      <div style="display:flex; gap:6px; margin-top: 10px;">
+        <button id="settings-save-keys" style="padding: 6px 12px; border: 1px solid var(--gold); background: var(--gold); color: var(--bg-deep); border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;">Save keys</button>
+      </div>
     </div>
 
     <div style="background: rgba(215,118,118,0.08); border: 1px solid rgba(215,118,118,0.3); padding: 14px; border-radius: 10px; margin-bottom: 12px;">
@@ -5432,19 +5525,17 @@ function autoFixIssue(fix, cardId) {
     if (card.accept && card.accept.outcome) card.accept.outcome = simplify(card.accept.outcome);
     if (card.decline && card.decline.outcome) card.decline.outcome = simplify(card.decline.outcome);
   } else if (fix === "no-transition" || fix === "narrative-rewrite") {
-    // Find the parent card + side, pull a meaningful noun from its
-    // outcome, prepend a real transition phrase. This makes the
-    // child read as a direct continuation of the previous decision.
-    const chain = CHAINS.find(c => c.cards.includes(card));
+    // Find the parent across ALL chains (not just same-chain) so
+    // cross-chain wires get rewritten too. Pull a meaningful noun
+    // from the parent's outcome and prepend a transition phrase.
     let parentNoun = null;
-    if (chain) {
+    for (const chain of CHAINS) {
       for (const pc of chain.cards) {
         for (const ps of ["accept", "decline"]) {
           const b = pc[ps];
           if (!b) continue;
           if (b.target === card.id || (b.poolTargets && b.poolTargets.includes(card.id))) {
             const outcome = b.outcome || "";
-            // First noun-y word in the parent's outcome ≥ 4 chars
             const stops = ["the","and","but","for","with","this","that","they","them","then","when","what","just","into","over","after","before","have","from","your","there","will","would","could"];
             const tokens = outcome.toLowerCase().split(/[^a-z0-9']+/);
             parentNoun = tokens.find(w => w.length >= 4 && !stops.includes(w)) || null;
@@ -5453,6 +5544,7 @@ function autoFixIssue(fix, cardId) {
         }
         if (parentNoun) break;
       }
+      if (parentNoun) break;
     }
     const prefix = parentNoun
       ? `With the ${parentNoun} settled, `
@@ -8637,11 +8729,22 @@ function endDrag(clientX, clientY) {
     if (!sourceCard[side].setFlag) sourceCard[side].setFlag = sourceId + "_" + side;
     sourceCard[side].target = targetCardId;
     if (!targetCard.requires) targetCard.requires = sourceCard[side].setFlag;
+    // Context auto-fix — make the target read like a continuation
+    // of the source's outcome. Player ask 2026-05: "if I connect 1
+    // card from chain A to chain B's cards, make sure the context
+    // fixes itself."
+    autoFixIssue("narrative-rewrite", targetCardId);
     persist();
     rerenderAll();
-    showCopyToast(`Linked ${sourceId} ${side} → ${targetCardId}`);
+    showCopyToast(`Linked ${sourceId} ${side} → ${targetCardId} · narrative tightened`);
   } else {
     snapshot();
+    // Cross-chain wire = set target on the source AND also a
+    // triggersChain so the engine knows both. Plus rewrite the
+    // target's situation to reference the source's outcome.
+    if (!sourceCard[side].setFlag) sourceCard[side].setFlag = sourceId + "_" + side;
+    sourceCard[side].target = targetCardId;
+    if (!targetCard.requires) targetCard.requires = sourceCard[side].setFlag;
     const triggers = normalizeTriggers(sourceCard[side].triggersChain);
     if (!triggers.some(t => t.id === targetChain.id)) {
       triggers.push({ id: targetChain.id, if: null });
@@ -8649,9 +8752,10 @@ function endDrag(clientX, clientY) {
     sourceCard[side].triggersChain = triggers.length === 1
       ? (triggers[0].if ? triggers[0] : triggers[0].id)
       : triggers.map(t => t.if ? t : t.id);
+    autoFixIssue("narrative-rewrite", targetCardId);
     persist();
     rerenderAll();
-    showCopyToast(`${sourceId} ${side} now triggers ${targetChain.name}`);
+    showCopyToast(`Cross-chain link: ${sourceCard.speaker} ${side} → ${targetCard.speaker} · narrative tightened`);
   }
 }
 
@@ -9512,9 +9616,253 @@ addMenu.addEventListener("click", (e) => {
   else if (kind === "chain-5") addChain(null, null, 5);
   else if (kind === "chain-10") addChain(null, null, 10);
   else if (kind === "chain-20") addChain(null, null, 20);
+  else if (kind === "chain-50") addChain(null, null, 50);
+  else if (kind === "chain-options") showChainOptionsModal();
   else if (kind === "ending") showEndingModal();
   else if (kind === "standalone") showStandaloneModal();
 });
+
+// ===================================================================
+// CHAIN OPTIONS MODAL — AI-or-template chain generation with
+// per-field knobs (length, theme, speaker, ending). Player ask
+// 2026-05: "give me option to toggle between claude and gemini.
+// when I clicked to create a chain give me some optional options."
+// ===================================================================
+const AI_KEYS_STORAGE = "presidenter:ai-keys:v1";
+function loadAIKeys() {
+  try { return JSON.parse(localStorage.getItem(AI_KEYS_STORAGE) || "{}"); }
+  catch (e) { return {}; }
+}
+function saveAIKeys(k) {
+  localStorage.setItem(AI_KEYS_STORAGE, JSON.stringify(k));
+}
+
+function showChainOptionsModal() {
+  document.getElementById("co-theme").innerHTML = '<option value="">— random —</option>' +
+    CHAIN_THEMES.map(t => `<option value="${t}">${t}</option>`).join("");
+  const sp = document.getElementById("co-speaker");
+  let speakerHTML = '<option value="">— random / by theme —</option>';
+  for (const m of Object.keys(SPEAKERS_BY_MINISTRY).sort()) {
+    speakerHTML += `<optgroup label="${m}">`;
+    for (const n of SPEAKERS_BY_MINISTRY[m]) speakerHTML += `<option value="${n}">${n}</option>`;
+    speakerHTML += `</optgroup>`;
+  }
+  sp.innerHTML = speakerHTML;
+  document.getElementById("co-ending").innerHTML = '<option value="">— no game-over (normal chain) —</option>' +
+    ENDING_SCENARIOS.map(e => `<option value="${e.id}">${e.name}</option>`).join("") +
+    '<option value="__custom__">Custom (type below)</option>';
+  document.getElementById("co-custom-ending").value = "";
+  document.getElementById("co-custom-ending-row").style.display = "none";
+  document.getElementById("co-status").textContent = "";
+  document.getElementById("chainopt-backdrop").classList.add("open");
+}
+
+document.getElementById("co-ending").addEventListener("change", (e) => {
+  document.getElementById("co-custom-ending-row").style.display = e.target.value === "__custom__" ? "block" : "none";
+});
+document.querySelectorAll("input[name='co-method']").forEach(r => r.addEventListener("change", () => {
+  const v = document.querySelector("input[name='co-method']:checked").value;
+  const hint = document.getElementById("co-method-hint");
+  if (v === "template") hint.textContent = "Template uses your hand-written STORY_ARCS library — instant, no API key needed.";
+  else if (v === "claude") hint.textContent = "Calls Anthropic Claude API directly from your browser. Needs an API key (Settings → AI generation keys).";
+  else hint.textContent = "Calls Google AI Studio Gemini API directly from your browser. Needs an API key (Settings → AI generation keys).";
+}));
+document.getElementById("co-cancel").addEventListener("click", () =>
+  document.getElementById("chainopt-backdrop").classList.remove("open"));
+document.getElementById("co-generate").addEventListener("click", generateChainFromOptions);
+document.getElementById("chainopt-backdrop").addEventListener("click", (e) => {
+  if (e.target.id === "chainopt-backdrop") e.target.classList.remove("open");
+});
+
+async function generateChainFromOptions() {
+  const length = parseInt(document.getElementById("co-length").value, 10);
+  const theme = document.getElementById("co-theme").value || null;
+  const speaker = document.getElementById("co-speaker").value || null;
+  const endingId = document.getElementById("co-ending").value;
+  const customEnding = document.getElementById("co-custom-ending").value.trim();
+  const method = document.querySelector("input[name='co-method']:checked").value;
+  const status = document.getElementById("co-status");
+
+  let endingPrompt = null;
+  if (endingId === "__custom__" && customEnding) {
+    endingPrompt = customEnding;
+  } else if (endingId && endingId !== "__custom__") {
+    const e = ENDING_SCENARIOS.find(x => x.id === endingId);
+    if (e) endingPrompt = e.name + " · " + e.theme + " · " + e.final;
+  }
+
+  if (method === "template") {
+    document.getElementById("chainopt-backdrop").classList.remove("open");
+    addChain(null, null, length);
+    return;
+  }
+
+  const keys = loadAIKeys();
+  const key = method === "claude" ? keys.anthropic : keys.gemini;
+  if (!key) {
+    status.innerHTML = `<span style="color: var(--decline);">No ${method === "claude" ? "Anthropic" : "Gemini"} API key. Open ⚙ Settings → AI generation keys.</span>`;
+    return;
+  }
+  status.textContent = `Calling ${method === "claude" ? "Claude" : "Gemini"}…`;
+  document.getElementById("co-generate").disabled = true;
+
+  try {
+    const data = await generateChainWithAI(method, key, { length, theme, speaker, endingPrompt });
+    document.getElementById("co-generate").disabled = false;
+    if (!data || !data.cards || !data.cards.length) {
+      status.innerHTML = `<span style="color: var(--decline);">No cards in AI response.</span>`;
+      return;
+    }
+    const id = (data.name || "ai_chain").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12) || "aichain";
+    let uniqueId = id, n = 1;
+    while (CHAINS.find(c => c.id === uniqueId)) uniqueId = id + (++n);
+    const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + 920 : 80;
+    snapshot();
+    const arc = {
+      id: uniqueId,
+      name: data.name || "AI chain",
+      subtitle: data.subtitle || "Generated · ai",
+      chainTheme: theme || "civic",
+      cards: data.cards.slice(0, 5).map(c => ({
+        suffix: c.suffix,
+        role: c.role || c.suffix,
+        speaker: assertCast50(c.speaker, c.ministry),
+        ministry: MINISTRY_OF[c.speaker] || c.ministry,
+        topic: c.topic || "tricky",
+        situation: c.situation,
+        accept: c.accept,
+        decline: c.decline,
+      })),
+    };
+    const chain = instantiateArc(arc, uniqueId, rightmostX);
+    chain.room = (activeRoom === "__all__") ? "Main" : activeRoom;
+    if (endingPrompt && chain.cards.length >= 4) {
+      const eId = endingId === "__custom__" ? "custom_" + uniqueId : endingId;
+      chain.forcesEnding = eId;
+      if (chain.cards[3] && chain.cards[3].accept) {
+        chain.cards[3].accept.forcesEnding = eId;
+      }
+      if (endingId === "__custom__" && !ENDING_SCENARIOS.find(e => e.id === eId)) {
+        ENDING_SCENARIOS.push({
+          id: eId, name: customEnding.slice(0, 40),
+          forces: "custom", theme: customEnding, pushes: {}, final: customEnding,
+          cards: [],
+        });
+      }
+    }
+    CHAINS.push(chain);
+    // Add parallels if length > 5 via the existing pool-fan-out logic.
+    // (The AI spine + template-mixer pool members.)
+    persist();
+    rerenderAll();
+    setTimeout(() => setFocusedCard(chain.cards[0].id, false), 80);
+    document.getElementById("chainopt-backdrop").classList.remove("open");
+    showCopyToast(`AI generated "${chain.name}"`);
+  } catch (err) {
+    document.getElementById("co-generate").disabled = false;
+    status.innerHTML = `<span style="color: var(--decline);">Error: ${err.message}</span>`;
+  }
+}
+
+async function generateChainWithAI(provider, apiKey, opts) {
+  const speakerLines = Object.entries(SPEAKERS_BY_MINISTRY)
+    .map(([m, names]) => `  ${m}: ${names.join(", ")}`)
+    .join("\n");
+  const themeLine = opts.theme ? `Theme: ${opts.theme}` : "Theme: any cabinet drama";
+  const speakerLine = opts.speaker ? `Starting speaker (c1 MUST be this person): ${opts.speaker}` : "";
+  const endingLine = opts.endingPrompt
+    ? `\nGAME-OVER MODE: c4's Accept outcome must end the game. Reflect: "${opts.endingPrompt}". The c4 Accept outcome must describe the final failure.`
+    : "";
+  const prompt = `You generate decision cards for "Presidenter", a swipe-based cabinet game.
+
+Cards have:
+- speaker: must be one of the 50 names below
+- ministry: must match the speaker's home ministry
+- topic: one of [tricky, scandal, economy, military, diplomacy, health, simple, education, environment, energy, justice]
+- situation: ≤140 chars, ≤3 sentences, ENDS IN A YES/NO QUESTION ("?")
+- accept: { outcome (≤140 chars), env, mil, wel, eco — small integers, sum of |abs| ≥ 2 }
+- decline: same shape
+- NO em-dashes ("—") anywhere
+
+Cast (speaker → ministry):
+${speakerLines}
+
+A 5-card chain follows this tree:
+- c1 (trigger): initial decision
+- c2 (after c1 ACCEPT): consequence of accepting c1
+- c3 (after c1 DECLINE): consequence of declining c1
+- c4 (after c2 ACCEPT): deeper consequence on accept path
+- c5 (after c3 ACCEPT): deeper consequence on decline path
+
+EVERY child (c2/c3/c4/c5) MUST start its situation with a transition phrase referring to the parent's outcome ("With the X done, ...", "After the Y, ..."). NO random scene changes.
+
+${themeLine}
+${speakerLine}${endingLine}
+
+Output ONLY this JSON (no prose):
+{"name":"Short chain name","subtitle":"Subtitle · colour","cards":[
+{"suffix":"c1","speaker":"...","ministry":"...","topic":"...","situation":"...","accept":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0},"decline":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0}},
+{"suffix":"c2","speaker":"...","ministry":"...","topic":"...","situation":"...","accept":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0},"decline":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0}},
+{"suffix":"c3","speaker":"...","ministry":"...","topic":"...","situation":"...","accept":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0},"decline":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0}},
+{"suffix":"c4","speaker":"...","ministry":"...","topic":"...","situation":"...","accept":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0},"decline":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0}},
+{"suffix":"c5","speaker":"...","ministry":"...","topic":"...","situation":"...","accept":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0},"decline":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0}}
+]}`;
+
+  if (provider === "claude") {
+    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "claude-3-5-sonnet-20241022",
+        max_tokens: 2400,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+    if (!resp.ok) {
+      const txt = await resp.text();
+      throw new Error(`Claude ${resp.status}: ${txt.slice(0, 200)}`);
+    }
+    const data = await resp.json();
+    const text = data.content && data.content[0] && data.content[0].text;
+    if (!text) throw new Error("Empty response from Claude");
+    return extractJSONFromAIText(text);
+  } else if (provider === "gemini") {
+    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(apiKey)}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.9, maxOutputTokens: 2400, responseMimeType: "application/json" },
+      }),
+    });
+    if (!resp.ok) {
+      const txt = await resp.text();
+      throw new Error(`Gemini ${resp.status}: ${txt.slice(0, 200)}`);
+    }
+    const data = await resp.json();
+    const text = data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
+    if (!text) throw new Error("Empty response from Gemini");
+    return extractJSONFromAIText(text);
+  } else {
+    throw new Error("Unknown provider: " + provider);
+  }
+}
+
+function extractJSONFromAIText(text) {
+  let cleaned = text.trim();
+  cleaned = cleaned.replace(/^```(?:json)?\s*/i, "").replace(/```$/m, "").trim();
+  const firstBrace = cleaned.indexOf("{");
+  const lastBrace = cleaned.lastIndexOf("}");
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    cleaned = cleaned.slice(firstBrace, lastBrace + 1);
+  }
+  return JSON.parse(cleaned);
+}
 
 document.getElementById("act-undo").addEventListener("click", undo);
 document.getElementById("act-health").addEventListener("click", showHealthReport);
@@ -9564,8 +9912,19 @@ function openSettings() {
     `Rooms: <b>${ROOMS.length}</b>  (active: ${activeRoom})`,
     `Undo steps: <b>${undoStack.length}</b>`,
   ].join("<br>");
+  // Load API keys
+  const keys = loadAIKeys();
+  document.getElementById("settings-anthropic-key").value = keys.anthropic || "";
+  document.getElementById("settings-gemini-key").value = keys.gemini || "";
   document.getElementById("settings-backdrop").classList.add("open");
 }
+document.getElementById("settings-save-keys").addEventListener("click", () => {
+  saveAIKeys({
+    anthropic: document.getElementById("settings-anthropic-key").value.trim(),
+    gemini: document.getElementById("settings-gemini-key").value.trim(),
+  });
+  showCopyToast("API keys saved to localStorage");
+});
 
 // Standalone modal — top-level category tiles + drill-down picker
 function showStandaloneModal() {
