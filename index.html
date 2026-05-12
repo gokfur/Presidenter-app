@@ -3425,6 +3425,8 @@
        a number so you know how many cards I want in a chain. all chains
        should be generated with options."). -->
   <button id="act-add" class="primary" title="Add a single card or a chain">+</button>
+  <button id="act-quickcard" title="✨ AI Quick Card — type one line, AI writes the whole card">✨</button>
+  <button id="act-batch" title="🚀 Batch generate — N standalone cards on a theme, one click to keep each">🚀</button>
   <div class="divider"></div>
   <button id="act-undo" title="Undo last change (Cmd-Z)" disabled>↶</button>
   <button id="act-coach" title="Coach — what to author next, ranked by impact">🎓</button>
@@ -3634,6 +3636,104 @@
     <div class="modal-actions">
       <button id="co-generate" class="primary">🪄 Generate chain</button>
       <button id="co-cancel" style="display:none;" aria-hidden="true"></button>
+    </div>
+  </div>
+</div>
+
+<!-- 2026-05-12 — ✨ AI Quick Card modal. Type one line, AI fills the
+     whole card. Speeds the author up from "fill 12 fields per card"
+     to "describe the situation in plain English." -->
+<div id="quickcard-backdrop" class="modal-backdrop-v2" style="display:none;">
+  <div class="modal-card" style="max-width: 580px;">
+    <div class="modal-header">
+      <h2>✨ AI Quick Card</h2>
+      <button class="modal-close-x" data-fires="quickcard-close" aria-label="Close">×</button>
+    </div>
+    <div class="modal-sub">Describe the situation in one or two sentences. AI picks the speaker, ministry, topic, situation, outcomes, and meter shifts. Edit afterwards if needed.</div>
+    <div class="row full">
+      <div>
+        <label>Scenario seed</label>
+        <textarea id="qc-seed" rows="3" placeholder="e.g. Treasurer panics about an unexpected bond auction shortfall. Or: A child writes the President a thank-you note about a school bridge. Or: Whistleblower delivers an envelope with rocket-fuel receipts."></textarea>
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label>Tone hint <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(optional)</span></label>
+        <select id="qc-tone">
+          <option value="">— witty + cynical (v30 default) —</option>
+          <option value="reallife">📰 Real-life pattern</option>
+          <option value="thriller">🕯 Political thriller</option>
+          <option value="satire">🎭 Bureaucratic satire</option>
+          <option value="domestic">🏠 Quiet domestic</option>
+          <option value="crisis">🚨 Crisis</option>
+          <option value="moral">⚖ Moral fork</option>
+          <option value="absurd">🎪 Absurdist</option>
+        </select>
+      </div>
+      <div>
+        <label>Card type</label>
+        <select id="qc-cardtype">
+          <option value="swipe" selected>Swipe card (default)</option>
+          <option value="artifact">📜 Artifact (anonymous tip, no speaker)</option>
+        </select>
+      </div>
+    </div>
+    <div id="qc-status" style="background: var(--bg-deep); padding: 10px; border-radius: 8px; font-size: 11px; line-height: 1.5; color: var(--text-muted); min-height: 24px; margin-top: 12px;"></div>
+    <div class="modal-actions">
+      <button id="qc-generate" class="primary">✨ Generate card</button>
+      <button id="quickcard-close" style="display:none;" aria-hidden="true"></button>
+    </div>
+  </div>
+</div>
+
+<!-- 2026-05-12 — 🚀 Batch generate modal. AI generates N standalone
+     cards for a theme; results land in a per-batch room with a
+     keep/reject UI. Author plays watchdog — accept the good ones,
+     skip the rest. -->
+<div id="batch-backdrop" class="modal-backdrop-v2" style="display:none;">
+  <div class="modal-card" style="max-width: 580px;">
+    <div class="modal-header">
+      <h2>🚀 Batch generate</h2>
+      <button class="modal-close-x" data-fires="batch-close" aria-label="Close">×</button>
+    </div>
+    <div class="modal-sub">AI writes N standalone cards on a theme. Each lands as an orphan card you can keep, edit, or delete.</div>
+    <div class="row">
+      <div>
+        <label>How many cards</label>
+        <input id="batch-count" type="number" min="3" max="30" step="1" value="10" aria-label="Number of cards to batch-generate">
+      </div>
+      <div>
+        <label>Theme <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(broad — AI rolls variety inside)</span></label>
+        <input id="batch-theme" type="text" placeholder="e.g. press freedom · climate displacement · cabinet rivalries">
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label>Tone hint <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(optional)</span></label>
+        <select id="batch-tone">
+          <option value="">— witty + cynical (v30 default) —</option>
+          <option value="reallife">📰 Real-life pattern</option>
+          <option value="thriller">🕯 Political thriller</option>
+          <option value="satire">🎭 Bureaucratic satire</option>
+          <option value="domestic">🏠 Quiet domestic</option>
+          <option value="crisis">🚨 Crisis</option>
+          <option value="moral">⚖ Moral fork</option>
+          <option value="absurd">🎪 Absurdist</option>
+        </select>
+      </div>
+      <div>
+        <label>Mix in artifacts? <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(faceless evidence cards)</span></label>
+        <select id="batch-artifact">
+          <option value="0" selected>No, all swipe cards</option>
+          <option value="20">Yes, ~20% artifacts</option>
+          <option value="40">Yes, ~40% artifacts</option>
+        </select>
+      </div>
+    </div>
+    <div id="batch-status" style="background: var(--bg-deep); padding: 10px; border-radius: 8px; font-size: 11px; line-height: 1.5; color: var(--text-muted); min-height: 24px; margin-top: 12px;"></div>
+    <div class="modal-actions">
+      <button id="batch-generate" class="primary">🚀 Generate batch</button>
+      <button id="batch-close" style="display:none;" aria-hidden="true"></button>
     </div>
   </div>
 </div>
@@ -4147,6 +4247,27 @@
     <details class="advanced-fold">
       <summary>⚙ Advanced (optional)</summary>
       <div class="advanced-body">
+        <!-- 2026-05-12 — Reigns-style artifact toggle. When checked,
+             the engine's CardView swaps the speaker portrait for a
+             stylised object glyph + uppercase label ("ANONYMOUS NOTE")
+             so the card reads as evidence on the desk rather than a
+             person across from the President. -->
+        <label class="styleguide-override">
+          <input type="checkbox" id="f-is-artifact">
+          <span>
+            <b>📜 Render as artifact (no portrait)</b>
+            <span class="sub">Swap the speaker portrait for a topic-appropriate object glyph (envelope, scroll, leaf, etc.) + uppercase label ("CONFIDENTIAL FILE", "INTERCEPTED CABLE"). Reigns-style faceless beat for anonymous tips and evidence cards.</span>
+          </span>
+        </label>
+
+        <!-- 2026-05-12 — Conscience beat override. The engine
+             auto-picks one of 50 italic chips after heavy swipes;
+             this field lets the author pin a specific line. -->
+        <div class="adv-row">
+          <label>Conscience beat override <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(italic chip after this swipe — optional; engine auto-picks if blank)</span></label>
+          <input id="f-conscience-beat" type="text" maxlength="80" placeholder="e.g. The chamberlain crosses something out and writes it again.">
+        </div>
+
         <!-- Style-guide override -->
         <label class="styleguide-override">
           <input type="checkbox" id="f-styleguide-exception">
@@ -5080,16 +5201,23 @@ function instantiateArc(arc, idPrefix, x) {
     return { setFlag: null, target: null,
              outcome: b.outcome, env: b.env, mil: b.mil, wel: b.wel, eco: b.eco };
   }
-  const cards = arc.cards.map(c => ({
-    id: idPrefix + "-" + c.suffix,
-    role: c.role, level: c.level, col: c.col,
-    speaker: c.speaker, ministry: c.ministry, topic: c.topic,
-    situation: c.situation,
-    requires: null,
-    memoryFragment: MEMORY_FRAGMENTS[c.speaker] || undefined,
-    accept: mkBranch(c.accept),
-    decline: mkBranch(c.decline),
-  }));
+  const cards = arc.cards.map(c => {
+    const out = {
+      id: idPrefix + "-" + c.suffix,
+      role: c.role, level: c.level, col: c.col,
+      speaker: c.speaker, ministry: c.ministry, topic: c.topic,
+      situation: c.situation,
+      requires: null,
+      memoryFragment: MEMORY_FRAGMENTS[c.speaker] || undefined,
+      accept: mkBranch(c.accept),
+      decline: mkBranch(c.decline),
+    };
+    // 2026-05-12 — propagate Reigns-ify optional fields the AI may
+    // have set on the source arc card (isArtifact, conscienceBeat).
+    if (c.isArtifact) out.isArtifact = true;
+    if (c.conscienceBeat) out.conscienceBeat = c.conscienceBeat;
+    return out;
+  });
   // 2026-05-12 — branching tree for short chains (≤5 cards),
   // linear spine for long chains (6-50 cards). The branching tree
   // is what authors expect for the canonical depth-3 reigns-style
@@ -10085,6 +10213,11 @@ function openModal(presetParentId, editId) {
         const cb = document.getElementById(`f-mode-${m}`);
         if (cb) cb.checked = editModes.includes(m);
       }
+      // 2026-05-12 — restore Reigns-ify fields.
+      const artEl = document.getElementById("f-is-artifact");
+      if (artEl) artEl.checked = !!editCard.isArtifact;
+      const cbEl = document.getElementById("f-conscience-beat");
+      if (cbEl) cbEl.value = editCard.conscienceBeat || "";
       // Branches
       for (const side of ["accept", "decline"]) {
         const b = editCard[side] || {};
@@ -10146,6 +10279,11 @@ function closeModal() {
     const cb = document.getElementById(`f-mode-${m}`);
     if (cb) cb.checked = false;
   }
+  // Reset Reigns-ify fields too.
+  const artReset = document.getElementById("f-is-artifact");
+  if (artReset) artReset.checked = false;
+  const cbReset = document.getElementById("f-conscience-beat");
+  if (cbReset) cbReset.value = "";
   document.getElementById("f-trickyclue-row").style.display = "none";
   document.getElementById("f-speaker").value = "";
   document.getElementById("f-ministry").value = "";
@@ -11205,6 +11343,13 @@ function buildCardJSON() {
     }
     const modes = readModesList();
     if (modes) card.modes = modes;
+    // 2026-05-12 — Reigns-ify: artifact + conscience-beat override
+    // on the orphan-card path.
+    if (document.getElementById("f-is-artifact")?.checked) {
+      card.isArtifact = true;
+    }
+    const cbOrphan = document.getElementById("f-conscience-beat")?.value?.trim() || "";
+    if (cbOrphan) card.conscienceBeat = cbOrphan;
     return JSON.stringify(card, null, 2);
   }
   const chain = CHAINS.find(c => c.id === chainId);
@@ -11447,6 +11592,15 @@ function saveCard() {
     // and saving actually changes the card.
     const modes = readModesList();
     if (modes) card.modes = modes; else delete card.modes;
+    // 2026-05-12 — Reigns-ify: artifact + conscience-beat-override.
+    // Both default to "not set" so existing cards round-trip clean.
+    if (document.getElementById("f-is-artifact")?.checked) {
+      card.isArtifact = true;
+    } else {
+      delete card.isArtifact;
+    }
+    const cb = document.getElementById("f-conscience-beat")?.value?.trim() || "";
+    if (cb) card.conscienceBeat = cb; else delete card.conscienceBeat;
     // requiredFlags compatibility — engine uses array
     if (card.requires) {
       card.requiredFlags = [card.requires];
@@ -12772,16 +12926,28 @@ async function generateChainFromOptions() {
       // asked for a 50-card chain. Now honours the requested length
       // (clamped 3-50 by the input above). instantiateArc grows a
       // linear spine when more than 5 cards are present.
-      cards: data.cards.slice(0, length).map(c => ({
-        suffix: c.suffix,
-        role: c.role || c.suffix,
-        speaker: assertCast50(c.speaker, c.ministry),
-        ministry: MINISTRY_OF[c.speaker] || c.ministry,
-        topic: c.topic || "tricky",
-        situation: c.situation,
-        accept: c.accept,
-        decline: c.decline,
-      })),
+      cards: data.cards.slice(0, length).map(c => {
+        // Artifact cards are intentionally faceless — skip the
+        // cast-50 assertion and let speaker/ministry stay empty.
+        const isArt = !!c.isArtifact;
+        const mapped = {
+          suffix: c.suffix,
+          role: c.role || c.suffix,
+          speaker: isArt ? "" : assertCast50(c.speaker, c.ministry),
+          ministry: isArt ? "" : (MINISTRY_OF[c.speaker] || c.ministry),
+          topic: c.topic || "tricky",
+          situation: c.situation,
+          accept: c.accept,
+          decline: c.decline,
+        };
+        // 2026-05-12 — propagate Reigns-ify optional fields the AI
+        // may emit per the prompt's "OPTIONAL FIELDS" block.
+        if (isArt) mapped.isArtifact = true;
+        if (typeof c.conscienceBeat === "string" && c.conscienceBeat.trim()) {
+          mapped.conscienceBeat = c.conscienceBeat.trim();
+        }
+        return mapped;
+      }),
     };
     const chain = instantiateArc(arc, uniqueId, rightmostX);
     chain.room = (activeRoom === "__all__") ? "Main" : activeRoom;
@@ -13044,6 +13210,10 @@ Good example of voice + dilemma:
 Cast (speaker → ministry):
 ${speakerLines}
 
+OPTIONAL FIELDS YOU MAY SET PER CARD (use sparingly, for narrative emphasis):
+- "isArtifact": true — when the card is a faceless object on the desk (anonymous note, leaked photo, confiscated file). Set speaker:"" and ministry:"" on artifact cards. Best used at most once per chain, often as the inciting clue.
+- "conscienceBeat": "italic chip text" — when this swipe should produce a SPECIFIC italic aftermath line ("The chamberlain crosses something out and writes it again."). Default is the engine's random pool, so only override on the chain's most weighty turn.
+
 ${structureBlock}${sourceLine}
 
 ${themeLine}
@@ -13120,6 +13290,260 @@ function extractJSONFromAIText(text) {
 document.getElementById("act-undo").addEventListener("click", undo);
 document.getElementById("act-health").addEventListener("click", showHealthReport);
 document.getElementById("act-analyze").addEventListener("click", showAnalysisReport);
+
+// 2026-05-12 — ✨ AI Quick Card. The author types one line; AI fills
+// every field. Speeds the author up from "fill 12 fields per card"
+// to "describe the situation in plain English." Cards land as
+// orphan cards (same bucket the "+ → Single card → save" flow uses)
+// so the author can edit before keep / connect / delete.
+function openQuickCardModal() {
+  document.getElementById("quickcard-backdrop").classList.add("open");
+  document.getElementById("qc-seed").value = "";
+  document.getElementById("qc-status").textContent = "";
+  setTimeout(() => document.getElementById("qc-seed").focus(), 100);
+}
+function closeQuickCardModal() {
+  document.getElementById("quickcard-backdrop").classList.remove("open");
+}
+document.getElementById("act-quickcard").addEventListener("click", openQuickCardModal);
+document.getElementById("quickcard-backdrop").addEventListener("click", (e) => {
+  if (e.target.id === "quickcard-backdrop") closeQuickCardModal();
+});
+document.querySelector("#quickcard-backdrop .modal-close-x")?.addEventListener("click", closeQuickCardModal);
+
+async function generateQuickCard() {
+  const seed = document.getElementById("qc-seed").value.trim();
+  if (!seed) {
+    document.getElementById("qc-status").innerHTML = `<span style="color: var(--decline);">Type a one-line scenario first.</span>`;
+    return;
+  }
+  const tone = document.getElementById("qc-tone").value || "";
+  const cardType = document.getElementById("qc-cardtype").value || "swipe";
+  const keys = loadAIKeys();
+  let key = keys.anthropic || keys.claude || null;
+  let provider = key ? "claude" : null;
+  if (!key && keys.gemini) { key = keys.gemini; provider = "gemini"; }
+  if (!key) {
+    document.getElementById("qc-status").innerHTML = `<span style="color: var(--decline);">No API key configured. Save a Claude or Gemini key in Settings first.</span>`;
+    return;
+  }
+  document.getElementById("qc-status").textContent = `Calling ${provider === "claude" ? "Claude" : "Gemini"}…`;
+  document.getElementById("qc-generate").disabled = true;
+
+  const speakerLines = Object.entries(SPEAKERS_BY_MINISTRY)
+    .map(([m, names]) => `  ${m}: ${names.join(", ")}`).join("\n");
+  const toneBlock = (tone && CREATIVE_LENS_PROMPTS[tone]) ? CREATIVE_LENS_PROMPTS[tone] : "";
+  const artifactNote = (cardType === "artifact")
+    ? `\n\nThis card is an ARTIFACT — it has no speaker. Set speaker to "" and ministry to "" and the situation should read as evidence on the desk (an anonymous note, a confiscated file, a leaked photograph). The two outcomes still apply.`
+    : "";
+
+  const prompt = `You write decision cards for "Presidenter", a Reigns-style swipe game. The author has typed ONE scenario seed; you write the full card.
+
+THE FORMAT (v30):
+Every card is ONE speaker leaning into the desk with TWO short sentences. Sentence 1 = the situation. Sentence 2 = the ask (yes/no question). ≤140 chars total, ≤2 sentences, NO em-dashes, ENDS in "?".
+
+Card fields:
+- speaker: must be one of the 50 names below (or "" for artifact)
+- ministry: must match speaker's home ministry (or "" for artifact)
+- topic: one of [tricky, scandal, economy, military, diplomacy, health, simple, education, environment, energy, justice, funnyFlavor]
+- situation: ≤140 chars, ends in "?", in the speaker's voice
+- accept.outcome: ≤140 chars, in the same voice
+- decline.outcome: ≤140 chars, in the same voice
+- Both outcomes meaningful (≥2 |abs| meter total per side)
+- NO em-dashes
+
+TONE: witty, slightly cynical, mysterious. Every card is a moral dilemma — both swipes leak something the player wanted to protect. No free yes, no free no.
+
+Cast:
+${speakerLines}${toneBlock}${artifactNote}
+
+The author's scenario seed: "${seed}"
+
+Pick the most plausible speaker for this scenario. Output ONLY this JSON (no prose):
+{"speaker":"...","ministry":"...","topic":"...","situation":"...","accept":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0},"decline":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0}}`;
+
+  try {
+    const text = await callAITextPlain(provider, key, prompt);
+    const card = extractJSONFromAIText(text);
+    // Land as an orphan card.
+    snapshot();
+    let bucket = CHAINS.find(c => c.id === "orphans");
+    if (!bucket) {
+      const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + 920 : 80;
+      bucket = { id: "orphans", name: "Orphan Cards", subtitle: "AI ✨ quick cards · review and keep", chainTheme: "civic", color: "var(--gold)", x: rightmostX, room: (activeRoom === "__all__") ? "Main" : activeRoom, cards: [] };
+      CHAINS.push(bucket);
+    }
+    const seq = bucket.cards.length + 1;
+    const newCard = {
+      id: "orphans-" + seq,
+      role: "AI Quick",
+      level: 0,
+      col: "center",
+      speaker: card.speaker || "",
+      ministry: card.ministry || "",
+      topic: card.topic || "tricky",
+      situation: card.situation || "",
+      requires: null,
+      accept: { setFlag: null, target: null, outcome: card.accept?.outcome || "", env: card.accept?.env || 0, mil: card.accept?.mil || 0, wel: card.accept?.wel || 0, eco: card.accept?.eco || 0 },
+      decline: { setFlag: null, target: null, outcome: card.decline?.outcome || "", env: card.decline?.env || 0, mil: card.decline?.mil || 0, wel: card.decline?.wel || 0, eco: card.decline?.eco || 0 },
+    };
+    if (cardType === "artifact") newCard.isArtifact = true;
+    bucket.cards.push(newCard);
+    persist();
+    rerenderAll();
+    closeQuickCardModal();
+    setTimeout(() => setFocusedCard(newCard.id, false), 80);
+    showCopyToast(`AI card landed: "${(newCard.situation || "").slice(0, 60)}…"`);
+  } catch (err) {
+    document.getElementById("qc-status").innerHTML = `<span style="color: var(--decline);">Error: ${err.message}</span>`;
+  } finally {
+    document.getElementById("qc-generate").disabled = false;
+  }
+}
+document.getElementById("qc-generate").addEventListener("click", generateQuickCard);
+
+// 2026-05-12 — 🚀 Batch generate. AI generates N standalone cards on
+// a theme; each lands as an orphan. Author plays watchdog — keep
+// the good ones, edit, delete the duds.
+function openBatchModal() {
+  document.getElementById("batch-backdrop").classList.add("open");
+  document.getElementById("batch-status").textContent = "";
+}
+function closeBatchModal() {
+  document.getElementById("batch-backdrop").classList.remove("open");
+}
+document.getElementById("act-batch").addEventListener("click", openBatchModal);
+document.getElementById("batch-backdrop").addEventListener("click", (e) => {
+  if (e.target.id === "batch-backdrop") closeBatchModal();
+});
+document.querySelector("#batch-backdrop .modal-close-x")?.addEventListener("click", closeBatchModal);
+
+async function generateBatch() {
+  const count = Math.max(3, Math.min(30, parseInt(document.getElementById("batch-count").value, 10) || 10));
+  const theme = document.getElementById("batch-theme").value.trim();
+  const tone = document.getElementById("batch-tone").value || "";
+  const artifactPct = parseInt(document.getElementById("batch-artifact").value, 10) || 0;
+  if (!theme) {
+    document.getElementById("batch-status").innerHTML = `<span style="color: var(--decline);">Type a theme first.</span>`;
+    return;
+  }
+  const keys = loadAIKeys();
+  let key = keys.anthropic || keys.claude || null;
+  let provider = key ? "claude" : null;
+  if (!key && keys.gemini) { key = keys.gemini; provider = "gemini"; }
+  if (!key) {
+    document.getElementById("batch-status").innerHTML = `<span style="color: var(--decline);">No API key configured.</span>`;
+    return;
+  }
+  document.getElementById("batch-status").textContent = `Calling ${provider === "claude" ? "Claude" : "Gemini"} for ${count} cards…`;
+  document.getElementById("batch-generate").disabled = true;
+
+  const speakerLines = Object.entries(SPEAKERS_BY_MINISTRY)
+    .map(([m, names]) => `  ${m}: ${names.join(", ")}`).join("\n");
+  const toneBlock = (tone && CREATIVE_LENS_PROMPTS[tone]) ? CREATIVE_LENS_PROMPTS[tone] : "";
+  const artifactNote = artifactPct > 0
+    ? `\n\nMix in ARTIFACT cards: roughly ${artifactPct}% of the batch should be faceless evidence cards (anonymous notes / confiscated files / leaked photographs) with speaker:"" and ministry:"". Mark these with "isArtifact": true in the JSON.`
+    : "";
+
+  const prompt = `You write decision cards for "Presidenter", a Reigns-style swipe game.
+
+THE FORMAT (v30): Every card is ONE speaker, TWO short sentences (situation + ask). ≤140 chars, ends in "?", NO em-dashes. Both outcomes meaningful (≥2 |abs| meter total per side).
+TONE: witty, slightly cynical, mysterious. Every card is a moral dilemma — both swipes hurt.
+
+Cast (speaker → ministry):
+${speakerLines}${toneBlock}${artifactNote}
+
+The author wants ${count} STANDALONE cards on this theme: "${theme}". Each card is independent — no chain wiring. Variety inside the theme — rotate speakers, vary topic, vary stakes, never repeat the same situation shape twice.
+
+Output ONLY this JSON array (no prose):
+[
+  {"speaker":"...","ministry":"...","topic":"...","situation":"...","accept":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0},"decline":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0},"isArtifact":false},
+  ... ${count} entries total ...
+]`;
+
+  try {
+    // Custom token budget — 260 tokens per card + 500 floor.
+    const maxTokens = Math.max(2000, count * 280);
+    let text;
+    if (provider === "claude") {
+      const resp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": key, "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "claude-3-5-sonnet-20241022",
+          max_tokens: maxTokens,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+      if (!resp.ok) throw new Error(`Claude ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
+      const data = await resp.json();
+      text = (data.content && data.content[0] && data.content[0].text) || "";
+    } else {
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(key)}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.95, maxOutputTokens: maxTokens, responseMimeType: "application/json" },
+        }),
+      });
+      if (!resp.ok) throw new Error(`Gemini ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
+      const data = await resp.json();
+      text = (data.candidates?.[0]?.content?.parts?.[0]?.text) || "";
+    }
+    // Try to extract a JSON array.
+    let cleaned = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/```$/m, "").trim();
+    const firstBracket = cleaned.indexOf("[");
+    const lastBracket = cleaned.lastIndexOf("]");
+    if (firstBracket >= 0 && lastBracket > firstBracket) {
+      cleaned = cleaned.slice(firstBracket, lastBracket + 1);
+    }
+    const arr = JSON.parse(cleaned);
+    if (!Array.isArray(arr) || arr.length === 0) throw new Error("Empty array from AI.");
+
+    snapshot();
+    let bucket = CHAINS.find(c => c.id === "orphans");
+    if (!bucket) {
+      const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + 920 : 80;
+      bucket = { id: "orphans", name: "Orphan Cards", subtitle: "Batch · " + theme, chainTheme: "civic", color: "var(--gold)", x: rightmostX, room: (activeRoom === "__all__") ? "Main" : activeRoom, cards: [] };
+      CHAINS.push(bucket);
+    }
+    let landed = 0;
+    for (const c of arr) {
+      if (!c || !c.situation) continue;
+      const seq = bucket.cards.length + 1;
+      const newCard = {
+        id: "orphans-" + seq,
+        role: "AI Batch",
+        level: 0,
+        col: "center",
+        speaker: c.speaker || "",
+        ministry: c.ministry || "",
+        topic: c.topic || "tricky",
+        situation: c.situation || "",
+        requires: null,
+        accept: { setFlag: null, target: null, outcome: c.accept?.outcome || "", env: c.accept?.env || 0, mil: c.accept?.mil || 0, wel: c.accept?.wel || 0, eco: c.accept?.eco || 0 },
+        decline: { setFlag: null, target: null, outcome: c.decline?.outcome || "", env: c.decline?.env || 0, mil: c.decline?.mil || 0, wel: c.decline?.wel || 0, eco: c.decline?.eco || 0 },
+      };
+      if (c.isArtifact) newCard.isArtifact = true;
+      bucket.cards.push(newCard);
+      landed++;
+    }
+    persist();
+    rerenderAll();
+    closeBatchModal();
+    showCopyToast(`Batch landed ${landed} cards on "${theme}". Open the Orphans bucket to review.`);
+  } catch (err) {
+    document.getElementById("batch-status").innerHTML = `<span style="color: var(--decline);">Error: ${err.message}</span>`;
+  } finally {
+    document.getElementById("batch-generate").disabled = false;
+  }
+}
+document.getElementById("batch-generate").addEventListener("click", generateBatch);
 
 // ====================================================================
 // COACH — design-assistant. Watches the deck and surfaces a ranked
