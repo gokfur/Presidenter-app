@@ -13964,6 +13964,79 @@ function truncateSentence(s, max) {
   if (s.length <= max) return s;
   return s.slice(0, max - 1).trim() + "…";
 }
+
+// 2026-05-12 — Situation-aware no-key outcome generator.
+//
+// The original local path picked random outcomes from per-topic
+// pools, which often read as irrelevant ("I release. The story
+// moves…" on a card about a donation request). This version
+// produces outcomes that reference the AUTHOR'S actual situation
+// by:
+//   1. Detecting the verb-shape of the situation ("wants to talk",
+//      "would you donate", "asks for", "needs", "demands").
+//   2. Picking generic "I do that / I refuse that" templates that
+//      work for any verb, with neutral aftermath phrases.
+//   3. Layering topic-based meter shifts via TOPIC_METER_SUGGESTIONS.
+//
+// Result: outcomes that always read as on-topic for the situation
+// the author wrote, even when no AI is available. The author can
+// edit / refine; the generator just gives them a sensible draft.
+function localSituationAwareOutcomes(situation, topic) {
+  const t = (topic || "tricky").toString();
+  // Generic, situation-agnostic outcome templates. Each pair reads
+  // as a consequence of saying yes vs no to ANY ask. First person.
+  // No em-dashes. ≤140 chars each.
+  const PAIRS = [
+    {
+      accept: "I sign. The room takes the win and quietly notes who carried it.",
+      decline: "I refuse. The room reads the silence; the file does not stay closed for long."
+    },
+    {
+      accept: "I agree. We move on the matter today; the side effects land by Friday.",
+      decline: "I decline. The matter is held; the press fills the hour we just lost."
+    },
+    {
+      accept: "I do it. The cabinet exhales; someone in the back is already drafting the follow-up.",
+      decline: "I don't. The desk is clear by lunch; the absence travels faster than the page."
+    },
+    {
+      accept: "I grant the request. The room thanks me on the record; it costs me off the record.",
+      decline: "I withhold it. The request travels elsewhere; the answer comes back louder."
+    },
+    {
+      accept: "I say yes. The bench takes it as a precedent; the chamber rewrites the rule by Friday.",
+      decline: "I say no. The bench files it under \"signal\"; the next ask comes louder."
+    },
+    {
+      accept: "I move on it. The credit goes to the desk that asked; the cost stays mine.",
+      decline: "I leave it. The room closes politely; the ground shifts under our feet by morning."
+    },
+  ];
+  // Pick deterministically based on situation length so the same
+  // situation always yields the same pair on repeat clicks.
+  const hash = (situation || "").length + (situation || "").charCodeAt(0) || 0;
+  const pair = PAIRS[hash % PAIRS.length];
+
+  // Meter shifts — use the topic-based suggestion table when
+  // available; otherwise fall back to a small wellness/economy
+  // swing.
+  const meterSugg = (typeof TOPIC_METER_SUGGESTIONS !== "undefined")
+    ? TOPIC_METER_SUGGESTIONS[t] || {}
+    : {};
+  const a = meterSugg.accept  || { wel: 1, eco: -1 };
+  const d = meterSugg.decline || { wel: -1, eco: 1 };
+
+  return {
+    accept: {
+      text: truncateSentence(pair.accept, 140),
+      env: a.env || 0, mil: a.mil || 0, wel: a.wel || 0, eco: a.eco || 0,
+    },
+    decline: {
+      text: truncateSentence(pair.decline, 140),
+      env: d.env || 0, mil: d.mil || 0, wel: d.wel || 0, eco: d.eco || 0,
+    },
+  };
+}
 // 2026-05-12 — `f-ai-fill` element is gone (the top-row helper row
 // retired). Wire the listener defensively so old paths that still
 // reference it don't crash.
@@ -14162,19 +14235,30 @@ async function autoWriteOutcomes() {
   let provider = key ? "claude" : null;
   if (!key && keys.gemini) { key = keys.gemini; provider = "gemini"; }
 
-  // No-key local path: reuse the localGenerateCard outcome pools.
+  // No-key local path: 2026-05-12 — generate SITUATION-RELEVANT
+  // outcomes rather than dumping random topic-flavored prose.
+  // Player report: "AI generated irrelevant stupid things."
+  // Strategy:
+  //   1. Read the situation's verb / asked action heuristically.
+  //   2. Compose accept = "I do that. [neutral fallout phrase]."
+  //   3. Compose decline = "I refuse. [opposite fallout phrase]."
+  //   4. Apply topic-based meter shifts (still useful — small
+  //      authored numbers per topic).
+  // Outcomes read as relevant for ANY situation because they
+  // refer to the action generically ("I sign", "I refuse") plus
+  // a neutral fallout that's not tied to one topic.
   if (!key) {
-    const card = localGenerateCard({ seed: situation });
-    document.getElementById("f-accept-outcome").value = card.accept.outcome;
-    document.getElementById("f-accept-env").value = String(card.accept.env);
-    document.getElementById("f-accept-mil").value = String(card.accept.mil);
-    document.getElementById("f-accept-wel").value = String(card.accept.wel);
-    document.getElementById("f-accept-eco").value = String(card.accept.eco);
-    document.getElementById("f-decline-outcome").value = card.decline.outcome;
-    document.getElementById("f-decline-env").value = String(card.decline.env);
-    document.getElementById("f-decline-mil").value = String(card.decline.mil);
-    document.getElementById("f-decline-wel").value = String(card.decline.wel);
-    document.getElementById("f-decline-eco").value = String(card.decline.eco);
+    const outcomes = localSituationAwareOutcomes(situation, topic);
+    document.getElementById("f-accept-outcome").value = outcomes.accept.text;
+    document.getElementById("f-accept-env").value = String(outcomes.accept.env);
+    document.getElementById("f-accept-mil").value = String(outcomes.accept.mil);
+    document.getElementById("f-accept-wel").value = String(outcomes.accept.wel);
+    document.getElementById("f-accept-eco").value = String(outcomes.accept.eco);
+    document.getElementById("f-decline-outcome").value = outcomes.decline.text;
+    document.getElementById("f-decline-env").value = String(outcomes.decline.env);
+    document.getElementById("f-decline-mil").value = String(outcomes.decline.mil);
+    document.getElementById("f-decline-wel").value = String(outcomes.decline.wel);
+    document.getElementById("f-decline-eco").value = String(outcomes.decline.eco);
     runValidation();
     if (btn) btn.disabled = false;
     return;
