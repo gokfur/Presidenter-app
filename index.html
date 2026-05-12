@@ -11921,6 +11921,22 @@ function localOutcomeFor(side, situation, speaker) {
   return `${s} steps back, deliberately. The papers always note the absence by week's end.`;
 }
 
+// 2026-05-12 — Track each outcome's past-suggestion history so
+// repeated clicks of ✨ AI write produce a DIFFERENT line each
+// time. Player ask: "whenever i click this generate another
+// context aware content aware." Reset whenever the situation or
+// speaker changes (so a new card starts with a clean rotation).
+const aiOutcomeHistory = { accept: [], decline: [], _key: "" };
+function resetOutcomeHistoryIfStale() {
+  const key = (document.getElementById("f-situation")?.value || "")
+    + "|" + (document.getElementById("f-speaker")?.value || "");
+  if (key !== aiOutcomeHistory._key) {
+    aiOutcomeHistory.accept = [];
+    aiOutcomeHistory.decline = [];
+    aiOutcomeHistory._key = key;
+  }
+}
+
 async function aiWriteOutcomeForSide(side) {
   const btn = document.getElementById(side === "accept" ? "ai-write-accept" : "ai-write-decline");
   const out = document.getElementById(`f-${side}-outcome`);
@@ -11930,22 +11946,40 @@ async function aiWriteOutcomeForSide(side) {
     return;
   }
   const speaker = document.getElementById("f-speaker").value || "";
+  const ministry = document.getElementById("f-ministry").value || "their ministry";
+  const topic    = document.getElementById("f-topic").value || "simple";
+  // Reset rotation when situation / speaker change. Capture
+  // whatever's currently in the outcome field as a "previous draft"
+  // the next generation should avoid.
+  resetOutcomeHistoryIfStale();
+  const current = (out.value || "").trim();
+  if (current && !aiOutcomeHistory[side].includes(current)) {
+    aiOutcomeHistory[side].push(current);
+  }
+  const previousList = aiOutcomeHistory[side].slice(-6); // last 6
 
-  // Local template — fires instantly, no key needed. Always lands a
-  // result so the button never feels broken.
-  out.value = localOutcomeFor(side, situation, speaker);
+  // Local template — fires instantly, no key needed. Cycles through
+  // a small variant pool keyed on click index so each click lands a
+  // fresh draft instead of the same string.
+  out.value = localOutcomeVariant(side, situation, speaker, previousList);
+  if (out.value && !aiOutcomeHistory[side].includes(out.value)) {
+    aiOutcomeHistory[side].push(out.value);
+  }
   runValidation();
-  showCopyToast(`✨ Outcome written (${side})`);
 
   // Optional upgrade — if a Claude/Gemini key is saved, async-replace
   // the local line with a higher-quality AI one. No-op if no key.
   const keys = loadAIKeys();
   const provider = keys.claude ? "claude" : (keys.gemini ? "gemini" : null);
-  if (!provider) return;
+  if (!provider) {
+    showCopyToast(`✨ Outcome rewritten (${side})`);
+    return;
+  }
   const apiKey = provider === "claude" ? keys.claude : keys.gemini;
-  const ministry = document.getElementById("f-ministry").value || "their ministry";
-  const topic    = document.getElementById("f-topic").value || "simple";
   const stylePrefix = styleProfilePromptBlock();
+  const avoidBlock = previousList.length
+    ? `\nPREVIOUS DRAFTS (already shown to the author — DO NOT repeat phrasing or aftermath):\n${previousList.map((p, i) => `  ${i + 1}. ${p}`).join("\n")}\n\nWrite a DIFFERENT outcome from the above — different aftermath, different image, different verbs.`
+    : "";
   const prompt = `You write the outcome line for a swipe card in "Presidenter" (Reigns-style).${stylePrefix}
 
 The situation the player just swiped on:
@@ -11954,17 +11988,20 @@ The situation the player just swiped on:
 Speaker: ${speaker || "an unspecified minister"} · ${ministry} · topic .${topic}
 Player swiped: ${side === "accept" ? "ACCEPT" : "DECLINE"}
 
-Write ONE outcome line that describes what happens NEXT in the room.
+CRITICAL — FIRST-PERSON VOICE: outcomes are the speaker NARRATING. WRONG: "Halvik prints six lines." RIGHT: "I'll print six lines." Stay in the speaker's first person.
+
+Write ONE outcome line that describes what happens NEXT in the room AS A DIRECT CONSEQUENCE of the author's specific situation. Reference what was actually being asked.
 
 Constraints:
 - ≤140 chars, ≤2 short sentences, no em-dashes ("—").
-- In-world, concrete physical detail (the funds clear by Friday, the cordon advances, the press already has the headline).
+- In-world, concrete physical detail tied to the situation.
+- First-person voice (speaker narrating).
 - No bookkeeping ("the player chose X"). Just describe the in-world reaction.
 
 Tone (v30 STYLE_GUIDE §12 — all three at once):
 - WITTY: one sharp turn of phrase or wry understatement.
 - SLIGHTLY CYNICAL: the world doesn't reward virtue cleanly — there's always a cost or a complication.
-- MYSTERIOUS: hint at a downstream consequence without spelling it out. Leave the player wondering what happens next.
+- MYSTERIOUS: hint at a downstream consequence without spelling it out. Leave the player wondering what happens next.${avoidBlock}
 
 Output ONLY the outcome line. No quotes, no preamble.`;
   const original = btn.textContent;
@@ -11975,16 +12012,64 @@ Output ONLY the outcome line. No quotes, no preamble.`;
     const clean = (text || "").trim().replace(/^["']|["']$/g, "");
     if (clean) {
       out.value = clean;
+      if (!aiOutcomeHistory[side].includes(clean)) {
+        aiOutcomeHistory[side].push(clean);
+      }
       runValidation();
     }
+    showCopyToast(`✨ Outcome rewritten (${side})`);
   } catch (e) {
     // Quietly keep the local template — no scary toast for a
     // background upgrade attempt.
     console.warn("AI write upgrade failed:", e.message);
+    showCopyToast(`✨ Outcome rewritten (${side})`);
   } finally {
     btn.disabled = false;
     btn.textContent = original;
   }
+}
+
+// 2026-05-12 — Variant-aware local fallback. Picks an outcome from
+// a 6-variant pool keyed off the click count (length of history)
+// so repeated clicks rotate through alternatives. Falls through
+// to the simple template if a situation matches LOCAL_OUTCOME_TEMPLATES.
+function localOutcomeVariant(side, situation, speaker, previousList) {
+  const s = speaker || "the minister";
+  // Try the specific-match template first — these are tuned per
+  // situation pattern. If a template matches, use its line UNLESS
+  // we've already shown it (then fall through to variants).
+  for (const v of LOCAL_OUTCOME_TEMPLATES) {
+    if (v.re.test(situation)) {
+      const line = v[side].replace(/\{speaker\}/g, s);
+      if (!previousList.includes(line)) return line;
+      break; // fall through to variants
+    }
+  }
+  // 6 variant pools per side. Generic enough to read as on-topic
+  // for any situation; first-person, ≤140 chars, no em-dashes.
+  const ACCEPT_VARIANTS = [
+    `I agree. The room takes the win; the cost lands by Friday.`,
+    `I sign. We move on the matter today; the side effects arrive next week.`,
+    `I do it. The cabinet exhales; the follow-up is already being drafted.`,
+    `I grant it. The bench thanks me on the record; it costs me off it.`,
+    `I move on it. The credit travels fast; the bill follows slower.`,
+    `I take the offer. We close it before the press files; the receipt has my name on it.`,
+  ];
+  const DECLINE_VARIANTS = [
+    `I refuse. The room reads the silence; the file does not stay closed for long.`,
+    `I decline. The matter is held; the press fills the hour we just lost.`,
+    `I don't. The desk clears by lunch; the absence travels louder than the page would have.`,
+    `I withhold it. The ask travels elsewhere; the answer comes back doubled.`,
+    `I say no. The bench files it under "signal"; the next ask comes louder.`,
+    `I leave it. The room closes politely; the ground shifts under our feet by morning.`,
+  ];
+  const pool = side === "accept" ? ACCEPT_VARIANTS : DECLINE_VARIANTS;
+  // Find the first variant not already in the history.
+  for (const candidate of pool) {
+    if (!previousList.includes(candidate)) return candidate;
+  }
+  // All variants used — cycle back to the first.
+  return pool[(previousList.length) % pool.length];
 }
 
 async function aiWriteVariantOfSituation() {
