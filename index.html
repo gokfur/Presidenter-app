@@ -5040,30 +5040,127 @@ function chainInActiveRoom(chain) {
   return (chain.room || "Main") === activeRoom;
 }
 
+// ===================================================================
+// IndexedDB persistence layer (Step 10) — Player ask 2026-05-12:
+// 'Switch from localStorage to IndexedDB for the deck. We can save
+// to my laptop locally in addition to GitHub.'
+//
+// localStorage caps at ~5-10 MB per origin; a 5k-card deck overflows
+// it. IndexedDB has multi-GB quotas on desktop. Strategy:
+//
+//   localStorage  → fast synchronous path, holds the most recent
+//                   deck snapshot for cold-start render speed.
+//                   Persists best-effort (catches QuotaExceededError
+//                   silently when the deck overflows).
+//   IndexedDB     → authoritative store. Every persist() also writes
+//                   to IDB (fire-and-forget, async). On boot, if
+//                   IDB has data, it hydrates CHAINS (overrides
+//                   localStorage if newer).
+//
+// Quota fallback: when localStorage throws, persistLocalStorageDead
+// is latched true so subsequent saves skip the localStorage write
+// entirely and the user gets a one-time toast nudging them to keep
+// IDB as the authoritative source.
+// ===================================================================
+const IDB_DB_NAME = "presidenter-cardbank-v1";
+const IDB_STORE = "deck";
+
+let persistLocalStorageDead = false;
+let idbReady = null;
+
+function idbOpen() {
+  if (idbReady) return idbReady;
+  idbReady = new Promise((resolve, reject) => {
+    if (!("indexedDB" in window)) { resolve(null); return; }
+    const req = indexedDB.open(IDB_DB_NAME, 1);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) {
+        db.createObjectStore(IDB_STORE);
+      }
+    };
+    req.onsuccess = (e) => resolve(e.target.result);
+    req.onerror = () => resolve(null);
+  });
+  return idbReady;
+}
+
+async function idbDeckPut(payload) {
+  const db = await idbOpen();
+  if (!db) return false;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(IDB_STORE, "readwrite");
+      tx.objectStore(IDB_STORE).put(payload, "main");
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+    } catch (e) { resolve(false); }
+  });
+}
+
+async function idbDeckGet() {
+  const db = await idbOpen();
+  if (!db) return null;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(IDB_STORE, "readonly");
+      const req = tx.objectStore(IDB_STORE).get("main");
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    } catch (e) { resolve(null); }
+  });
+}
+
+async function idbDeckClear() {
+  const db = await idbOpen();
+  if (!db) return false;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(IDB_STORE, "readwrite");
+      tx.objectStore(IDB_STORE).delete("main");
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+    } catch (e) { resolve(false); }
+  });
+}
+
 function persist() {
   // Always persist rooms alongside CHAINS so they never drift out
   // of sync. Player ask 2026-05: "I created a room named room 1
   // and after your edits it disappeared! don't make my info
   // disappear like that."
   persistRooms();
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(CHAINS));
-    const ind = document.getElementById("save-indicator");
-    if (ind) {
-      ind.textContent = "saved";
-      ind.classList.add("saved");
-      clearTimeout(persist._t);
-      persist._t = setTimeout(() => {
-        ind.textContent = "·";
-        ind.classList.remove("saved");
-      }, 1200);
+  const payload = { CHAINS, ROOMS, activeRoom, savedAt: new Date().toISOString() };
+  // Best-effort localStorage write — fast path for next cold launch.
+  if (!persistLocalStorageDead) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(CHAINS));
+    } catch (e) {
+      // Almost always QuotaExceededError when the deck overflows
+      // ~5 MB. Latch so we stop retrying every save.
+      persistLocalStorageDead = true;
+      console.warn("localStorage quota exceeded — IndexedDB only from now on.");
+      showCopyToast("localStorage full. Your deck is safe in IndexedDB. Use ⎇ Sync to back up to GitHub.");
     }
-  } catch (e) {
-    console.warn("persist failed", e);
+  }
+  // Authoritative store — async, fire-and-forget.
+  idbDeckPut(payload).catch(() => {});
+  const ind = document.getElementById("save-indicator");
+  if (ind) {
+    ind.textContent = "saved";
+    ind.classList.add("saved");
+    clearTimeout(persist._t);
+    persist._t = setTimeout(() => {
+      ind.textContent = "·";
+      ind.classList.remove("saved");
+    }, 1200);
   }
 }
 
 function loadPersisted() {
+  // Fast synchronous path — read the localStorage cache. The async
+  // reconcileFromIDB() runs after boot to pick up data that lives
+  // only in IDB (the case when localStorage hit quota previously).
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     // null = first-time visit → fall through to source defaults
@@ -12959,13 +13056,16 @@ document.getElementById("settings-reset-source").addEventListener("click", () =>
   resetToSource();
 });
 document.getElementById("settings-wipe-storage").addEventListener("click", () => {
-  if (!confirm("Wipe ALL local data for this site?\n\n  · CHAINS\n  · ROOMS (back to Main only)\n  · GitHub settings\n  · Undo history\n\nPage will reload to an EMPTY canvas. This can't be undone.")) return;
+  if (!confirm("Wipe ALL local data for this site?\n\n  · CHAINS (localStorage + IndexedDB)\n  · ROOMS (back to Main only)\n  · GitHub settings\n  · Undo history\n\nPage will reload to an EMPTY canvas. This can't be undone.")) return;
   // Write an explicit empty deck so loadPersisted treats this as
   // "user wants empty," not "first-time visit."
   localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
   localStorage.setItem(ROOMS_STORAGE_KEY, JSON.stringify({ ROOMS: ["Main"], activeRoom: "Main" }));
   localStorage.removeItem("presidenter:github:v1");
-  location.reload();
+  // Step 10 — also clear the IDB store so the reconcile-from-IDB
+  // path on next load doesn't re-hydrate the deck the user just
+  // asked to wipe.
+  idbDeckClear().finally(() => location.reload());
 });
 document.getElementById("settings-backdrop").addEventListener("click", (e) => {
   if (e.target.id === "settings-backdrop") e.target.classList.remove("open");
@@ -14162,6 +14262,28 @@ function bootRender() {
   updateUndoButton();
 }
 bootRender();
+
+// Step 10 — reconcile from IndexedDB. If IDB has a deck that
+// localStorage doesn't (because we hit quota previously and the
+// localStorage cache is stale OR empty), pull from IDB and re-render.
+// Player ask: 'switch from localStorage to IndexedDB'.
+idbDeckGet().then(idbPayload => {
+  if (!idbPayload || !Array.isArray(idbPayload.CHAINS)) return;
+  // If localStorage cache has equal/more cards we keep the fast path.
+  // If IDB has more (the case when localStorage hit quota), hydrate.
+  if (idbPayload.CHAINS.length > CHAINS.length) {
+    CHAINS.length = 0;
+    idbPayload.CHAINS.forEach(c => CHAINS.push(c));
+    if (Array.isArray(idbPayload.ROOMS)) {
+      ROOMS.length = 0;
+      idbPayload.ROOMS.forEach(r => ROOMS.push(r));
+    }
+    if (idbPayload.activeRoom) activeRoom = idbPayload.activeRoom;
+    document.querySelectorAll(".card, .chain-header").forEach(el => el.remove());
+    bootRender();
+    showCopyToast(`Restored ${CHAINS.length} chains from IndexedDB (localStorage was capped).`);
+  }
+}).catch(() => {});
 
 if (!persisted && CHAINS.length === 0) {
   fetch("./deck-seed.json", { cache: "no-store" })
