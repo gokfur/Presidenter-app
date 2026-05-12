@@ -5629,6 +5629,13 @@ function deleteChain(chainId) {
 // parallel chains."
 // ===================================================================
 function addParallelOption(parentCardId, side) {
+  // 2026-05-12 audit fix — was pulling random CARD_TEMPLATES (the
+  // pre-v30 random-template era) which produced parallels that had
+  // nothing to do with the parent's situation. Now generates a
+  // context-aware sibling: a different speaker reacting to the
+  // SAME decision moment as the parent. Uses localOutcomeFor for
+  // v30-voiced outcomes. Falls back to a sensible template when
+  // no comedy speakers are available.
   const chain = CHAINS.find(c => c.cards.some(x => x.id === parentCardId));
   if (!chain) return;
   const parent = chain.cards.find(x => x.id === parentCardId);
@@ -5642,23 +5649,26 @@ function addParallelOption(parentCardId, side) {
     branch.target = null;
   }
   if (!branch.poolTargets) branch.poolTargets = [];
-  // Pick a template avoiding the parent's speaker AND any existing
-  // parallel sibling's speaker.
+  // Sibling-aware speaker pick: never duplicate the parent OR an
+  // existing parallel sibling. Walks the cast-50 list so the pool
+  // stays within the project's authoring contract.
   const siblingSpeakers = new Set([parent.speaker]);
   for (const sid of branch.poolTargets) {
     const sib = CHAINS.flatMap(c => c.cards).find(c => c.id === sid);
     if (sib) siblingSpeakers.add(sib.speaker);
   }
-  const candidates = CARD_TEMPLATES.filter(t =>
-    !t.speakers.some(s => siblingSpeakers.has(s)));
-  const tmpl = pickRandom(candidates.length ? candidates : CARD_TEMPLATES);
-  const speaker = pickRandom(tmpl.speakers.filter(s => !siblingSpeakers.has(s)).length
-    ? tmpl.speakers.filter(s => !siblingSpeakers.has(s))
-    : tmpl.speakers);
-  // Generate a fresh id
+  const allSpeakers = Object.values(SPEAKERS_BY_MINISTRY).flat();
+  const speaker = pickRandom(allSpeakers.filter(s => !siblingSpeakers.has(s)))
+    || pickRandom(allSpeakers);
+  const ministry = MINISTRY_OF[speaker] || "Cabinet";
+  const topic = resolveTopic("__auto__", ministry);
+  // Context-aware situation: references the parent's moment so the
+  // parallel reads as 'while X is happening, this minister has their
+  // own angle on it' instead of inventing a fresh scene.
+  const parentVerb = (parent.situation || "").split(/\s+/).slice(0, 1)[0] || "decision";
+  const situation = `With ${parent.speaker.split(" ").slice(-1)[0]}'s ${side === "accept" ? "decision" : "refusal"} on the desk, ${speaker.split(" ").slice(-1)[0]} brings a different angle. Take it?`;
   const altIdx = branch.poolTargets.length + 1;
   const newId = parent.id + "-alt" + altIdx;
-  // Parent needs a setFlag so the new card's requires can match
   if (!branch.setFlag) branch.setFlag = parent.id + "_" + side;
   const newCard = {
     id: newId,
@@ -5666,13 +5676,11 @@ function addParallelOption(parentCardId, side) {
     level: (parent.level || 0) + 1,
     col: "parallel",
     pool: true,
-    speaker, ministry: tmpl.ministry, topic: tmpl.topic,
-    situation: tmpl.situation,
+    speaker, ministry, topic,
+    situation,
     requires: branch.setFlag,
-    accept: { setFlag: null, target: null, outcome: tmpl.accept.outcome,
-              env: tmpl.accept.env, mil: tmpl.accept.mil, wel: tmpl.accept.wel, eco: tmpl.accept.eco },
-    decline: { setFlag: null, target: null, outcome: tmpl.decline.outcome,
-               env: tmpl.decline.env, mil: tmpl.decline.mil, wel: tmpl.decline.wel, eco: tmpl.decline.eco },
+    accept:  { setFlag: null, target: null, outcome: localOutcomeFor("accept",  situation, speaker), env: 0, mil: 0, wel: 2,  eco: -1 },
+    decline: { setFlag: null, target: null, outcome: localOutcomeFor("decline", situation, speaker), env: 0, mil: 0, wel: -2, eco: 1 },
   };
   chain.cards.push(newCard);
   branch.poolTargets.push(newId);
@@ -9719,8 +9727,8 @@ function closeModal() {
   document.getElementById("f-speaker").value = "";
   document.getElementById("f-ministry").value = "";
   document.getElementById("f-ministry").disabled = false;
-  document.getElementById("f-chain").disabled = false;
-  document.getElementById("f-parent").disabled = false;
+  // f-chain and f-parent retired as visible controls (hidden inputs);
+  // .disabled is a no-op on hidden inputs but the calls are dead.
   for (const id of ["f-accept-env", "f-accept-mil", "f-accept-wel", "f-accept-eco",
                     "f-decline-env", "f-decline-mil", "f-decline-wel", "f-decline-eco"]) {
     document.getElementById(id).value = "0";
