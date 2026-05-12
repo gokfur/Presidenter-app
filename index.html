@@ -3258,7 +3258,7 @@
       <h2 id="modal-title">Add a card</h2>
       <button class="modal-close-x" data-fires="modal-cancel" aria-label="Close">×</button>
     </div>
-    <div class="modal-sub">v29 rules apply: ≤140 chars, ≤3 sentences, ends in a yes/no question, no other cast as subject. Leave the chain set to <b>Orphan</b> if you just want to draft a single card — wire it into a chain later, or click "Generate chain" to grow a story around it.</div>
+    <div class="modal-sub">v30 rules: ≤140 chars, <b>≤2 short sentences</b>, ends in a yes/no question, no other cast as subject. Tone is <b>witty, slightly cynical, mysterious</b>. Both swipes must feel like a cost — every card is a <b>moral dilemma</b>. Leave the chain set to <b>Orphan</b> to draft a single card and wire it later.</div>
 
     <div class="row">
       <div>
@@ -9789,7 +9789,10 @@ function runValidation() {
 
   // v29 four-rule
   const lenOk = len > 0 && len <= 140;
-  const sentencesOk = sentences <= 3 && sentences > 0;
+  // v30 — tightened from ≤3 sentences to ≤2 (player ask: "Maximum 2
+  // short sentences of request or information"). Anything beyond 2
+  // needs the styleguide-exception checkbox.
+  const sentencesOk = sentences <= 2 && sentences > 0;
   const subjectOk = !hasOther;
   // Player-facing strings must not contain em-dashes (CLAUDE.md gate)
   const emDashOk = ![sit, acceptOut, declineOut].some(s => s && s.includes("—"));
@@ -9828,7 +9831,7 @@ function runValidation() {
   validation.innerHTML = `
     ${exception ? `<span class="v-pill" style="background:var(--gold); color:var(--bg-deep); border-color:var(--gold);">⚠ Style-guide exception ON</span>` : ""}
     <span class="v-pill ${lenOk ? "" : "fail"}" title="Soft cap from v29: keep the situation short enough to swipe quickly.">${lenOk ? "✓" : "✗"} ≤140 chars</span>
-    <span class="v-pill ${sentencesOk ? "" : "fail"}">${sentencesOk ? "✓" : "✗"} ≤3 sentences</span>
+    <span class="v-pill ${sentencesOk ? "" : "fail"}" title="v30 hard cap — two short sentences. Setup + ask.">${sentencesOk ? "✓" : "✗"} ≤2 sentences</span>
     <span class="v-pill ${endsInQ ? "" : "fail"}" title="Card must end in a yes/no question for the binary Accept/Decline swipe.">${endsInQ ? "✓" : "✗"} ends in ?</span>
     <span class="v-pill ${subjectOk ? "" : "fail"}" title="The situation must not name another registered cast member as the subject.">${subjectOk ? "✓" : "✗"} speaker = subject</span>
     <span class="v-pill ${emDashOk ? "" : "fail"}" title="No em-dashes in player-facing strings — uses commas or periods instead.">${emDashOk ? "✓" : "✗"} no em-dashes</span>
@@ -10138,56 +10141,65 @@ function readVariantsList() {
 // async upgrade kicks in afterwards and replaces the local text
 // with a higher-quality AI line. Either way the button always
 // produces output.
+// Local outcome templates, v30 voiced — witty, slightly cynical,
+// mysterious. Each line is what the speaker would actually say back
+// to the player after the swipe lands, not a stage direction. Both
+// sides carry a cost or a hint of one (STYLE_GUIDE §12 Rule 8).
 const LOCAL_OUTCOME_TEMPLATES = [
-  // verb regex, accept template (with {speaker}), decline template
   { re: /\b(sign|approve|authoriz|grant|seal|endors)\w*/i,
-    accept: "{speaker} signs the order. The terms take effect by week's end.",
-    decline: "{speaker} sets the papers aside. The matter waits for another desk." },
+    accept:  "{speaker} signs without reading the small print. Someone, somewhere, has just noticed.",
+    decline: "{speaker} slides the file into the drawer. The drawer is already full." },
   { re: /\b(refuse|reject|deny|block|veto)\w*/i,
-    accept: "{speaker} files the refusal. The other side begins drafting a public letter.",
-    decline: "{speaker} agrees instead. The room's mood shifts toward cooperation." },
+    accept:  "{speaker} files the refusal in writing. The other side is already drafting a longer letter.",
+    decline: "{speaker} caves with a polite smile. Two ministers will remember this by Tuesday." },
   { re: /\b(close|shut|seal|lock|cordon)\w*/i,
-    accept: "The order goes out. {speaker} confirms the closure is in effect by morning.",
-    decline: "The doors stay open. {speaker} marks the decision in the log." },
+    accept:  "The order goes out before lunch. {speaker} doesn't say what's on the other side of the door.",
+    decline: "The doors stay open. {speaker} notes who walks through first." },
   { re: /\b(open|launch|begin|kick off|inaugur)\w*/i,
-    accept: "{speaker} opens the proceedings. The first hour runs short of the schedule.",
-    decline: "{speaker} keeps it closed for now. The press will hear about it by Sunday." },
+    accept:  "{speaker} opens the proceedings. Three people in the front row aren't on the guest list.",
+    decline: "{speaker} holds it back. The press already has the photographs anyway." },
   { re: /\b(investigat|audit|inquir|probe)\w*/i,
-    accept: "{speaker} starts the inquiry. The first witness is on the schedule by Tuesday.",
-    decline: "{speaker} closes the file. The papers will smell it within the week." },
+    accept:  "{speaker} pencils in the first witness for Tuesday. The second name is in the margin.",
+    decline: "{speaker} closes the file. The file finds its way out anyway, eventually." },
   { re: /\b(print|publish|announc|broadcast|release|leak)\w*/i,
-    accept: "{speaker} prints it under your name. The evening edition runs above the fold.",
-    decline: "{speaker} pulls the piece. A shorter version runs in the morning anyway." },
+    accept:  "{speaker} runs it above the fold. A different paper runs a different version by morning.",
+    decline: "{speaker} pulls the piece. A leaner version surfaces somewhere you can't quite name." },
   { re: /\b(call|convene|summon|gather|host)\w*/i,
-    accept: "{speaker} makes the call. The room fills inside the hour.",
-    decline: "{speaker} delays the meeting. The cabinet hears about it Monday." },
+    accept:  "{speaker} makes the call. The room is fuller than expected, and quieter.",
+    decline: "{speaker} pushes the meeting to Monday. By Monday the agenda has changed." },
   { re: /\b(deploy|mobiliz|march|conscript|enlist)\w*/i,
-    accept: "Whistles go up at every depot. {speaker} confirms the columns move east by nightfall.",
-    decline: "{speaker} stands down. The barracks stay dark; the border desk braces." },
+    accept:  "Whistles up at every depot. {speaker} confirms the columns moved east before anyone signed off.",
+    decline: "{speaker} stands the men down. The eastern border desk doesn't sleep." },
   { re: /\b(pay|donat|fund|allocat|budget|pension|wage)\w*/i,
-    accept: "The funds clear by Friday. {speaker} expects a receipt on the desk by Monday.",
-    decline: "{speaker} closes the request. The applicant will be in the morning paper." },
+    accept:  "The funds clear by Friday. {speaker} doesn't mention what got cut to find them.",
+    decline: "{speaker} closes the request. The applicant has friends, and the friends have papers." },
   { re: /\b(meet|negotiat|talk|invit|summit)\w*/i,
-    accept: "{speaker} sets the meeting for Thursday. Three other ministers ask to attend.",
-    decline: "{speaker} declines on your behalf. The other side files a measured letter." },
+    accept:  "{speaker} sets it for Thursday. Two other ministers invite themselves in.",
+    decline: "{speaker} declines on your behalf. A handwritten letter arrives by courier the next day." },
   { re: /\b(arrest|detain|charg|prosecut|jail)\w*/i,
-    accept: "{speaker} signs the warrant. The first arrests come before dawn.",
-    decline: "{speaker} lets them walk. The papers will name the lapse by Sunday." },
+    accept:  "{speaker} signs the warrant before breakfast. The cell list has one more name than expected.",
+    decline: "{speaker} lets them walk. They walk somewhere specific, and you'll hear about it soon." },
   { re: /\b(reform|reorganiz|restructur|reset|overhaul)\w*/i,
-    accept: "{speaker} announces the reset. Three replacements are named by Friday.",
-    decline: "{speaker} holds the line. The faction takes the win quietly." },
+    accept:  "{speaker} announces three replacements by Friday. One of them used to work for you.",
+    decline: "{speaker} holds the line. The faction smiles; the faction always smiles when it wins." },
   { re: /\b(apologi[zs]|withdraw|retract|recant)\w*/i,
-    accept: "{speaker} delivers the apology. The morning papers run it on page two.",
-    decline: "{speaker} holds the position. The opposition leader requests airtime by lunch." },
+    accept:  "{speaker} delivers the apology with composure. The cameras catch the wrong angle.",
+    decline: "{speaker} holds the position. Three editorial boards are drafting overnight." },
   { re: /\b(strike|protest|march|rally|riot)\w*/i,
-    accept: "{speaker} sides with the demonstration. The crowd thins by evening.",
-    decline: "{speaker} keeps the order. Three unions file formal complaints by Sunday." },
+    accept:  "{speaker} stands with the crowd briefly. The crowd thins, slowly, into other rooms.",
+    decline: "{speaker} keeps the order. The unions file complaints; the complaints multiply." },
   { re: /\b(quarantine|lockdown|isolat|curfew)\w*/i,
-    accept: "{speaker} enforces the order. The streets quiet within two days.",
-    decline: "{speaker} keeps the city open. The case numbers double by Friday." },
+    accept:  "{speaker} enforces the order. By Wednesday the streets go quiet, then too quiet.",
+    decline: "{speaker} keeps the city open. The case numbers move faster than the briefings." },
   { re: /\b(tax|levy|tariff|duty)\w*/i,
-    accept: "{speaker} lodges the levy. The first quarter's receipts beat the projection.",
-    decline: "{speaker} shelves the proposal. The treasury desk works the spreadsheet again." },
+    accept:  "{speaker} lodges the levy. The first receipts beat the projection. So do the protests.",
+    decline: "{speaker} shelves it. Someone else will propose it next quarter, with their name on it." },
+  { re: /\b(donat|charit|alms|gift)\w*/i,
+    accept:  "{speaker} arranges the transfer quietly. Three other charities have already written to ask why theirs got nothing.",
+    decline: "{speaker} declines on your behalf. The applicant has a sympathetic friend in the press." },
+  { re: /\b(vote|elect|poll|referend)\w*/i,
+    accept:  "{speaker} puts the question on the floor. The count comes back closer than anyone wanted.",
+    decline: "{speaker} keeps the ballot box closed. The opposition prints its own count by morning." },
 ];
 
 function localOutcomeFor(side, situation, speaker) {
@@ -10197,11 +10209,11 @@ function localOutcomeFor(side, situation, speaker) {
       return v[side].replace(/\{speaker\}/g, s);
     }
   }
-  // Fallback — generic but speaker-voiced, side-coherent
+  // Fallback — generic but speaker-voiced, side-coherent, v30 tone.
   if (side === "accept") {
-    return `${s} takes it forward. The cabinet feels the shift by Wednesday.`;
+    return `${s} takes it forward without comment. The cabinet feels the shift by Wednesday, though nobody says so aloud.`;
   }
-  return `${s} steps back. The papers note the absence by week's end.`;
+  return `${s} steps back, deliberately. The papers always note the absence by week's end.`;
 }
 
 async function aiWriteOutcomeForSide(side) {
@@ -10228,14 +10240,27 @@ async function aiWriteOutcomeForSide(side) {
   const apiKey = provider === "claude" ? keys.claude : keys.gemini;
   const ministry = document.getElementById("f-ministry").value || "their ministry";
   const topic    = document.getElementById("f-topic").value || "simple";
-  const prompt = `You write a single outcome line for a swipe card in "Presidenter".
+  const prompt = `You write the outcome line for a swipe card in "Presidenter" (Reigns-style).
 
-Situation:
+The situation the player just swiped on:
 "${situation}"
 
 Speaker: ${speaker || "an unspecified minister"} · ${ministry} · topic .${topic}
+Player swiped: ${side === "accept" ? "ACCEPT" : "DECLINE"}
 
-Write ONE short outcome line (≤140 chars, ≤2 sentences, no em-dashes) describing what happens AFTER the player swipes "${side === "accept" ? "Accept" : "Decline"}". Be concrete, in-world, in the speaker's voice. No bookkeeping. Output ONLY the line, no quotes.`;
+Write ONE outcome line that describes what happens NEXT in the room.
+
+Constraints:
+- ≤140 chars, ≤2 short sentences, no em-dashes ("—").
+- In-world, concrete physical detail (the funds clear by Friday, the cordon advances, the press already has the headline).
+- No bookkeeping ("the player chose X"). Just describe the in-world reaction.
+
+Tone (v30 STYLE_GUIDE §12 — all three at once):
+- WITTY: one sharp turn of phrase or wry understatement.
+- SLIGHTLY CYNICAL: the world doesn't reward virtue cleanly — there's always a cost or a complication.
+- MYSTERIOUS: hint at a downstream consequence without spelling it out. Leave the player wondering what happens next.
+
+Output ONLY the outcome line. No quotes, no preamble.`;
   const original = btn.textContent;
   btn.disabled = true;
   btn.textContent = "✨…";
@@ -11007,16 +11032,35 @@ c1's situation MUST:
 c2-c5 must keep escalating: each beat is a tighter consequence of the previous beat. Make it feel like the room is closing in, characters are revealing motives, and old decisions come back to bite. Aim for the kind of story turn that makes the player whisper "oh no" or "what".
 `
     : "";
-  const prompt = `You generate decision cards for "Presidenter", a swipe-based cabinet game.
+  const prompt = `You write decision cards for "Presidenter", a swipe-based cabinet game in the Reigns tradition.
 
-Cards have:
+THE FORMAT (v30, STYLE_GUIDE §12):
+Every card is ONE speaker leaning into the desk with TWO short sentences. Sentence 1 = the situation. Sentence 2 = the ask (the yes/no question). That's it. No narration, no third-person, no stage directions.
+
+Card fields:
 - speaker: must be one of the 50 names below
 - ministry: must match the speaker's home ministry
 - topic: one of [tricky, scandal, economy, military, diplomacy, health, simple, education, environment, energy, justice]
-- situation: ≤140 chars, ≤3 sentences, ENDS IN A YES/NO QUESTION ("?")
-- accept: { outcome (≤140 chars), env, mil, wel, eco — small integers, sum of |abs| ≥ 2 }
+- situation: ≤140 chars, ≤2 SHORT SENTENCES, written as the speaker's dialogue, ENDS IN A YES/NO QUESTION ("?")
+- accept: { outcome (≤140 chars, same dialogue voice), env, mil, wel, eco — small integers, sum of |abs| ≥ 2 }
 - decline: same shape
 - NO em-dashes ("—") anywhere
+
+TONE — every card hits all three at once:
+1. WITTY. One sharp turn of phrase. An understatement, a metaphor, a dry observation. Not a joke. The speaker is too tired for jokes; they're sharp because the room is sharp.
+2. SLIGHTLY CYNICAL. The speaker has seen this before. They know how it usually ends. Their cynicism is earned — they're not posturing. They bring you the choice anyway.
+3. MYSTERIOUS. Hint at a larger truth without explaining it. The press already knows. The cabinet is already split. Someone has already left the room. Pieces are in motion off-camera. Never finish the puzzle for the player.
+
+MORAL DILEMMA — every card MUST pass these five tests:
+- Two real costs. Accept and Decline both leak something the player wanted to protect.
+- No "free yes". If Accept costs nothing it isn't a swipe, it's a default. Push the cost in.
+- No "free no". Decline must DO something — the room reads silence as cover-up, the press fills vacuums, rivals move first.
+- The speaker is conflicted too. They're asking the player to share the burden. They want a reason for the record.
+- No clean exit. Both swipes hurt. If the player can answer in under three seconds without flinching, the dilemma failed.
+
+Good example of voice + dilemma:
+  Treasurer Halen Vorr: "The bond markets close at noon and I'm short eight million. Sell the eastern reserve or default in public — sell?"
+  (witty understatement: "default in public"; cynical: he frames both options as bad; mysterious: we never learn why eight million; dilemma: sell a prized asset vs national humiliation.)
 
 Cast (speaker → ministry):
 ${speakerLines}
