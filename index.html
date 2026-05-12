@@ -5018,6 +5018,123 @@ function autoGenerateChainName() {
   return pickRandom(CHAIN_NAMES) + " (" + (CHAINS.length + 1) + ")";
 }
 
+// =============================================================
+// Context-aware funny generator — builds a "comic-relief" pool
+// option that ties to the chain's c1 decision moment. The funny
+// speaker is ALWAYS different from the chain's c1 speaker so the
+// pool reads as "while the main scene plays out, another minister
+// has an absurd moment in the same room." Player ask 2026-05.
+//
+// Two paths:
+//   1. AI mode — if a Claude/Gemini key is saved, the chain
+//      generator calls `aiContextFunny(...)` AFTER addChain returns
+//      and rewrites the funny placeholder with a tailored line.
+//      That happens out-of-band so the chain renders immediately.
+//   2. Template mode (always runs first) — picks one of the
+//      reaction templates below, slots in a random comedy-friendly
+//      speaker, and references the c1 decision verb. The line is
+//      always coherent enough to ship without AI.
+// =============================================================
+const FUNNY_REACTION_TEMPLATES = [
+  s => `${s.speaker} was leaning back to listen and fell clean out of the chair the moment the room went still. Help them up before the photographers see?`,
+  s => `${s.speaker}'s pen exploded across the cabinet papers right as the decision was being noted. Sign on the wet copy anyway?`,
+  s => `${s.speaker} mispronounced the same name three times in the same minute. Correct the record on the record?`,
+  s => `${s.speaker}'s carrier pigeon swooped in through the open window and landed on the speaker's notes. Read the message it brought first?`,
+  s => `${s.speaker}'s chair collapsed under them halfway through the briefing. Adjourn early or push through?`,
+  s => `${s.speaker} swapped glasses with the ambassador and slid the wrong one across the table. Apologise to the ambassador now?`,
+  s => `${s.speaker} dropped the official seal down a heating vent during the signing. Recover it now or improvise?`,
+  s => `${s.speaker} hung up on the chief negotiator thinking it was a prank call. Call back with the apology line?`,
+  s => `${s.speaker} called the wrong minister by the right name and the right minister by the wrong name in one breath. Acknowledge the slip?`,
+  s => `${s.speaker}'s coffee landed straight in the binder of motions just as the room was settling. Reprint or read through the stain?`,
+  s => `${s.speaker} arrived in last night's evening jacket having slept at the desk. Send them home before the cameras roll?`,
+  s => `${s.speaker} read the wrong page aloud for forty seconds before anyone had the heart to say. Let them finish?`,
+];
+
+// Cast members good at the comic register — used as speakers for the
+// funny pool member. Ambassador Hess is the canonical "fell off the
+// chair" reference (player example). Press / Public / Director Ansa
+// register comedy without breaking tone.
+const COMEDY_SPEAKERS = [
+  "Ambassador Hess", "Press Secretary Lindi", "Selma", "Aysel", "Osman",
+  "Director Ansa", "Tourism Director Estrid", "Editor Halvik",
+  "Aide-de-Camp Ren Halsey", "Chamberlain Veyra", "Curator Brandt",
+];
+
+function buildContextFunnyForChain(chain) {
+  if (!chain || !chain.cards || !chain.cards.length) return null;
+  const parentCard = chain.cards[0];
+  // Pick a comedy speaker who ISN'T the chain's c1 speaker (so the
+  // funny reads as "another minister in the room had a moment").
+  const candidates = COMEDY_SPEAKERS.filter(s => s !== parentCard.speaker && MINISTRY_OF[s]);
+  const speaker = pickRandom(candidates) || pickRandom(COMEDY_SPEAKERS);
+  const ministry = MINISTRY_OF[speaker] || "Foreign Affairs";
+  const tmpl = pickRandom(FUNNY_REACTION_TEMPLATES);
+  const situation = tmpl({ speaker });
+  const newId = parentCard.id + "-comicrelief";
+  return {
+    id: newId,
+    role: "Parallel · Comic relief",
+    level: 1, col: "parallel", pool: true,
+    speaker, ministry,
+    topic: "funnyAccident",
+    situation,
+    contextFunny: true, // marks this card as the context-aware variant (kept across loads)
+    memoryFragment: MEMORY_FRAGMENTS[speaker],
+    accept:  { setFlag: null, target: null, outcome: `You wave it off. ${speaker} recovers their dignity by lunch.`,        env: 0, mil: 0, wel: 1,  eco: 0 },
+    decline: { setFlag: null, target: null, outcome: `You ignore it. ${speaker} stays embarrassed; the room gets back to work.`, env: 0, mil: 0, wel: -1, eco: 0 },
+  };
+}
+
+// Optional AI polish — called AFTER the chain is on the canvas so
+// the render isn't blocked on the network. Rewrites the
+// placeholder situation/outcomes with a tailored line that
+// references the parent decision verb directly.
+async function polishContextFunnyWithAI(chain) {
+  const keys = loadAIKeys ? loadAIKeys() : {};
+  const provider = keys.claude ? "claude" : (keys.gemini ? "gemini" : null);
+  if (!provider) return false; // no key → keep the template line
+  const funny = chain.cards.find(c => c.contextFunny);
+  if (!funny) return false;
+  const parent = chain.cards[0];
+  const apiKey = provider === "claude" ? keys.claude : keys.gemini;
+  const prompt = `Rewrite a comic-relief parallel pool option for a swipe card in "Presidenter".
+
+Parent card (the decision in play):
+Speaker: ${parent.speaker}
+Situation: "${parent.situation}"
+Accept outcome: "${parent.accept.outcome}"
+
+The funny pool option lets a DIFFERENT minister have an absurd moment in the same room while the main scene plays out. The player swiping Accept on the parent gets THIS card in the pool.
+
+Funny speaker (already chosen): ${funny.speaker}
+
+Write the funny card. Constraints:
+- ≤140 chars total
+- ≤3 sentences
+- Ends in a yes/no question
+- No em-dashes
+- The funny must be CLEARLY HAPPENING DURING the parent's decision moment (the vote, signing, briefing, ceremony, etc. that the parent set up)
+- Stays light, no actual harm
+- The speaker is ${funny.speaker} — write in their voice
+
+Output ONLY this JSON: {"situation":"...","accept":"<one-line outcome after the player handles the gaffe>","decline":"<one-line outcome after the player ignores it>"}`;
+  try {
+    const text = await callAITextPlain(provider, apiKey, prompt);
+    const parsed = extractJSONFromAIText ? extractJSONFromAIText(text) : JSON.parse(text);
+    if (parsed && parsed.situation) {
+      funny.situation = parsed.situation.trim();
+      if (parsed.accept)  funny.accept.outcome  = String(parsed.accept).trim();
+      if (parsed.decline) funny.decline.outcome = String(parsed.decline).trim();
+      persist();
+      rerenderAll();
+      return true;
+    }
+  } catch (e) {
+    console.warn("polishContextFunny failed", e);
+  }
+  return false;
+}
+
 function addChain(name, subtitle, length) {
   length = length || 5; // default standard 5-card chain
   snapshot();
@@ -5138,18 +5255,36 @@ function addChain(name, subtitle, length) {
         added++;
       }
     }
-    // 2026-05 retired — used to auto-attach a "Funny break" standalone
-    // (cat / pigeon / wrong-anthem) as a pool option on c1's Accept
-    // side for chains ≥10. Intent was pacing relief, but pool
-    // members are supposed to be PARALLEL PATHS from the same
-    // decision — stuffing a non-sequitur in there meant a player
-    // who Accepted "Sign the cheap bid?" might land on "Apologise
-    // for the anthem mix-up?" Player ask 2026-05: "the band played
-    // one has no relation with the context. why so?" Funny cards
-    // belong in the standalone deck, where the engine surfaces
-    // them BETWEEN chains as palette cleansers — not glued into a
-    // chain's pool. Use the ⭐ Standalone button to drop one if a
-    // specific chain genuinely needs a tonal break.
+    // Context-aware funny — one comic-relief pool option per ~20
+    // chain cards. The funny card sits as a parallel option on c1's
+    // Accept side (so it competes with the normal continuation in
+    // the pool), but its situation IS BUILT FROM the parent's
+    // decision moment — a different minister reacts absurdly to
+    // the same scene. Player ask 2026-05: "it needs to be related
+    // but funny thing happened at that time. for example, sign the
+    // cheap bid? when you say yes, you will either gonna see the
+    // one minister Reva or Ambassador Hess in a funny context like
+    // he was listening and fell from the chair, help him etc."
+    if (length >= 20 || (length >= 10 && Math.random() < 0.5)) {
+      const alreadyFunny = chain.cards.some(c =>
+        c.topic === "funnyFlavor" || c.topic === "funnyAccident" || c.contextFunny);
+      if (!alreadyFunny) {
+        const funnyCard = buildContextFunnyForChain(chain);
+        if (funnyCard) {
+          const parentCard = chain.cards[0];
+          const branch = parentCard.accept;
+          if (branch.target && !branch.poolTargets) {
+            branch.poolTargets = [branch.target];
+            branch.target = null;
+          }
+          if (!branch.poolTargets) branch.poolTargets = [];
+          if (!branch.setFlag) branch.setFlag = parentCard.id + "_accept";
+          funnyCard.requires = branch.setFlag;
+          chain.cards.push(funnyCard);
+          branch.poolTargets.push(funnyCard.id);
+        }
+      }
+    }
     chain.room = (activeRoom === "__all__") ? "Main" : activeRoom;
     CHAINS.push(chain);
     const needed = rightmostX + 900;
@@ -5160,6 +5295,9 @@ function addChain(name, subtitle, length) {
     rerenderAll();
     setTimeout(() => setFocusedCard(chain.cards[0].id, false), 80);
     showCopyToast(`Added "${chain.name}" · ${chain.cards.length} cards`);
+    // Fire-and-forget AI polish for the comic-relief pool member.
+    // If no key is saved, the template line stays — already coherent.
+    polishContextFunnyWithAI(chain).catch(() => {});
     return;
   }
   // All STORY_ARCS are already in CHAINS — fall back to the legacy
