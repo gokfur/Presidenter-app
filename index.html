@@ -3317,7 +3317,9 @@
       <h3>▶ Accept</h3>
       <div class="row full">
         <div>
-          <label>Outcome (what happens after Accept)</label>
+          <label>Outcome (what happens after Accept)
+            <button type="button" id="ai-write-accept" class="ai-mini-btn" title="AI-write the Accept outcome based on the situation, speaker and topic">✨ AI write</button>
+          </label>
           <textarea id="f-accept-outcome" placeholder="Halvik prints six lines under your name. The bench reads at breakfast."></textarea>
         </div>
       </div>
@@ -3382,7 +3384,9 @@
       <h3>◀ Decline</h3>
       <div class="row full">
         <div>
-          <label>Outcome (what happens after Decline)</label>
+          <label>Outcome (what happens after Decline)
+            <button type="button" id="ai-write-decline" class="ai-mini-btn" title="AI-write the Decline outcome based on the situation, speaker and topic">✨ AI write</button>
+          </label>
           <textarea id="f-decline-outcome" placeholder="Halvik prints the audit summary alone. The headline asks the question you didn't answer."></textarea>
         </div>
       </div>
@@ -10206,8 +10210,15 @@ async function callAITextPlain(provider, apiKey, prompt) {
   return (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text) || "";
 }
 
-// Per-field AI button wiring retired 2026-05. Chain-level AI in the
-// chain-options wizard still runs through generateChainWithAI.
+// Per-field AI buttons — Accept and Decline outcome write. Reinstated
+// 2026-05 (player ask: "add a button to AI generate accept based on
+// the situation"). The situation-variant button stays retired.
+document.addEventListener("DOMContentLoaded", () => {
+  const wAccept  = document.getElementById("ai-write-accept");
+  const wDecline = document.getElementById("ai-write-decline");
+  if (wAccept)  wAccept.addEventListener("click",  () => aiWriteOutcomeForSide("accept"));
+  if (wDecline) wDecline.addEventListener("click", () => aiWriteOutcomeForSide("decline"));
+});
 
 // Meter stepper buttons — visible ± controls next to every meter
 // input in the Add Card modal. Click steps by 1, hold (long-press)
@@ -10541,12 +10552,28 @@ function extendLeafWithWizard(cardId, side) {
   if (!sourceCard) return;
   pendingLeafExtend = { cardId, side, sourceSpeaker: sourceCard.speaker };
   showChainOptionsModal();
-  // Surface the pending source in the modal banner so the author
-  // sees what they're extending. The status line is empty until
-  // they click Generate, so it's a natural place to land this hint.
+  // Surface the pending source + a story preview so the author sees
+  // exactly what the AI is being asked to continue. Player ask
+  // 2026-05: branched chains were unrelated random arcs; the wizard
+  // should make it clear the AI is continuing THIS story.
   const status = document.getElementById("co-status");
   if (status) {
-    status.innerHTML = `<span style="color: var(--gold);">Extending the dead end on <b>${sourceCard.speaker}</b>'s ${side.toUpperCase()} swipe. The new chain's first card will replace "end of chain" on that path.</span>`;
+    const branch = sourceCard[side] || {};
+    const sit = (sourceCard.situation || "").slice(0, 90);
+    const out = (branch.outcome || "").slice(0, 90);
+    status.innerHTML = `
+      <div style="color: var(--gold); font-weight: 700; margin-bottom: 6px;">
+        ✨ Extending <b>${sourceCard.speaker}</b>'s ${side.toUpperCase()} swipe
+      </div>
+      <div style="color: var(--text-muted); line-height: 1.5; margin-bottom: 4px;">
+        <span style="color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.1em; font-size: 10px; font-weight: 700;">The story so far:</span><br>
+        "${sit}${sourceCard.situation && sourceCard.situation.length > 90 ? "…" : ""}"
+        ${out ? `<br><span style="color: var(--accept); text-transform: uppercase; letter-spacing: 0.1em; font-size: 10px; font-weight: 700;">After ${side.toUpperCase()}:</span> "${out}${branch.outcome && branch.outcome.length > 90 ? "…" : ""}"` : ""}
+      </div>
+      <div style="color: var(--text-faint); font-size: 11px; font-style: italic;">
+        Pick Claude or Gemini to get a chain that <b>continues this story</b> — new minister reacts, stakes escalate, secrets surface. Template mode picks a random hand-written arc instead.
+      </div>
+    `;
   }
 }
 
@@ -10646,7 +10673,37 @@ async function generateChainFromOptions() {
     if (e) endingPrompt = e.name + " · " + e.theme + " · " + e.final;
   }
 
+  // Build a source-context payload when this is a leaf-extend. Lets
+  // the AI prompt continue the actual story, not invent a random one.
+  // Player ask 2026-05: "I created a card and clicked to create a
+  // chain from its accept option but this 5 chain is not relevant to
+  // the original card. be creative and create a whole storytelling
+  // that makes the player curious."
+  let sourceCtx = null;
+  if (extend) {
+    const sc = CHAINS.flatMap(c => c.cards).find(x => x.id === extend.cardId);
+    if (sc) {
+      const branch = sc[extend.side] || {};
+      sourceCtx = {
+        speaker: sc.speaker,
+        ministry: sc.ministry,
+        topic: sc.topic,
+        situation: sc.situation,
+        side: extend.side,
+        outcome: branch.outcome || "",
+      };
+    }
+  }
+
   if (method === "template") {
+    if (extend) {
+      // Template mode can't honor source context — warn the user up
+      // front. They can re-open the wizard and pick Claude/Gemini.
+      if (!confirm("Template mode picks a random hand-written arc — it won't continue your card's story.\n\nTo get a chain that builds on what you just wrote, pick Claude or Gemini instead.\n\nProceed with random template anyway?")) {
+        pendingLeafExtend = extend; // re-arm so the next click works
+        return;
+      }
+    }
     document.getElementById("chainopt-backdrop").classList.remove("open");
     const beforeLen = CHAINS.length;
     addChain(null, null, length);
@@ -10672,7 +10729,7 @@ async function generateChainFromOptions() {
   document.getElementById("co-generate").disabled = true;
 
   try {
-    const data = await generateChainWithAI(method, key, { length, theme, speaker, endingPrompt });
+    const data = await generateChainWithAI(method, key, { length, theme, speaker, endingPrompt, sourceCtx });
     document.getElementById("co-generate").disabled = false;
     if (!data || !data.cards || !data.cards.length) {
       status.innerHTML = `<span style="color: var(--decline);">No cards in AI response.</span>`;
@@ -10745,6 +10802,33 @@ async function generateChainWithAI(provider, apiKey, opts) {
   const endingLine = opts.endingPrompt
     ? `\nGAME-OVER MODE: c4's Accept outcome must end the game. Reflect: "${opts.endingPrompt}". The c4 Accept outcome must describe the final failure.`
     : "";
+  // Player ask 2026-05: when extending a dead-end card, the AI must
+  // *continue the source story*, not invent a random one. The
+  // sourceCtx block below pins c1 to a direct narrative continuation
+  // of the source card's chosen swipe, and asks the AI to escalate
+  // stakes through c2-c5 so the player stays curious.
+  const sourceLine = opts.sourceCtx
+    ? `
+
+CONTINUATION MODE — THIS IS CRITICAL.
+The player has just made this decision and the story keeps going:
+  Speaker:   ${opts.sourceCtx.speaker} (${opts.sourceCtx.ministry})
+  Situation: "${opts.sourceCtx.situation}"
+  They chose: ${opts.sourceCtx.side === "accept" ? "ACCEPT" : "DECLINE"}
+  In-world result of that swipe: "${opts.sourceCtx.outcome}"
+
+You are writing the NEXT chapter of THIS story, not a new story.
+
+c1's situation MUST:
+  - Pick up directly from the result above (reference what just happened: the donation, the bid, the audit, whoever was just named, the line they crossed)
+  - Introduce ONE new complication that grew out of that decision (not a totally new topic)
+  - Be voiced by a DIFFERENT speaker who is reacting to / affected by the player's choice — not the same speaker as the source
+  - Raise the stakes: someone wants to capitalize on the decision, exploit it, audit it, leak it, escalate it, or twist it sideways
+  - End with a question that doesn't have an obvious answer — the player should NOT know which swipe is "right"
+
+c2-c5 must keep escalating: each beat is a tighter consequence of the previous beat. Make it feel like the room is closing in, characters are revealing motives, and old decisions come back to bite. Aim for the kind of story turn that makes the player whisper "oh no" or "what".
+`
+    : "";
   const prompt = `You generate decision cards for "Presidenter", a swipe-based cabinet game.
 
 Cards have:
@@ -10766,7 +10850,7 @@ A 5-card chain follows this tree:
 - c4 (after c2 ACCEPT): deeper consequence on accept path
 - c5 (after c3 ACCEPT): deeper consequence on decline path
 
-EVERY child (c2/c3/c4/c5) MUST start its situation with a transition phrase referring to the parent's outcome ("With the X done, ...", "After the Y, ..."). NO random scene changes.
+EVERY child (c2/c3/c4/c5) MUST start its situation with a transition phrase referring to the parent's outcome ("With the X done, ...", "After the Y, ..."). NO random scene changes.${sourceLine}
 
 ${themeLine}
 ${speakerLine}${endingLine}
