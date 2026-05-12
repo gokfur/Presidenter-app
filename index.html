@@ -2202,24 +2202,117 @@
   .modal-card .meter-field.mil .meter-tag { color: var(--decline); }
   .modal-card .meter-field.wel .meter-tag { color: var(--chain4); }
   .modal-card .meter-field.eco .meter-tag { color: var(--chain3); }
+  /* Meter field — number input wrapped in a flex row with visible
+     +/- buttons on either side. Native spinners are hidden because
+     they're tiny and dark on most browsers (player ask 2026-05:
+     "make these buttons bigger and white. not accessible.").
+     Touch targets are ≥40×40 so they pass WCAG 2.1 AA target size. */
   .modal-card .meter-field input[type="number"] {
-    width: 100%;
-    padding: 9px 10px;
-    font-size: 14px;
+    flex: 1;
+    width: auto;
+    min-width: 0;
+    padding: 10px 8px;
+    font-size: 16px; /* 16px keeps iOS from auto-zooming on focus */
     text-align: center;
     background: var(--surface2);
     color: var(--text-primary);
     border: 1px solid var(--hairline);
     border-radius: 6px;
-    /* iOS / Safari: the native spinner is tiny and dark. Force the
-       browser to show the bigger reveal-on-focus arrows. */
-    -webkit-appearance: auto;
-    appearance: auto;
+    /* Hide native spinners — we render our own visible buttons */
+    -webkit-appearance: none;
+    appearance: none;
+    -moz-appearance: textfield;
+  }
+  .modal-card .meter-field input[type="number"]::-webkit-outer-spin-button,
+  .modal-card .meter-field input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
   }
   .modal-card .meter-field input[type="number"]:focus {
     border-color: var(--gold);
+    outline: 2px solid var(--gold);
+    outline-offset: 1px;
+  }
+  .modal-card .meter-field .meter-input-row {
+    display: flex;
+    align-items: stretch;
+    gap: 4px;
+  }
+  .modal-card .meter-field .stepper {
+    flex-shrink: 0;
+    width: 36px;
+    min-height: 40px;
+    border: 1px solid var(--hairline);
+    background: var(--surface2);
+    color: #ffffff;
+    border-radius: 6px;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.12s;
+  }
+  .modal-card .meter-field .stepper:hover {
+    background: var(--gold);
+    border-color: var(--gold);
+    color: var(--bg-deep);
+  }
+  .modal-card .meter-field .stepper:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+  }
+  /* Condition builder (Add Card "Fires only if") — three controls
+     on one row: meter dropdown, comparator dropdown, threshold input.
+     Touch targets ≥40px tall; uses native focus rings amplified by
+     the global :focus-visible rule below. */
+  .modal-card .cond-builder {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr;
+    gap: 8px;
+  }
+  .modal-card .cond-builder select,
+  .modal-card .cond-builder input {
+    min-height: 40px;
+    font-size: 14px;
+  }
+
+  /* === A11Y (WCAG 2.1 AA) — visible focus ring on every interactive
+     element. Browser defaults vary; this guarantees a 2px gold ring
+     against the dark surfaces, contrast > 3:1. Player ask 2026-05:
+     "do a massive A11Y WCAG 2.1 AA audit." */
+  button:focus-visible,
+  select:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  a:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  /* Reset legacy :focus rings on the same elements so we don't double up */
+  button:focus:not(:focus-visible),
+  select:focus:not(:focus-visible),
+  input:focus:not(:focus-visible),
+  textarea:focus:not(:focus-visible) {
     outline: none;
   }
+  /* Screen-reader only utility — content visible to assistive tech,
+     hidden from sighted users. */
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
+  }
+
   /* AI mini button — surfaces next to outcome labels for one-click
      auto-write via Claude/Gemini (player ask 2026-05). */
   .ai-mini-btn {
@@ -2594,10 +2687,10 @@
         <div style="display: grid; grid-template-columns: 1.4fr 0.7fr 0.9fr; gap: 6px; margin-bottom: 4px;">
           <select id="ins-cond-meter">
             <option value="">— off —</option>
-            <option value="env">env</option>
-            <option value="mil">military</option>
-            <option value="wel">wellness</option>
-            <option value="eco">economy</option>
+            <option value="environment">environment</option>
+            <option value="military">military</option>
+            <option value="wellness">wellness</option>
+            <option value="economy">economy</option>
             <option value="day">day</option>
             <option value="__flag__">flag</option>
             <option value="__custom__">custom</option>
@@ -3109,24 +3202,42 @@
 
     <div class="row full">
       <div>
-        <label>Situation (the question on the card)
-          <button type="button" id="ai-write-variant" class="ai-mini-btn" title="Generate an alternative phrasing of this situation via AI">✨ Variant</button>
-        </label>
+        <label>Situation (the question on the card)</label>
         <textarea id="f-situation" maxlength="220" placeholder="Two sentences of setup, one yes/no question. Speaker = the one presenting the choice."></textarea>
         <div class="counter" id="f-situation-counter">0 / 140 chars · 0 sentences</div>
         <div class="validation-summary" id="f-situation-validation"></div>
-        <!-- Alternative phrasings live here. Each gets a trash button. -->
-        <div id="f-variants-list" class="variants-list"></div>
       </div>
     </div>
 
+    <!-- Condition builder — three controls (meter / op / value) instead
+         of the free-text grammar. Player ask 2026-05: "make this part
+         a dropdown that make me select meters and select greater or
+         lower and write the value." Free-text fallback under a small
+         "advanced" toggle for the rare flag-gate case. -->
     <div class="row full">
       <div>
-        <label>Fires only if (optional) — gate this card on a meter or flag</label>
-        <input id="f-condition" placeholder='e.g. economy<20, military>90, wellness<40, day>200'>
-        <div class="counter" style="text-align:left; color: var(--text-faint);">
-          Supported: <code>meter&lt;N</code> · <code>meter&gt;N</code> · <code>meter=N</code> · <code>flag_name</code> · combine with " AND " / " OR "
+        <label>Fires only if <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(optional gate on a meter or day)</span></label>
+        <div class="cond-builder">
+          <select id="f-cond-meter" class="cond-meter">
+            <option value="">— always fires —</option>
+            <option value="environment">Environment</option>
+            <option value="military">Military</option>
+            <option value="wellness">Wellness</option>
+            <option value="economy">Economy</option>
+            <option value="day">Day</option>
+            <option value="__flag__">Requires flag…</option>
+          </select>
+          <select id="f-cond-op" class="cond-op" aria-label="Comparator">
+            <option value="<">is less than</option>
+            <option value=">">is greater than</option>
+            <option value="<=">is at most</option>
+            <option value=">=">is at least</option>
+            <option value="=">equals</option>
+          </select>
+          <input id="f-cond-value" type="number" class="cond-value" placeholder="value (0-100)" aria-label="Threshold value">
         </div>
+        <input id="f-cond-flag" placeholder="flag name (e.g. audit_named)" style="display:none; margin-top:8px;">
+        <input id="f-condition" type="hidden">
       </div>
     </div>
 
@@ -3134,9 +3245,7 @@
       <h3>▶ Accept</h3>
       <div class="row full">
         <div>
-          <label>Outcome (what happens after Accept)
-            <button type="button" id="ai-write-accept" class="ai-mini-btn" title="AI-write the Accept outcome based on the situation">✨ AI write</button>
-          </label>
+          <label>Outcome (what happens after Accept)</label>
           <textarea id="f-accept-outcome" placeholder="Halvik prints six lines under your name. The bench reads at breakfast."></textarea>
         </div>
       </div>
@@ -3144,19 +3253,35 @@
       <div class="meter-row labeled">
         <div class="meter-field env">
           <span class="meter-tag">Environment</span>
-          <input id="f-accept-env" type="number" min="-10" max="10" value="0">
+          <div class="meter-input-row">
+            <button type="button" class="stepper" data-step="-1" data-target="f-accept-env" aria-label="Decrease Environment">−</button>
+            <input id="f-accept-env" type="number" min="-10" max="10" value="0" aria-label="Environment delta on Accept">
+            <button type="button" class="stepper" data-step="1" data-target="f-accept-env" aria-label="Increase Environment">+</button>
+          </div>
         </div>
         <div class="meter-field mil">
           <span class="meter-tag">Military</span>
-          <input id="f-accept-mil" type="number" min="-10" max="10" value="0">
+          <div class="meter-input-row">
+            <button type="button" class="stepper" data-step="-1" data-target="f-accept-mil" aria-label="Decrease Military">−</button>
+            <input id="f-accept-mil" type="number" min="-10" max="10" value="0" aria-label="Military delta on Accept">
+            <button type="button" class="stepper" data-step="1" data-target="f-accept-mil" aria-label="Increase Military">+</button>
+          </div>
         </div>
         <div class="meter-field wel">
           <span class="meter-tag">Wellness</span>
-          <input id="f-accept-wel" type="number" min="-10" max="10" value="0">
+          <div class="meter-input-row">
+            <button type="button" class="stepper" data-step="-1" data-target="f-accept-wel" aria-label="Decrease Wellness">−</button>
+            <input id="f-accept-wel" type="number" min="-10" max="10" value="0" aria-label="Wellness delta on Accept">
+            <button type="button" class="stepper" data-step="1" data-target="f-accept-wel" aria-label="Increase Wellness">+</button>
+          </div>
         </div>
         <div class="meter-field eco">
           <span class="meter-tag">Economy</span>
-          <input id="f-accept-eco" type="number" min="-10" max="10" value="0">
+          <div class="meter-input-row">
+            <button type="button" class="stepper" data-step="-1" data-target="f-accept-eco" aria-label="Decrease Economy">−</button>
+            <input id="f-accept-eco" type="number" min="-10" max="10" value="0" aria-label="Economy delta on Accept">
+            <button type="button" class="stepper" data-step="1" data-target="f-accept-eco" aria-label="Increase Economy">+</button>
+          </div>
         </div>
       </div>
       <details>
@@ -3185,9 +3310,7 @@
       <h3>◀ Decline</h3>
       <div class="row full">
         <div>
-          <label>Outcome (what happens after Decline)
-            <button type="button" id="ai-write-decline" class="ai-mini-btn" title="AI-write the Decline outcome based on the situation">✨ AI write</button>
-          </label>
+          <label>Outcome (what happens after Decline)</label>
           <textarea id="f-decline-outcome" placeholder="Halvik prints the audit summary alone. The headline asks the question you didn't answer."></textarea>
         </div>
       </div>
@@ -3195,19 +3318,35 @@
       <div class="meter-row labeled">
         <div class="meter-field env">
           <span class="meter-tag">Environment</span>
-          <input id="f-decline-env" type="number" min="-10" max="10" value="0">
+          <div class="meter-input-row">
+            <button type="button" class="stepper" data-step="-1" data-target="f-decline-env" aria-label="Decrease Environment">−</button>
+            <input id="f-decline-env" type="number" min="-10" max="10" value="0" aria-label="Environment delta on Decline">
+            <button type="button" class="stepper" data-step="1" data-target="f-decline-env" aria-label="Increase Environment">+</button>
+          </div>
         </div>
         <div class="meter-field mil">
           <span class="meter-tag">Military</span>
-          <input id="f-decline-mil" type="number" min="-10" max="10" value="0">
+          <div class="meter-input-row">
+            <button type="button" class="stepper" data-step="-1" data-target="f-decline-mil" aria-label="Decrease Military">−</button>
+            <input id="f-decline-mil" type="number" min="-10" max="10" value="0" aria-label="Military delta on Decline">
+            <button type="button" class="stepper" data-step="1" data-target="f-decline-mil" aria-label="Increase Military">+</button>
+          </div>
         </div>
         <div class="meter-field wel">
           <span class="meter-tag">Wellness</span>
-          <input id="f-decline-wel" type="number" min="-10" max="10" value="0">
+          <div class="meter-input-row">
+            <button type="button" class="stepper" data-step="-1" data-target="f-decline-wel" aria-label="Decrease Wellness">−</button>
+            <input id="f-decline-wel" type="number" min="-10" max="10" value="0" aria-label="Wellness delta on Decline">
+            <button type="button" class="stepper" data-step="1" data-target="f-decline-wel" aria-label="Increase Wellness">+</button>
+          </div>
         </div>
         <div class="meter-field eco">
           <span class="meter-tag">Economy</span>
-          <input id="f-decline-eco" type="number" min="-10" max="10" value="0">
+          <div class="meter-input-row">
+            <button type="button" class="stepper" data-step="-1" data-target="f-decline-eco" aria-label="Decrease Economy">−</button>
+            <input id="f-decline-eco" type="number" min="-10" max="10" value="0" aria-label="Economy delta on Decline">
+            <button type="button" class="stepper" data-step="1" data-target="f-decline-eco" aria-label="Increase Economy">+</button>
+          </div>
         </div>
       </div>
       <details>
@@ -3256,259 +3395,13 @@
 //   4. Ends with yes/no question
 // =============================================================
 
-const CHAINS = [
-  // ---- Chain 1: Books Don't Balance ------------------------
-  {
-    id: "books",
-    name: "The Books Don't Balance",
-    subtitle: "Treasury audit · gold",
-    color: "var(--chain1)",
-    x: 80,
-    cards: [
-      {
-        id: "books-c1", role: "Trigger", level: 0, col: "center",
-        speaker: "Auditor Calla", ministry: "Audit", topic: "tricky",
-        situation: "Calla puts a slim ledger on your desk. Two ministries are off by nine million. Shall I write a name on the audit?",
-        requires: null,
-        accept: { setFlag: "audit_named", target: "books-c2", triggersChain: "press", outcome: "Calla pencils a name in. The audit moves to the next desk by Tuesday.", env: 0, mil: -1, wel: 3, eco: -1 },
-        decline: { setFlag: "audit_buried", target: "books-c3", outcome: "The ledger goes back into Calla's drawer. She updates the column in pencil and waits.", env: 0, mil: 0, wel: -2, eco: -2 }
-      },
-      {
-        id: "books-c2", role: "Card 2 · After Accept", level: 1, col: "right",
-        speaker: "Editor Halvik", ministry: "Press", topic: "scandal",
-        situation: "News of the audit leaked overnight. Halvik holds the morning edition for a quote. Print a statement?",
-        requires: "audit_named",
-        accept: { setFlag: "audit_public", target: "books-c4", outcome: "Halvik prints six lines under your name. The bench reads the column at breakfast.", env: 0, mil: -3, wel: 2, eco: 0 },
-        decline: { setFlag: "headline_unanswered", target: "books-c6", outcome: "Halvik prints the audit summary alone. The headline asks the question you didn't answer.", env: 0, mil: 0, wel: -4, eco: 0 }
-      },
-      {
-        id: "books-c6", role: "Grandchild · Decline on C2", level: 2, col: "right-far",
-        speaker: "Tax Commissioner Brask", ministry: "Treasury", topic: "economy",
-        situation: "Brask arrives with the revenue books. Nine million still missing while the headline asks who hid it. Reroute next quarter's spending?",
-        requires: "headline_unanswered",
-        accept: { setFlag: null, target: null, triggersChain: { id: "border", if: "military<40" }, outcome: "Brask redraws the lines. The road project pauses; the quartermaster will find out by Monday.", env: 0, mil: -2, wel: -2, eco: 3 },
-        decline: { setFlag: null, target: null, outcome: "Brask closes the book. The papers print the gap above the fold on Sunday.", env: 0, mil: 0, wel: -4, eco: -2 }
-      },
-      {
-        id: "books-c3", role: "Card 3 · After Decline", level: 1, col: "left",
-        speaker: "Treasurer Halen Vorr", ministry: "Treasury", topic: "economy",
-        situation: "With the audit shelved, the ledger still won't balance. Roll the nine million into next year's budget?",
-        requires: "audit_buried",
-        accept: { setFlag: "audit_hidden", target: "books-c5", triggersChain: "pension", outcome: "Vorr writes the new line. The deficit is real but invisible. The papers will find it by Friday.", env: 0, mil: 0, wel: -3, eco: -5 },
-        decline: { setFlag: "audit_named", target: "books-c2", outcome: "Vorr reopens the file. The press desk hears about it within the hour.", env: 0, mil: 0, wel: 2, eco: -3, merge: true }
-      },
-      {
-        id: "books-c4", role: "Grandchild · Accept on C2", level: 2, col: "right",
-        speaker: "Magistrate Pell", ministry: "Justice", topic: "scandal",
-        situation: "After the press quote, a clerk arrives with a sealed envelope from the bench. The inquiry needs your signature. Open it?",
-        requires: "audit_public",
-        accept: { setFlag: null, target: null, triggersChain: "press", outcome: "The inquiry opens. Halvik's desk lists the three witnesses by breakfast; the press has its case now.", env: 0, mil: -2, wel: 4, eco: -2 },
-        decline: { setFlag: null, target: null, outcome: "Pell files the envelope under the bench, marked for review next quarter.", env: 0, mil: 0, wel: -4, eco: 0 }
-      },
-      {
-        id: "books-c5", role: "Grandchild · Accept on C3", level: 2, col: "left",
-        speaker: "Selma", ministry: "The Public", topic: "simple",
-        situation: "The hidden line has made the morning paper. Selma at the cafe wants to know if the nine million was hers. Answer her?",
-        requires: "audit_hidden",
-        accept: { setFlag: null, target: null, outcome: "You answer. Selma nods. The paper prints the answer the next day.", env: 0, mil: 0, wel: 4, eco: 0 },
-        decline: { setFlag: null, target: null, triggersChain: "press", outcome: "Selma folds the paper. She walks the story to Halvik's desk before the cafe closes.", env: 0, mil: 0, wel: -3, eco: 0 }
-      }
-    ]
-  },
-  // ---- Chain 2: Border at Dawn -----------------------------
-  {
-    id: "border",
-    name: "The Border at Dawn",
-    subtitle: "Military mobilization · red",
-    color: "var(--chain2)",
-    x: 1000,
-    cards: [
-      {
-        id: "border-c1", role: "Trigger", level: 0, col: "center",
-        speaker: "Marshal Dren Volk", ministry: "Defense", topic: "military",
-        situation: "Kerovian scouts crossed at the river at dawn. The eastern barracks stand half-empty. Shall I call up the reserves?",
-        requires: null,
-        accept: { setFlag: "mobilize_called", target: "border-c2", triggersChain: "books", outcome: "Whistles go up at every depot before nightfall. Twelve thousand boots board the train east.", env: 0, mil: 4, wel: -2, eco: -3 },
-        decline: { setFlag: "mobilize_refused", target: "border-c3", outcome: "Volk salutes and goes to draft the public statement. The eastern bank stays quiet for now.", env: 0, mil: -4, wel: 2, eco: 0 }
-      },
-      {
-        id: "border-c2", role: "Card 2 · After Accept", level: 1, col: "right",
-        speaker: "General Marek", ministry: "Defense", topic: "military",
-        situation: "The reserves are at the depot, called up overnight. Six districts want their fathers home by Tuesday. Send them east?",
-        requires: "mobilize_called",
-        accept: { setFlag: "border_armed", target: "border-c4", outcome: "The trains roll east. The radio plays the anthem twice an hour.", env: 0, mil: 6, wel: -4, eco: -2 },
-        decline: { setFlag: "reserves_discharged", target: "border-c6", outcome: "Marek discharges the reserves overnight. Six mayors call before breakfast asking for the papers in writing.", env: 0, mil: -6, wel: 4, eco: 0 }
-      },
-      {
-        id: "border-c6", role: "Grandchild · Decline on C2", level: 2, col: "right-far",
-        speaker: "Press Secretary Lindi", ministry: "Press", topic: "scandal",
-        situation: "The six mayors want their fathers' discharge in writing. Lindi has a draft statement. Print hers under your name?",
-        requires: "reserves_discharged",
-        accept: { setFlag: null, target: null, triggersChain: { id: "pension", if: "wellness<40" }, outcome: "Lindi's draft runs in the evening edition. The mayors now want the pension freeze lifted next.", env: 0, mil: -2, wel: 4, eco: 0 },
-        decline: { setFlag: null, target: null, outcome: "Lindi files the draft. The mayors hold a joint press call without you.", env: 0, mil: 0, wel: -4, eco: 0 }
-      },
-      {
-        id: "border-c3", role: "Card 3 · After Decline", level: 1, col: "left",
-        speaker: "Ambassador Hess", ministry: "Foreign Affairs", topic: "diplomacy",
-        situation: "With the reserves stood down, Kerovia's ambassador wants a back-channel meeting tonight. Take the call?",
-        requires: "mobilize_refused",
-        accept: { setFlag: "back_channel", target: "border-c5", outcome: "Hess takes the call. The river goes quiet by Thursday. Both flags fold up for the press.", env: 0, mil: -2, wel: 4, eco: 2 },
-        decline: { setFlag: "mobilize_called", target: "border-c2", outcome: "Hess hangs up without speaking. The columns drill again at dawn.", env: 0, mil: 2, wel: -2, eco: -2, merge: true }
-      },
-      {
-        id: "border-c4", role: "Grandchild · Accept on C2", level: 2, col: "right",
-        speaker: "Brigadier Ines", ministry: "Defense", topic: "military",
-        situation: "The eastern columns are deployed; three garrisons report no rifles. The quartermaster cites the missing audit. Buy from Vasalia?",
-        requires: "border_armed",
-        accept: { setFlag: null, target: null, triggersChain: { id: "books", if: "economy<30" }, outcome: "Vasalian crates dock at the southern harbour. Calla circles the entry in the ledger by lunchtime.", env: 0, mil: 6, wel: -2, eco: -8 },
-        decline: { setFlag: null, target: null, outcome: "Conscripts drill with broomsticks. The press finds the photograph by Wednesday.", env: 0, mil: -4, wel: -2, eco: 0 }
-      },
-      {
-        id: "border-c5", role: "Grandchild · Accept on C3", level: 2, col: "left",
-        speaker: "Aide-de-Camp Ren Halsey", ministry: "Defense", topic: "military",
-        situation: "After the back-channel, the Marshal's car is at the gate. The map room wants you in twenty minutes. Take the chair?",
-        requires: "back_channel",
-        accept: { setFlag: null, target: null, outcome: "You walk in. Volk gestures at the map. The decision is yours by midnight.", env: 0, mil: 4, wel: -4, eco: -2 },
-        decline: { setFlag: null, target: null, triggersChain: "press", outcome: "You stay at the desk. Volk gives the morning interview alone; the editorials write themselves.", env: 0, mil: -2, wel: 4, eco: 0 }
-      }
-    ]
-  },
-  // ---- Chain 3: Press Council ------------------------------
-  {
-    id: "press",
-    name: "The Press Council",
-    subtitle: "Press freedom · blue",
-    color: "var(--chain3)",
-    x: 1920,
-    cards: [
-      {
-        id: "press-c1", role: "Trigger", level: 0, col: "center",
-        speaker: "Editor Halvik", ministry: "Press", topic: "scandal",
-        situation: "Halvik holds the new press council bill. Every paper would licence through the ministry. Sign it?",
-        requires: null,
-        accept: { setFlag: "press_licensed", target: "press-c2", triggersChain: "border", outcome: "The bill goes through under your seal. Volk's adjutant phones at noon asking which papers his men can read on base.", env: 0, mil: 2, wel: -5, eco: 2 },
-        decline: { setFlag: "press_free", target: "press-c3", outcome: "Halvik pulls the bill off the table. He prints a page-two editorial about it anyway.", env: 0, mil: -2, wel: 3, eco: 0 }
-      },
-      {
-        id: "press-c2", role: "Card 2 · After Accept", level: 1, col: "right",
-        speaker: "Press Secretary Lindi", ministry: "Press", topic: "scandal",
-        situation: "With the bill signed, Lindi drafts the licensing forms. Three independent papers say they'll publish anyway. Approve the forms?",
-        requires: "press_licensed",
-        accept: { setFlag: "press_crackdown", target: "press-c4", outcome: "The forms go out. By Monday the three papers have police at their doors.", env: 0, mil: 2, wel: -6, eco: 0 },
-        decline: { setFlag: "papers_published", target: "press-c6", outcome: "Lindi files the forms in her drawer. The three papers print twice on Saturday.", env: 0, mil: -2, wel: 3, eco: 0 }
-      },
-      {
-        id: "press-c6", role: "Grandchild · Decline on C2", level: 2, col: "right-far",
-        speaker: "Magistrate Pell", ministry: "Justice", topic: "scandal",
-        situation: "The bench will weigh the unsigned licensing forms next month. Pell asks if you'll brief her on the ministry's intent. Sit with her?",
-        requires: "papers_published",
-        accept: { setFlag: null, target: null, outcome: "You meet Pell. She files a narrow ruling that leaves the papers untouched.", env: 0, mil: 0, wel: 4, eco: 0 },
-        decline: { setFlag: null, target: null, triggersChain: "books", outcome: "Pell rules without a briefing. The court asks Calla for the audit file before the next sitting.", env: 0, mil: -2, wel: -3, eco: 0 }
-      },
-      {
-        id: "press-c3", role: "Card 3 · After Decline", level: 1, col: "left",
-        speaker: "Counsel Aren", ministry: "Justice", topic: "scandal",
-        situation: "You blocked the licensing bill; the bench took up the press case Thursday. Aren wants a public defence in your name. Sign it?",
-        requires: "press_free",
-        accept: { setFlag: "bench_defence", target: "press-c5", outcome: "Aren delivers your defence to the bench. The case folds in nine minutes. The unions cheer outside.", env: 0, mil: -2, wel: 5, eco: 0 },
-        decline: { setFlag: "press_licensed", target: "press-c2", outcome: "Aren shrugs and leaves. The bench reopens the licensing question.", env: 0, mil: 2, wel: -2, eco: 0, merge: true }
-      },
-      {
-        id: "press-c4", role: "Grandchild · Accept on C2", level: 2, col: "right",
-        speaker: "Editor Bjork", ministry: "Press", topic: "scandal",
-        situation: "After the crackdown, Bjork prints the unredacted ministry memo on page one. The court wants the source list. Surrender it?",
-        requires: "press_crackdown",
-        accept: { setFlag: null, target: null, outcome: "Bjork hands over the list. Two desk editors are arrested before lunch.", env: 0, mil: 2, wel: -8, eco: 2 },
-        decline: { setFlag: null, target: null, triggersChain: { id: "border", if: "military>50" }, outcome: "Bjork refuses. The interior pushes Defense to brief Volk on a public order option.", env: 0, mil: -2, wel: 6, eco: -2 }
-      },
-      {
-        id: "press-c5", role: "Grandchild · Accept on C3", level: 2, col: "left",
-        speaker: "Activist Niro", ministry: "Activism", topic: "scandal",
-        situation: "Your defence of the press emboldened the unions. Niro's thirty thousand have filled the square. Clear them by sundown?",
-        requires: "bench_defence",
-        accept: { setFlag: null, target: null, triggersChain: { id: "pension", if: "wellness<50" }, outcome: "The cordon advances. The unions call a general strike for Monday; the pension desk braces.", env: 0, mil: 2, wel: -10, eco: -2 },
-        decline: { setFlag: null, target: null, outcome: "The cordon stands down. Niro thanks you on every public channel.", env: 0, mil: -2, wel: 4, eco: -4 }
-      }
-    ]
-  },
-  // ---- Chain 4: Pension Vote -------------------------------
-  {
-    id: "pension",
-    name: "The Pension Vote",
-    subtitle: "Welfare · green · POOL demo",
-    color: "var(--chain4)",
-    x: 2840,
-    cards: [
-      {
-        id: "pension-c1", role: "Trigger", level: 0, col: "center",
-        speaker: "Treasurer Halen Vorr", ministry: "Treasury", topic: "economy",
-        situation: "Vorr brings the pension bill. The line item costs more than the army's procurement. Freeze the index for one year?",
-        requires: null,
-        // POOL: the engine picks one of three reaction cards at
-        // weighted-random when the freeze fires. Player sees a
-        // different Card 2 across reigns.
-        accept: {
-          setFlag: "pensions_frozen",
-          poolTargets: ["pension-c2a-myra", "pension-c2b-selma", "pension-c2c-brask"],
-          outcome: "Vorr writes the freeze into the budget. Which cabinet voice reaches the desk first depends on the morning.",
-          env: 0, mil: 2, wel: -6, eco: 4
-        },
-        decline: { setFlag: "pensions_kept", target: "pension-c3", outcome: "Vorr stays in the chair until midnight reconciling lines. The freeze goes back in the drawer.", env: 0, mil: 0, wel: 4, eco: -4 }
-      },
-      // POOL CARD A — Health response
-      {
-        id: "pension-c2a-myra", role: "Pool · Health reaction", level: 1, col: "pool-1", pool: true,
-        speaker: "Dr. Myra", ministry: "Health", topic: "health",
-        situation: "With the freeze signed, three hospitals say their orderlies live on the pension. Waiting lists doubled last quarter. Subsidise the gap?",
-        requires: "pensions_frozen",
-        accept: { setFlag: "freeze_resolved", target: "pension-c4", triggersChain: "books", outcome: "Myra opens an emergency line. Calla wants the funding source on the audit page by Friday.", env: 0, mil: 0, wel: 5, eco: -4 },
-        decline: { setFlag: null, target: null, outcome: "Myra closes her folder. The hospitals run a skeleton shift through winter.", env: 0, mil: 0, wel: -6, eco: 2 }
-      },
-      // POOL CARD B — Public-square reaction
-      {
-        id: "pension-c2b-selma", role: "Pool · Public reaction", level: 1, col: "pool-2", pool: true,
-        speaker: "Selma", ministry: "The Public", topic: "simple",
-        situation: "With the freeze signed, Selma reads the notice at the cafe. Twelve pensioners gather behind her. Speak to them?",
-        requires: "pensions_frozen",
-        accept: { setFlag: "freeze_resolved", target: "pension-c4", outcome: "You step outside. Selma counts the pensioners aloud, twelve becomes thirty by sundown.", env: 0, mil: 0, wel: 4, eco: 0 },
-        decline: { setFlag: null, target: null, outcome: "Selma reads the notice again, louder. The cafe owner brings the chair to the window.", env: 0, mil: 0, wel: -4, eco: 0 }
-      },
-      // POOL CARD C — Revenue desk reaction
-      {
-        id: "pension-c2c-brask", role: "Pool · Revenue reaction", level: 1, col: "pool-3", pool: true,
-        speaker: "Tax Commissioner Brask", ministry: "Treasury", topic: "economy",
-        situation: "With the freeze signed, the revenue desk projects a four-percent bump in receipts. Brask wants to lock the gain into law. Approve?",
-        requires: "pensions_frozen",
-        accept: { setFlag: "freeze_resolved", target: "pension-c4", outcome: "Brask drafts the lock-in. The treasury smiles for the first time this quarter.", env: 0, mil: 0, wel: -2, eco: 6 },
-        decline: { setFlag: null, target: null, outcome: "Brask folds the projection. The receipts climb regardless; the law stays open.", env: 0, mil: 0, wel: 2, eco: 2 }
-      },
-      {
-        id: "pension-c3", role: "Card 3 · After Decline", level: 1, col: "left",
-        speaker: "Economist Ansa", ministry: "Economy", topic: "economy",
-        situation: "Without the freeze, Ansa shows the deficit ladder hitting twelve million. The bonds desk is on the phone. Borrow it now?",
-        requires: "pensions_kept",
-        accept: { setFlag: "loan_taken", target: "pension-c5", outcome: "Ansa places the bond papers in front of you. Twelve million arrives by Tuesday.", env: 0, mil: 0, wel: 2, eco: -6 },
-        decline: { setFlag: "pensions_frozen", target: "pension-c2a-myra", outcome: "Ansa packs her files. The cabinet revisits the freeze next session.", env: 0, mil: 0, wel: -3, eco: 2, merge: true }
-      },
-      {
-        id: "pension-c4", role: "Grandchild · Accept on C2", level: 2, col: "right",
-        speaker: "Selma", ministry: "The Public", topic: "simple",
-        situation: "The freeze week ends. Selma unfolds a banner under your window; it reads NINE MILLION REMEMBERED. Speak to her?",
-        requires: "freeze_resolved",
-        accept: { setFlag: null, target: null, triggersChain: "press", outcome: "You step onto the balcony. Halvik's photographer prints the banner above the fold by morning.", env: 0, mil: 0, wel: 5, eco: 0 },
-        decline: { setFlag: null, target: null, outcome: "You stay inside. The banner stays up for two days. The paper prints the photo.", env: 0, mil: 0, wel: -4, eco: 0 }
-      },
-      {
-        id: "pension-c5", role: "Grandchild · Accept on C3", level: 2, col: "left",
-        speaker: "Principal Vorn", ministry: "Education", topic: "health",
-        situation: "With the loan in, Vorn says retired teachers are back at her school. Reading scores are climbing. Honour them publicly?",
-        requires: "loan_taken",
-        accept: { setFlag: null, target: null, triggersChain: { id: "books", if: "economy<30" }, outcome: "You stand at the school gate at dismissal. By evening Calla wants the loan terms on the audit page.", env: 0, mil: 0, wel: 6, eco: 0 },
-        decline: { setFlag: null, target: null, outcome: "You stay at the desk. The reading scores climb without you in the photo.", env: 0, mil: 0, wel: 2, eco: -2 }
-      }
-    ]
-  }
-];
+// 2026-05 — default 4-chain seed removed (player ask: "remove
+// the default 4 chains in this link"). First-time visitors
+// see an empty canvas; the load path below tries to fetch
+// `./deck-seed.json` (a sibling file the sync-pages script
+// copies in from the private deck repo) and uses that as
+// the starter content if present.
+const CHAINS = [];
 
 // ---- Cross-chain triggers (specific SWIPE starts new chain) -
 // Authored per-card via `accept.triggersChain` / `decline.
@@ -8900,7 +8793,7 @@ function openModal(presetParentId, editId) {
       topicEl.value = editCard.topic || "tricky";
       topicEl.dispatchEvent(new Event("change"));
       document.getElementById("f-situation").value = editCard.situation || "";
-      document.getElementById("f-condition").value = editCard.condition || "";
+      populateAddCardCondition(editCard.condition || "");
       document.getElementById("f-trickyclue").value = editCard.trickyClue || "";
       document.getElementById("f-memory").value = editCard.memoryFragment || (MEMORY_FRAGMENTS[editCard.speaker] || "");
       // Alt phrasings restore into the variants list (one row per phrasing)
@@ -8966,6 +8859,7 @@ function closeModal() {
     if (el) el.value = "";
   }
   renderVariantsList([]);
+  populateAddCardCondition("");
   document.getElementById("f-trickyclue-row").style.display = "none";
   document.getElementById("f-speaker").value = "";
   document.getElementById("f-ministry").value = "";
@@ -9835,7 +9729,7 @@ function buildCardJSON() {
       decline: makeBranch("decline"),
     };
     const optional = {
-      condition: document.getElementById("f-condition").value.trim(),
+      condition: readAddCardCondition(),
       trickyClue: document.getElementById("f-trickyclue").value.trim(),
       memoryFragment: document.getElementById("f-memory").value.trim(),
     };
@@ -9902,7 +9796,7 @@ function saveCard() {
     card.ministry = document.getElementById("f-ministry").value.trim();
     card.topic = document.getElementById("f-topic").value;
     card.situation = document.getElementById("f-situation").value.trim();
-    const cond = document.getElementById("f-condition").value.trim();
+    const cond = readAddCardCondition();
     if (cond) card.condition = cond;
     else delete card.condition;
     // New fields wired into the data model:
@@ -10045,10 +9939,13 @@ function readVariantsList() {
 }
 
 // ===================================================================
-// AI auto-write helpers — call the existing Claude/Gemini plumbing to
-// fill in outcome copy or alternative phrasings. Surface as small ✨
-// buttons next to labels. Picks the provider/key from the saved AI
-// keys (Settings → API keys).
+// 2026-05 retired — per-field AI write buttons (✨ AI write next to
+// each outcome / ✨ Variant next to the situation) are removed.
+// Chain-level AI generation in the chain-options modal stays.
+// Player ask: "remove that api thing. you are already generating no
+// need to that." The functions below are kept dormant in case a
+// future surface wants to re-enable them; the DOMContentLoaded
+// wiring no longer references them.
 // ===================================================================
 async function aiWriteOutcomeForSide(side) {
   const btn = document.getElementById(side === "accept" ? "ai-write-accept" : "ai-write-decline");
@@ -10177,17 +10074,32 @@ async function callAITextPlain(provider, apiKey, prompt) {
   return (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text) || "";
 }
 
-// Wire the AI buttons once the DOM is parsed (after this script block).
-// The buttons live inside the always-rendered modal markup, so we can
-// bind directly.
-document.addEventListener("DOMContentLoaded", () => {
-  const wAccept  = document.getElementById("ai-write-accept");
-  const wDecline = document.getElementById("ai-write-decline");
-  const wVariant = document.getElementById("ai-write-variant");
-  if (wAccept)  wAccept.addEventListener("click", () => aiWriteOutcomeForSide("accept"));
-  if (wDecline) wDecline.addEventListener("click", () => aiWriteOutcomeForSide("decline"));
-  if (wVariant) wVariant.addEventListener("click", aiWriteVariantOfSituation);
-});
+// Per-field AI button wiring retired 2026-05. Chain-level AI in the
+// chain-options wizard still runs through generateChainWithAI.
+
+// Meter stepper buttons — visible ± controls next to every meter
+// input in the Add Card modal. Click steps by 1, hold (long-press)
+// repeats. Player ask 2026-05: native chevrons too small / dark.
+(function wireMeterSteppers(){
+  const stepperHandler = (e) => {
+    const btn = e.target.closest(".stepper");
+    if (!btn) return;
+    e.preventDefault();
+    const target = document.getElementById(btn.getAttribute("data-target"));
+    if (!target) return;
+    const step = parseInt(btn.getAttribute("data-step"), 10) || 1;
+    const min  = target.min !== "" ? parseInt(target.min, 10) : -Infinity;
+    const max  = target.max !== "" ? parseInt(target.max, 10) :  Infinity;
+    const cur  = parseInt(target.value || "0", 10) || 0;
+    const next = Math.max(min, Math.min(max, cur + step));
+    target.value = String(next);
+    target.dispatchEvent(new Event("input", { bubbles: true }));
+    target.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+  document.addEventListener("click", stepperHandler);
+  // Keyboard support — buttons already focusable; Space/Enter fire
+  // click via default <button> behavior. No extra wiring needed.
+})();
 
 // Dirty-state — modal asks confirmation before discarding edits.
 function modalIsDirty() {
@@ -10259,6 +10171,24 @@ for (const id of ["f-accept-outcome", "f-decline-outcome", "f-accept-cond",
   el.addEventListener("input", runValidation);
   el.addEventListener("change", runValidation);
 }
+// Show/hide the flag-name fallback when the meter dropdown toggles
+// to "Requires flag…" — and refresh validation on any change.
+(function wireAddCardConditionBuilder(){
+  const m = document.getElementById("f-cond-meter");
+  const flagIn = document.getElementById("f-cond-flag");
+  if (!m || !flagIn) return;
+  m.addEventListener("change", () => {
+    flagIn.style.display = (m.value === "__flag__") ? "block" : "none";
+    runValidation();
+  });
+  for (const id of ["f-cond-op", "f-cond-value", "f-cond-flag"]) {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener("input", runValidation);
+      el.addEventListener("change", runValidation);
+    }
+  }
+})();
 
 // Keyboard shortcuts
 //   Esc   — close modal / clear focus
@@ -11031,9 +10961,73 @@ function populateInspectorDropdowns() {
 // Parse a condition string like "economy<20" into {meter, op, value}.
 function parseCondition(s) {
   if (!s) return null;
-  const m = s.match(/^\s*(env|mil|wel|eco|day)\s*(<=|>=|<|>|=)\s*(-?\d+)\s*$/i);
+  // Accept both short codes (env/mil/wel/eco) and full names
+  // (environment/military/wellness/economy). The dropdown emits full
+  // names; legacy hand-authored conditions sometimes use short forms.
+  const m = s.match(/^\s*(env(?:ironment)?|mil(?:itary)?|wel(?:lness)?|eco(?:nomy)?|day)\s*(<=|>=|<|>|=)\s*(-?\d+)\s*$/i);
   if (!m) return null;
-  return { meter: m[1].toLowerCase(), op: m[2], value: m[3] };
+  // Normalize back to the SHORT form for the inspector's builder
+  // (which still uses env/mil/wel/eco values) — and to the FULL
+  // form's first match for the add-card builder. Both consumers
+  // tolerate both, so return the full form when the input had one
+  // and the short form otherwise.
+  const raw = m[1].toLowerCase();
+  const meterMap = {
+    environment: "environment", env: "environment",
+    military: "military",       mil: "military",
+    wellness: "wellness",       wel: "wellness",
+    economy: "economy",         eco: "economy",
+    day: "day",
+  };
+  return { meter: meterMap[raw] || raw, op: m[2], value: m[3] };
+}
+
+// Add-Card modal condition builder — three controls (meter / op /
+// value) + an optional flag-name fallback. Mirrors the inspector's
+// builder but on the f-* IDs. Player ask 2026-05: "make this part a
+// dropdown that make me select meters and select greater or lower
+// and write the value."
+function populateAddCardCondition(condStr) {
+  const meterSel = document.getElementById("f-cond-meter");
+  const opSel    = document.getElementById("f-cond-op");
+  const valIn    = document.getElementById("f-cond-value");
+  const flagIn   = document.getElementById("f-cond-flag");
+  const hidden   = document.getElementById("f-condition");
+  if (!meterSel) return;
+  const parsed = parseCondition(condStr);
+  if (parsed) {
+    meterSel.value = parsed.meter;
+    opSel.value    = parsed.op;
+    valIn.value    = parsed.value;
+    flagIn.style.display = "none";
+    flagIn.value   = "";
+  } else if (condStr && condStr.trim()) {
+    // Flag-name fallback (e.g. requires a flag literal like "audit_named")
+    meterSel.value = "__flag__";
+    flagIn.style.display = "block";
+    flagIn.value = condStr.trim();
+  } else {
+    meterSel.value = "";
+    opSel.value    = "<";
+    valIn.value    = "";
+    flagIn.style.display = "none";
+    flagIn.value   = "";
+  }
+  if (hidden) hidden.value = condStr || "";
+}
+
+function readAddCardCondition() {
+  const meterSel = document.getElementById("f-cond-meter");
+  if (!meterSel) return "";
+  const meter = meterSel.value;
+  if (!meter) return "";
+  if (meter === "__flag__") {
+    return (document.getElementById("f-cond-flag").value || "").trim();
+  }
+  const op  = document.getElementById("f-cond-op").value;
+  const val = document.getElementById("f-cond-value").value;
+  if (val === "" || val == null) return "";
+  return `${meter}${op}${val}`;
 }
 
 function populateConditionBuilder(condStr) {
@@ -11795,14 +11789,44 @@ document.getElementById("github-backdrop").addEventListener("click", (e) => {
 
 // ===== Boot: restore persisted state if any =====
 loadRooms();
-loadPersisted();
+const persisted = loadPersisted();
 
-CHAINS.forEach(renderChainHeader);
-CHAINS.forEach(chain => chain.cards.forEach(card => renderCard(chain, card)));
-buildArrows();
-fitToScreen();
-updateHintBanner();
-updateUndoButton();
+// Player ask 2026-05: "remove the default 4 chains in this link and
+// whenever you update the link make sure you get the latest cards
+// that I created." First-time visitors (empty localStorage AND no
+// persisted state) try to fetch `./deck-seed.json` — a snapshot of
+// the user's deck that bin/sync-pages copies into the Pages mirror.
+// If it lands, hydrate from it; otherwise stay empty. Hydration runs
+// async so the canvas paints immediately.
+function bootRender() {
+  CHAINS.forEach(renderChainHeader);
+  CHAINS.forEach(chain => chain.cards.forEach(card => renderCard(chain, card)));
+  buildArrows();
+  fitToScreen();
+  updateHintBanner();
+  updateUndoButton();
+}
+bootRender();
+
+if (!persisted && CHAINS.length === 0) {
+  fetch("./deck-seed.json", { cache: "no-store" })
+    .then(r => r.ok ? r.json() : null)
+    .then(payload => {
+      if (!payload || !Array.isArray(payload.CHAINS) || !payload.CHAINS.length) return;
+      CHAINS.push(...payload.CHAINS);
+      if (Array.isArray(payload.ROOMS)) {
+        ROOMS.length = 0;
+        ROOMS.push(...payload.ROOMS);
+      }
+      if (payload.activeRoom) activeRoom = payload.activeRoom;
+      persist();
+      // Wipe + redraw the canvas with the new content
+      document.querySelectorAll(".card, .chain-header").forEach(el => el.remove());
+      bootRender();
+      showCopyToast(`Loaded ${CHAINS.length} chain${CHAINS.length === 1 ? "" : "s"} from deck-seed.json`);
+    })
+    .catch(() => { /* no seed file → stay empty */ });
+}
 // Hide the boot hint after the player has interacted once
 let hintAutoHide = setTimeout(() => {
   const banner = document.getElementById("hint-banner");
