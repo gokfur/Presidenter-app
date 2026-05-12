@@ -2526,6 +2526,56 @@
     outline: 2px solid var(--gold);
     outline-offset: 2px;
   }
+  /* "What to add?" tiles. Two big buttons side-by-side; hover gold.
+     Player ask 2026-05 — single entry point instead of a 12-row
+     popover. */
+  .addchoice-tiles {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin: 18px 0 8px;
+  }
+  .ac-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+    padding: 22px 20px;
+    border: 1px solid var(--hairline);
+    border-radius: 14px;
+    background: var(--surface2);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: transform 0.12s, border-color 0.15s;
+    min-height: 160px;
+  }
+  .ac-tile:hover {
+    border-color: var(--gold);
+    transform: translateY(-2px);
+  }
+  .ac-tile .ac-icon {
+    font-size: 36px;
+    margin-bottom: 12px;
+  }
+  .ac-tile .ac-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+  }
+  .ac-tile .ac-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+  /* Focused card sits above its siblings so the inspector context
+     doesn't get hidden behind another card. Player ask 2026-05:
+     "when I am editing a card make sure it comes front so I can see
+     the details in it." */
+  .card.is-focus {
+    z-index: 50 !important;
+  }
+
   /* Coach panel — design-assistant suggestions, ranked by priority.
      Each suggestion is one card with a colored severity stripe, a
      plain-English title, a one-line "why this matters", and a CTA
@@ -3223,43 +3273,79 @@
 <div id="copy-toast">Copied</div>
 
 <div id="actions">
-  <div style="position: relative;">
-    <button id="act-add" class="primary" title="Add card / chain / ending / standalone">+</button>
-    <div id="add-menu">
-      <button data-add="card">📄 Single card…</button>
-      <div class="menu-section">Chain length</div>
-      <button data-add="chain-3">⛓ 3-card chain</button>
-      <button data-add="chain-5">⛓ 5-card chain (standard)</button>
-      <button data-add="chain-10">⛓ 10-card chain</button>
-      <button data-add="chain-20">⛓ 20-card chain</button>
-      <button data-add="chain-50">⛓ 50-card chain</button>
-      <div class="menu-section">Generate with options</div>
-      <button data-add="chain-options">🪄 Custom chain… (AI / template)</button>
-      <div class="menu-section">Specials</div>
-      <button data-add="standalone">⭐ Standalone card…</button>
-      <button data-add="ending">⚑ Ending chain…</button>
-      <div class="menu-section">Special card types</div>
-      <button data-add="type-letter">✉ Letter card</button>
-      <button data-add="type-weekly">⟳ Weekly recurring</button>
-      <button data-add="type-anniversary">★ Anniversary card</button>
-      <button data-add="type-meter">⚡ Meter-triggered card</button>
-    </div>
-  </div>
+  <!-- One + button → "What to add?" modal. The previous 12-row popover
+       was retired 2026-05 (player ask: "just improve this UI. let me put
+       a number so you know how many cards I want in a chain. all chains
+       should be generated with options."). -->
+  <button id="act-add" class="primary" title="Add a single card or a chain">+</button>
   <div class="divider"></div>
   <button id="act-undo" title="Undo last change (Cmd-Z)" disabled>↶</button>
-  <button id="act-health" title="Run health check on all cards against the project's MD-file rules">✓</button>
-  <button id="act-analyze" title="Deck analysis with one-click approve suggestions">Σ</button>
-  <button id="act-coach" title="Coach — design-assistant suggestions on what to author next to balance the deck">🎓</button>
-  <button id="act-quickconnect" title="Quick-connect mode (Q) — click two cards to wire them without dragging">⚭</button>
-  <button id="act-ship" title="Add all unshipped cards to the game (idempotent — already-shipped cards won't ship twice)">🚀</button>
+  <button id="act-coach" title="Coach — what to author next, ranked by impact">🎓</button>
+  <button id="act-health" title="Run health check on all cards">✓</button>
+  <button id="act-analyze" title="Deck analysis · distribution + balance">Σ</button>
+  <button id="act-quickconnect" title="Quick-connect mode (Q) — click two cards to wire them">⚭</button>
+  <button id="act-simulate" title="Regression simulator — play random reigns">▶</button>
+  <div class="divider"></div>
+  <button id="act-export" title="Export deck as a JSON file">⬇</button>
+  <button id="act-import" title="Import a JSON file">⇑</button>
+  <button id="act-github" title="Sync to GitHub (push / pull / commit deck.json)">⎇</button>
+  <div class="divider"></div>
+  <button id="act-settings" title="Settings — ship to game · wipe · danger zone">⚙</button>
   <div class="ship-counter" id="ship-counter">0 / 0</div>
-  <button id="act-export" title="Export — full deck or just the active room (asks)">⬇</button>
-  <button id="act-import" title="Import a JSON file — choose merge or replace">⇑</button>
-  <button id="act-simulate" title="Regression simulator — play random reigns and report stats">▶</button>
-  <button id="act-settings" title="Settings — deck management, danger zone">⚙</button>
-  <button id="act-github" title="Sync to GitHub — commit / pull deck JSON to a separate repo">⎇</button>
   <input type="file" id="import-file" accept="application/json" style="display:none;">
   <div class="save-indicator" id="save-indicator">·</div>
+  <!-- Legacy hidden buttons — kept so existing JS handlers (act-ship,
+       data-add="*") still wire without errors. Visible UI for these is
+       in the Settings modal / "What to add?" modal. -->
+  <button id="act-ship" style="display:none;" aria-hidden="true"></button>
+  <div id="add-menu" style="display:none;" aria-hidden="true">
+    <button data-add="card"></button>
+    <button data-add="chain-3"></button>
+    <button data-add="chain-5"></button>
+    <button data-add="chain-10"></button>
+    <button data-add="chain-20"></button>
+    <button data-add="chain-50"></button>
+    <button data-add="chain-options"></button>
+    <button data-add="standalone"></button>
+    <button data-add="ending"></button>
+    <button data-add="type-letter"></button>
+    <button data-add="type-weekly"></button>
+    <button data-add="type-anniversary"></button>
+    <button data-add="type-meter"></button>
+  </div>
+</div>
+
+<!-- "What to add?" — single entry point for every card-creation flow.
+     Two big tiles (Single card / Chain). Chain tile reveals length +
+     options inline so a single button click flows into the full
+     options without re-routing. Player ask 2026-05: "just improve
+     this UI. let me put a number for cards in a chain. all chains
+     should be generated with options. combine standalone with single
+     card. ending becomes an option within. special card types not
+     needed for now." -->
+<div id="addchoice-backdrop" class="modal-backdrop-v2" style="display:none;">
+  <div class="modal-card" style="max-width: 580px;">
+    <div class="modal-header">
+      <h2>What to add?</h2>
+      <button class="modal-close-x" data-fires="addchoice-close" aria-label="Close">×</button>
+    </div>
+    <div class="modal-sub">Pick one. Single card lands on its own and you can wire or extend it later. Chain spawns a connected set with a generation flow.</div>
+
+    <div class="addchoice-tiles">
+      <button class="ac-tile" data-ac="single">
+        <div class="ac-icon">📄</div>
+        <div class="ac-title">Single card</div>
+        <div class="ac-sub">One standalone card. Optional flavor (funny / royal / family / disaster / civic) when you want a quick pre-themed one.</div>
+      </button>
+      <button class="ac-tile" data-ac="chain">
+        <div class="ac-icon">⛓</div>
+        <div class="ac-title">Chain</div>
+        <div class="ac-sub">Connected set with the full options flow — length, theme, speaker, optional game-over ending.</div>
+      </button>
+    </div>
+
+    <button id="addchoice-close" style="display:none;" aria-hidden="true"></button>
+  </div>
 </div>
 
 <!-- Chain creation options modal — pick length / speaker / theme /
@@ -3274,14 +3360,9 @@
 
     <div class="row">
       <div>
-        <label>Length</label>
-        <select id="co-length">
-          <option value="3">3 cards</option>
-          <option value="5" selected>5 cards (standard arc)</option>
-          <option value="10">10 cards</option>
-          <option value="20">20 cards</option>
-          <option value="50">50 cards</option>
-        </select>
+        <label>How many cards?</label>
+        <input id="co-length" type="number" min="3" max="50" step="1" value="5" aria-label="Number of cards in the chain">
+        <div class="counter" style="text-align:left; color: var(--text-faint);">3 to 50. 5 is the standard arc.</div>
       </div>
       <div>
         <label>Theme (optional)</label>
@@ -3359,6 +3440,15 @@
       <div style="display:flex; gap:6px; margin-top: 10px;">
         <button id="settings-save-keys" style="padding: 6px 12px; border: 1px solid var(--gold); background: var(--gold); color: var(--bg-deep); border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;">Save keys</button>
       </div>
+    </div>
+
+    <!-- Ship-to-game lives in Settings now (player ask 2026-05:
+         "add all cards to the game will be separate under the setting").
+         The 🚀 toolbar button moved here. -->
+    <div style="background: rgba(212, 168, 80, 0.07); border: 1px solid rgba(212, 168, 80, 0.25); padding: 14px; border-radius: 10px; margin-bottom: 12px;">
+      <div style="font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; color: var(--gold); margin-bottom: 8px;">📦 Ship to game</div>
+      <div style="font-size: 11px; color: var(--text-muted); line-height: 1.6; margin-bottom: 10px;">Mark every unshipped card in the deck as shipped. Idempotent — already-shipped cards stay shipped. Counter on the toolbar tracks the totals.</div>
+      <button id="settings-ship-all" style="padding: 10px 14px; border: 1px solid var(--gold); background: var(--gold); color: var(--bg-deep); border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;">🚀 Ship all unshipped cards</button>
     </div>
 
     <div style="background: rgba(215,118,118,0.08); border: 1px solid rgba(215,118,118,0.3); padding: 14px; border-radius: 10px; margin-bottom: 12px;">
@@ -10407,6 +10497,113 @@ function makeBranch(side) {
   return branch;
 }
 
+// =============================================================
+// STYLE LEARNER — player ask 2026-05: "when I created a card
+// manually, study it and learn what kind of cards I create and my
+// language and style and learn from me."
+//
+// Lightweight: every card the user saves gets sampled into a
+// rolling profile stored in localStorage. The profile feeds the AI
+// chain / outcome prompts as a "USER STYLE SAMPLE" block so the
+// model emulates the user's voice, not Claude's default.
+//
+// What gets tracked:
+//   samples         — count of cards observed
+//   avgLen          — average situation length in chars
+//   avgSentences    — average sentence count
+//   verbCounts      — first verb per sentence (top 20 by frequency)
+//   openerCounts    — first 2 words of the situation (top 20)
+//   closerCounts    — last 3 words before the '?' (top 20)
+//   topicCounts     — distribution by topic
+//   ministryCounts  — distribution by ministry
+//   recent          — up to 8 of the most recent situations verbatim
+// =============================================================
+const STYLE_KEY = "presidenter:learned-style:v1";
+
+function loadStyleProfile() {
+  try {
+    const raw = localStorage.getItem(STYLE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return {
+    samples: 0, totalLen: 0, totalSentences: 0,
+    verbCounts: {}, openerCounts: {}, closerCounts: {},
+    topicCounts: {}, ministryCounts: {},
+    recent: [],
+  };
+}
+
+function saveStyleProfile(p) {
+  try { localStorage.setItem(STYLE_KEY, JSON.stringify(p)); } catch (e) {}
+}
+
+function learnFromCard(card) {
+  if (!card || !card.situation || card.aiGenerated || card.localGenerated) return;
+  const p = loadStyleProfile();
+  const sit = card.situation.trim();
+  const sentences = sit.split(/[.!?]+/).map(s => s.trim()).filter(Boolean);
+  p.samples += 1;
+  p.totalLen += sit.length;
+  p.totalSentences += Math.max(1, sentences.length);
+  // First verb-ish word per sentence
+  for (const s of sentences) {
+    const words = s.split(/\s+/);
+    if (words[0]) {
+      const v = words[0].toLowerCase().replace(/[^a-z]/g, "");
+      if (v && v.length >= 3) p.verbCounts[v] = (p.verbCounts[v] || 0) + 1;
+    }
+  }
+  // Opener = first two words
+  const firstTwo = sit.split(/\s+/).slice(0, 2).join(" ").toLowerCase().replace(/[^a-z\s]/g, "");
+  if (firstTwo) p.openerCounts[firstTwo] = (p.openerCounts[firstTwo] || 0) + 1;
+  // Closer = last 3 words before the trailing punctuation
+  const tail = sit.replace(/[.?!]+\s*$/, "").trim();
+  const closer = tail.split(/\s+/).slice(-3).join(" ").toLowerCase().replace(/[^a-z\s]/g, "");
+  if (closer) p.closerCounts[closer] = (p.closerCounts[closer] || 0) + 1;
+  // Topic + ministry distribution
+  if (card.topic) p.topicCounts[card.topic] = (p.topicCounts[card.topic] || 0) + 1;
+  if (card.ministry) p.ministryCounts[card.ministry] = (p.ministryCounts[card.ministry] || 0) + 1;
+  // Recent ring — keep up to 8 most recent verbatim situations
+  if (!p.recent) p.recent = [];
+  p.recent.unshift(sit);
+  if (p.recent.length > 8) p.recent.length = 8;
+  saveStyleProfile(p);
+}
+
+function styleProfileSummary(maxRecent = 5) {
+  const p = loadStyleProfile();
+  if (!p || !p.samples) return null;
+  const top = (obj, n = 5) =>
+    Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k]) => k);
+  return {
+    samples: p.samples,
+    avgLen: Math.round(p.totalLen / p.samples),
+    avgSentences: +(p.totalSentences / p.samples).toFixed(1),
+    topOpeners: top(p.openerCounts, 4),
+    topClosers: top(p.closerCounts, 4),
+    topVerbs:   top(p.verbCounts, 6),
+    topTopics:  top(p.topicCounts, 3),
+    topMinistries: top(p.ministryCounts, 4),
+    recentExamples: (p.recent || []).slice(0, maxRecent),
+  };
+}
+
+function styleProfilePromptBlock() {
+  const sp = styleProfileSummary(4);
+  if (!sp || sp.samples < 3) return ""; // need at least 3 samples to bias
+  const lines = [];
+  lines.push(`USER STYLE SAMPLE — match this voice (${sp.samples} authored cards observed):`);
+  lines.push(`  Average situation: ${sp.avgLen} chars, ${sp.avgSentences} sentences`);
+  if (sp.topOpeners.length) lines.push(`  Common openers:   ${sp.topOpeners.map(s => `"${s}…"`).join(", ")}`);
+  if (sp.topClosers.length) lines.push(`  Common closers:   ${sp.topClosers.map(s => `"…${s}"`).join(", ")}`);
+  if (sp.topVerbs.length)   lines.push(`  Common verbs:     ${sp.topVerbs.join(", ")}`);
+  if (sp.recentExamples.length) {
+    lines.push(`  Recent examples (write in this register):`);
+    sp.recentExamples.forEach((s, i) => lines.push(`    ${i + 1}. "${s}"`));
+  }
+  return "\n" + lines.join("\n") + "\n";
+}
+
 function saveCard() {
   if (editingCardId) {
     // ===== EDIT — update the existing card in place
@@ -10454,6 +10651,7 @@ function saveCard() {
       }
     }
     const savedId = editingCardId;
+    learnFromCard(card);
     persist();
     closeModal();
     rerenderAll();
@@ -10495,6 +10693,7 @@ function saveCard() {
     newCard.col = "center";
     newCard.role = newCard.role || "Orphan";
     bucket.cards.push(newCard);
+    learnFromCard(newCard);
     persist();
     closeModal();
     rerenderAll();
@@ -10520,6 +10719,7 @@ function saveCard() {
   parent[side].target = newCard.id;
 
   chain.cards.push(newCard);
+  learnFromCard(newCard);
 
   persist();
   closeModal();
@@ -10680,7 +10880,8 @@ async function aiWriteOutcomeForSide(side) {
   const apiKey = provider === "claude" ? keys.claude : keys.gemini;
   const ministry = document.getElementById("f-ministry").value || "their ministry";
   const topic    = document.getElementById("f-topic").value || "simple";
-  const prompt = `You write the outcome line for a swipe card in "Presidenter" (Reigns-style).
+  const stylePrefix = styleProfilePromptBlock();
+  const prompt = `You write the outcome line for a swipe card in "Presidenter" (Reigns-style).${stylePrefix}
 
 The situation the player just swiped on:
 "${situation}"
@@ -11028,35 +11229,29 @@ cardPosition = function(chain, card) {
 // Boot
 // =============================================================
 
-// ===== Wire + popover menu =====
+// ===== "+" → "What to add?" modal (single entry point) =====
 const addBtn = document.getElementById("act-add");
-const addMenu = document.getElementById("add-menu");
+const addMenu = document.getElementById("add-menu"); // hidden, kept for legacy wiring
 addBtn.addEventListener("click", (e) => {
   e.stopPropagation();
-  addMenu.classList.toggle("open");
+  document.getElementById("addchoice-backdrop").classList.add("open");
 });
-document.addEventListener("click", (e) => {
-  if (!addMenu.contains(e.target) && e.target !== addBtn) addMenu.classList.remove("open");
+// Tile click routes to the right secondary modal.
+document.querySelectorAll("#addchoice-backdrop .ac-tile").forEach(t => {
+  t.addEventListener("click", () => {
+    const kind = t.getAttribute("data-ac");
+    document.getElementById("addchoice-backdrop").classList.remove("open");
+    setTimeout(() => {
+      if (kind === "single") openModal(focusedCardId);
+      else if (kind === "chain") showChainOptionsModal();
+    }, 60);
+  });
 });
-addMenu.addEventListener("click", (e) => {
-  const btn = e.target.closest("button[data-add]");
-  if (!btn) return;
-  const kind = btn.getAttribute("data-add");
-  addMenu.classList.remove("open");
-  if (kind === "card") openModal(focusedCardId);
-  else if (kind === "chain-3") addChain(null, null, 3);
-  else if (kind === "chain-5") addChain(null, null, 5);
-  else if (kind === "chain-10") addChain(null, null, 10);
-  else if (kind === "chain-20") addChain(null, null, 20);
-  else if (kind === "chain-50") addChain(null, null, 50);
-  else if (kind === "chain-options") showChainOptionsModal();
-  else if (kind === "ending") showEndingModal();
-  else if (kind === "standalone") showStandaloneModal();
-  else if (kind === "type-letter")      createSpecialTypeCard("letter");
-  else if (kind === "type-weekly")      createSpecialTypeCard("recurring", { cadenceDays: 7 });
-  else if (kind === "type-anniversary") createSpecialTypeCard("anniversary");
-  else if (kind === "type-meter")       createSpecialTypeCard("meter");
+document.getElementById("addchoice-backdrop").addEventListener("click", (e) => {
+  if (e.target.id === "addchoice-backdrop") e.target.classList.remove("open");
 });
+document.getElementById("addchoice-close").addEventListener("click", () =>
+  document.getElementById("addchoice-backdrop").classList.remove("open"));
 
 // ===================================================================
 // Special card-type spawner — adds an empty Letter / Weekly / Anniversary
@@ -11582,7 +11777,8 @@ c1's situation MUST:
 c2-c5 must keep escalating: each beat is a tighter consequence of the previous beat. Make it feel like the room is closing in, characters are revealing motives, and old decisions come back to bite. Aim for the kind of story turn that makes the player whisper "oh no" or "what".
 `
     : "";
-  const prompt = `You write decision cards for "Presidenter", a swipe-based cabinet game in the Reigns tradition.
+  const stylePrefix = styleProfilePromptBlock();
+  const prompt = `You write decision cards for "Presidenter", a swipe-based cabinet game in the Reigns tradition.${stylePrefix}
 
 THE FORMAT (v30, STYLE_GUIDE §12):
 Every card is ONE speaker leaning into the desk with TWO short sentences. Sentence 1 = the situation. Sentence 2 = the ask (the yes/no question). That's it. No narration, no third-person, no stage directions.
@@ -11963,6 +12159,14 @@ function computeCoachSuggestions() {
 
 document.getElementById("act-coach").addEventListener("click", showCoachReport);
 document.getElementById("act-ship").addEventListener("click", addAllToGame);
+// Mirror handler for the Settings → Ship to game button.
+const settingsShipBtn = document.getElementById("settings-ship-all");
+if (settingsShipBtn) {
+  settingsShipBtn.addEventListener("click", () => {
+    document.getElementById("settings-backdrop").classList.remove("open");
+    addAllToGame();
+  });
+}
 document.getElementById("act-quickconnect").addEventListener("click", toggleQuickConnect);
 document.getElementById("act-export").addEventListener("click", exportJSONFile);
 document.getElementById("act-import").addEventListener("click", () =>
@@ -12579,6 +12783,9 @@ function saveInspectorField() {
   // Sync to engine-shape requiredFlags array
   if (card.requires) card.requiredFlags = [card.requires];
   // Persist + light re-render (just the affected card)
+  // Sample into the style profile every inspector edit. The
+  // function debounces internally on .recent length.
+  learnFromCard(card);
   runInspectorValidation();
   schedulePersistAndRerender();
 }
