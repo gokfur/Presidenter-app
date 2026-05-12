@@ -2843,6 +2843,8 @@
     <div id="github-status" style="background: var(--bg-deep); padding: 10px; border-radius: 8px; font-size: 11px; line-height: 1.5; color: var(--text-muted); min-height: 40px;"></div>
     <div class="modal-actions">
       <button id="gh-close">Close</button>
+      <button id="gh-export-json" title="Save the current deck as a local JSON file (belt-and-suspenders backup)">💾 Export JSON file</button>
+      <button id="gh-import-json" title="Load a deck JSON file from disk (replaces or merges, asks)">📂 Import JSON file</button>
       <button id="gh-save">Save settings</button>
       <button id="gh-pull">⬇ Pull from GitHub</button>
       <button id="gh-commit" class="primary">⬆ Commit current deck</button>
@@ -11601,6 +11603,15 @@ async function githubPull() {
 document.getElementById("act-github").addEventListener("click", openGithubModal);
 document.getElementById("gh-close").addEventListener("click", () =>
   document.getElementById("github-backdrop").classList.remove("open"));
+// Local file shortcuts inside the sync modal — same handlers as the
+// top-bar ⬇/⇑ buttons, surfaced here so the "back up my deck" flow
+// lives in one place. Player ask 2026-05.
+document.getElementById("gh-export-json").addEventListener("click", () => {
+  exportJSONFile();
+});
+document.getElementById("gh-import-json").addEventListener("click", () => {
+  document.getElementById("import-file").click();
+});
 document.getElementById("gh-save").addEventListener("click", () => {
   saveGithubSettings(readGithubForm());
   ghSetStatus("Settings saved.");
