@@ -3596,6 +3596,29 @@
       </div>
     </div>
 
+    <!-- 2026-05-12 — Creative lens picker. Nudges the AI toward a
+         specific narrative register on top of the topic/theme. "Surprise
+         me" rolls a random lens each generation; "Real-life pattern"
+         draws from documented political scenarios (currency crises,
+         press standoffs, succession battles) mapped to Karelya — no
+         real names per CHAIN_AUTHORING.md legal rules. -->
+    <div class="row">
+      <div>
+        <label>Creative lens <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(narrative register)</span></label>
+        <select id="co-lens">
+          <option value="surprise" selected>🎲 Surprise me (random lens)</option>
+          <option value="reallife">📰 Real-life pattern (history-inspired)</option>
+          <option value="thriller">🕯 Political thriller (paranoia + leaks)</option>
+          <option value="satire">🎭 Bureaucratic satire (Yes Minister)</option>
+          <option value="domestic">🏠 Quiet domestic drama (small lives)</option>
+          <option value="crisis">🚨 Crisis week (cascading emergencies)</option>
+          <option value="moral">⚖ Moral fork (no clean answer)</option>
+          <option value="absurd">🎪 Absurdist (Catch-22 logic)</option>
+        </select>
+        <div class="counter" style="text-align:left; color: var(--text-faint);">Adds a tone hint to the AI prompt. "Real-life pattern" maps documented political situations to Karelya.</div>
+      </div>
+    </div>
+
     <!-- 2026-05 — generation-method radio retired (player ask:
          "no need template mode, all generations must be context
          aware. no random generation if i am creating a chain from
@@ -5067,17 +5090,50 @@ function instantiateArc(arc, idPrefix, x) {
     accept: mkBranch(c.accept),
     decline: mkBranch(c.decline),
   }));
-  // Wire c1 → c2/c3; c2 → c4 (accept), leaf (decline); c3 → c5 (accept), c2 (decline, merge)
-  const [c1, c2, c3, c4, c5] = cards;
-  c1.accept.target = c2.id;  c1.accept.setFlag = idPrefix + "_c1_accept";
-  c1.decline.target = c3.id; c1.decline.setFlag = idPrefix + "_c1_decline";
-  c2.requires = idPrefix + "_c1_accept";
-  c3.requires = idPrefix + "_c1_decline";
-  c2.accept.target = c4.id;  c2.accept.setFlag = idPrefix + "_c2_accept";
-  c3.accept.target = c5.id;  c3.accept.setFlag = idPrefix + "_c3_accept";
-  c3.decline.target = c2.id; c3.decline.setFlag = idPrefix + "_c1_accept"; c3.decline.merge = true;
-  c4.requires = idPrefix + "_c2_accept";
-  c5.requires = idPrefix + "_c3_accept";
+  // 2026-05-12 — branching tree for short chains (≤5 cards),
+  // linear spine for long chains (6-50 cards). The branching tree
+  // is what authors expect for the canonical depth-3 reigns-style
+  // story; the linear spine is what they expect when they say "give
+  // me a 50-card chain" — a long story they can swipe through with
+  // an exit ramp at each step (decline = bail with consequence).
+  if (cards.length <= 5) {
+    // Original 5-node branching tree (back-compat with every existing
+    // generated chain): c1 → c2/c3, c2 → c4 (accept), c3 → c5
+    // (accept), c3.decline merges back to c2's slot.
+    const [c1, c2, c3, c4, c5] = cards;
+    if (c1 && c2) {
+      c1.accept.target = c2.id;  c1.accept.setFlag = idPrefix + "_c1_accept";
+      c2.requires = idPrefix + "_c1_accept";
+    }
+    if (c1 && c3) {
+      c1.decline.target = c3.id; c1.decline.setFlag = idPrefix + "_c1_decline";
+      c3.requires = idPrefix + "_c1_decline";
+    }
+    if (c2 && c4) {
+      c2.accept.target = c4.id;  c2.accept.setFlag = idPrefix + "_c2_accept";
+      c4.requires = idPrefix + "_c2_accept";
+    }
+    if (c3 && c5) {
+      c3.accept.target = c5.id;  c3.accept.setFlag = idPrefix + "_c3_accept";
+      c5.requires = idPrefix + "_c3_accept";
+    }
+    if (c3 && c2) {
+      c3.decline.target = c2.id; c3.decline.setFlag = idPrefix + "_c1_accept"; c3.decline.merge = true;
+    }
+  } else {
+    // Linear spine: c(i).accept advances to c(i+1); c(i).decline
+    // ends the chain. Each leg sets a unique flag so the engine's
+    // requiredFlags gate keeps the cards in order.
+    for (let i = 0; i < cards.length - 1; i++) {
+      const cur = cards[i];
+      const next = cards[i + 1];
+      const flag = idPrefix + "_c" + (i + 1) + "_accept";
+      cur.accept.target = next.id;
+      cur.accept.setFlag = flag;
+      next.requires = flag;
+      // decline ends the chain — no target, no setFlag.
+    }
+  }
   // Pick a colour cycling through the existing palette
   const colors = ["var(--chain1)", "var(--chain2)", "var(--chain3)", "var(--chain4)"];
   return {
@@ -12615,6 +12671,14 @@ async function generateChainFromOptions() {
   const speaker = document.getElementById("co-speaker").value || null;
   const endingId = document.getElementById("co-ending").value;
   const customEnding = document.getElementById("co-custom-ending").value.trim();
+  // 2026-05-12 — Creative lens. "surprise" rolls a random concrete
+  // lens at generation time so back-to-back generations don't drift
+  // into the same narrative register.
+  let lens = document.getElementById("co-lens")?.value || "surprise";
+  if (lens === "surprise") {
+    const lensPool = ["reallife", "thriller", "satire", "domestic", "crisis", "moral", "absurd"];
+    lens = lensPool[Math.floor(Math.random() * lensPool.length)];
+  }
   // Step 1 — same-chain cooldown + first-pass rotation. Player ask
   // 2026-05-12: "this fires logic, I will ask you to come up with a
   // logic that we see all of the cards in the chain. same chain
@@ -12667,7 +12731,7 @@ async function generateChainFromOptions() {
     // chain-options inputs to build a single-chain template that
     // matches the wizard inputs without hitting an API).
     document.getElementById("chainopt-backdrop").classList.remove("open");
-    const newChain = buildLocalContextChain({ length, theme, speaker, endingPrompt, sourceCtx });
+    const newChain = buildLocalContextChain({ length, theme, speaker, endingPrompt, sourceCtx, lens });
     if (newChain) {
       newChain.cooldownDays = cooldownDays;
       newChain.firstPassRotation = (rotation === "enforce");
@@ -12687,7 +12751,7 @@ async function generateChainFromOptions() {
   document.getElementById("co-generate").disabled = true;
 
   try {
-    const data = await generateChainWithAI(provider, key, { length, theme, speaker, endingPrompt, sourceCtx });
+    const data = await generateChainWithAI(provider, key, { length, theme, speaker, endingPrompt, sourceCtx, lens });
     document.getElementById("co-generate").disabled = false;
     if (!data || !data.cards || !data.cards.length) {
       status.innerHTML = `<span style="color: var(--decline);">No cards in AI response.</span>`;
@@ -12703,7 +12767,12 @@ async function generateChainFromOptions() {
       name: data.name || "AI chain",
       subtitle: data.subtitle || "Generated · ai",
       chainTheme: theme || "civic",
-      cards: data.cards.slice(0, 5).map(c => ({
+      // 2026-05-12 — was hardcoded slice(0, 5) which silently
+      // discarded everything past the 5th card even when the user
+      // asked for a 50-card chain. Now honours the requested length
+      // (clamped 3-50 by the input above). instantiateArc grows a
+      // linear spine when more than 5 cards are present.
+      cards: data.cards.slice(0, length).map(c => ({
         suffix: c.suffix,
         role: c.role || c.suffix,
         speaker: assertCast50(c.speaker, c.ministry),
@@ -12719,8 +12788,15 @@ async function generateChainFromOptions() {
     if (endingPrompt && chain.cards.length >= 4) {
       const eId = endingId === "__custom__" ? "custom_" + uniqueId : endingId;
       chain.forcesEnding = eId;
-      if (chain.cards[3] && chain.cards[3].accept) {
-        chain.cards[3].accept.forcesEnding = eId;
+      // 2026-05-12 — attach the ending to the FINAL card on long
+      // linear-spine chains and to c4 on the 5-card branching tree
+      // (matches the GAME-OVER MODE prompt's c4-is-the-guillotine
+      // structure). Either way the player's last accept is what
+      // triggers the reign-ending beat.
+      const endingIdx = (chain.cards.length <= 5) ? 3 : chain.cards.length - 1;
+      const endingCard = chain.cards[endingIdx];
+      if (endingCard && endingCard.accept) {
+        endingCard.accept.forcesEnding = eId;
       }
       if (endingId === "__custom__" && !ENDING_SCENARIOS.find(e => e.id === eId)) {
         ENDING_SCENARIOS.push({
@@ -12753,12 +12829,121 @@ async function generateChainFromOptions() {
   }
 }
 
+// 2026-05-12 — Creative lens blocks injected into the chain prompt.
+// Each lens biases the AI toward a specific narrative register on top
+// of the topic/theme. Real-life pattern is the largest block: it gives
+// the AI documented political patterns to draw from while pinning the
+// cast to Karelya so we never ship a real name / place / party /
+// quotation (per docs/CHAIN_AUTHORING.md legal rules).
+const CREATIVE_LENS_PROMPTS = {
+  reallife: `
+CREATIVE LENS — REAL-LIFE PATTERN.
+Base this chain on a documented real-world political pattern but MAP IT to Karelya. NEVER name a real country, party, leader, city, or quote a real speech. The pattern is the bone structure; the flesh is fictional.
+
+Pull from this menu (pick ONE, don't blend more than two):
+  • Currency crisis — bond run, foreign loan demand, IMF-style austerity vs default
+  • Press freedom standoff — editor jailed for cartoon vs leak about minister
+  • Sovereignty dispute — neighbour claims a border valley with mineral rights
+  • Succession battle — aging chancellor's faction fight before retirement
+  • Anti-corruption sweep — prosecutor goes after the player's own party
+  • Vaccine politics — outbreak + rural distrust + urban mandate fight
+  • Monument controversy — old statue, new movement, museum compromise
+  • Currency note redesign — language / face / minority politics on banknotes
+  • Riot vs curfew — protest grows, police hardline vs negotiation
+  • Energy nationalisation — foreign-owned plant, strike, sovereignty optics
+  • Climate displacement — coastal village vs inland resettlement vs sea wall
+  • Religious schism — civil register vs traditional rite, marriage law fight
+  • Strike wave — teachers / dockworkers / nurses / tech sector sympathy strikes
+  • Trade-deal backlash — farm sector ruined by cheap imports, urban gains
+  • Privacy law fight — surveillance bill vs civil liberties movement
+  • Refugee surge — bordering country's war drives 50k displaced people
+  • Health emergency — water contamination, slow ministerial response
+  • Election interference — bot accounts, foreign ad buy, leaked email cache
+  • Tech monopoly battle — local cloud provider, foreign tech giant, sovereignty
+  • Land reform — absentee landlords, tenant farmers, urban food prices
+
+Translate the pattern's beats into Karelya's cabinet. The conflicts and tradeoffs should feel TRUE to how this kind of crisis really unfolds (the timeline, the players, the second-order effects) — but every name and place is from the 50-speaker cast and the country is Karelya. Do not under any circumstances quote a real public figure, name a real party, or reference a real news event.`,
+
+  thriller: `
+CREATIVE LENS — POLITICAL THRILLER.
+Paranoia and partial information. Someone is leaking, someone is in the next room, someone knows more than they're saying. Lines like "the minister's secretary stopped returning calls yesterday", "the file went missing between 4 and 5pm", "the colonel has been seen at a residence on the east side three nights this week." Speakers should feel like they're choosing their words carefully because they don't know who else has read this brief. Stakes escalate through implication — never spell out the conspiracy, let the player feel it tightening.`,
+
+  satire: `
+CREATIVE LENS — BUREAUCRATIC SATIRE.
+Yes Minister / The Thick of It / Veep. Procedural absurdity, escalating turf wars between ministries, language that pretends to clarify while hiding the ball. Speakers are competent professionals quietly horrified by the situation, choosing the polite phrasing for an indefensible position. "We've taken the unprecedented step of not commenting yet." Dry comedy — never broad, never mean, always rooted in the gap between what the room knows and what gets minuted.`,
+
+  domestic: `
+CREATIVE LENS — QUIET DOMESTIC DRAMA.
+Small lives intersecting government. A widow's pension miscalculated. A school that runs out of chalk. A bridge in a village no one in the cabinet has visited. Speakers should bring concrete one-citizen details — names of an ordinary person, a street, a problem so small it shouldn't reach the palace but somehow has. The player feels the weight of governing through the unglamorous edges, not the front pages.`,
+
+  crisis: `
+CREATIVE LENS — CRISIS WEEK.
+The room has not slept. Each card lands on top of the last before anyone has finished processing it. A flood, then a strike, then a defection, then a foreign telegram. Speakers should reference the OTHER ongoing crises in passing ("while the flood evacuation is still running") so the player feels the cabinet's bandwidth collapse. Compounding decisions — the answer to card N constrains the option set for card N+1.`,
+
+  moral: `
+CREATIVE LENS — MORAL FORK.
+Every card sits on top of an irreconcilable values conflict. Family vs duty, mercy vs deterrence, transparency vs survival, local vs national, present vs future. The two options should each appeal to a different reader: one to your sense of decency, one to your sense of responsibility. The speaker delivers them like they've personally lost sleep over which side to recommend.`,
+
+  absurd: `
+CREATIVE LENS — ABSURDIST / CATCH-22.
+The system is broken in a way that locks the player into a logical paradox. The form requires a signature from a minister who can only sign forms after this one is processed. A citizen is being deported for not having papers that the deportation office burnt. A subsidy applies to farmers who lost crops, but only if they prove they didn't sell the crops they don't have. Dry, deadpan delivery. The speaker is matter-of-fact about the absurdity — it's just Tuesday.`,
+};
+
 async function generateChainWithAI(provider, apiKey, opts) {
   const speakerLines = Object.entries(SPEAKERS_BY_MINISTRY)
     .map(([m, names]) => `  ${m}: ${names.join(", ")}`)
     .join("\n");
   const themeLine = opts.theme ? `Theme: ${opts.theme}` : "Theme: any cabinet drama";
   const speakerLine = opts.speaker ? `Starting speaker (c1 MUST be this person): ${opts.speaker}` : "";
+  // 2026-05-12 — lens block. Resolved at call site; empty when no
+  // lens was selected (back-compat with callers that don't pass it).
+  const lensLine = (opts.lens && CREATIVE_LENS_PROMPTS[opts.lens])
+    ? CREATIVE_LENS_PROMPTS[opts.lens]
+    : "";
+  // 2026-05-12 — honor the length parameter. Was hardcoded at 5 in
+  // the structure block AND silently dropped by the parser's
+  // slice(0, 5). Now generates a linear spine where c1.accept → c2
+  // → c3 → … → cN; each card's decline ends the chain with a
+  // consequence line. The 5-card branching tree is still used for
+  // length ≤ 5 (to preserve the c2/c3/c4/c5 branch shape callers
+  // tuned ending chains around).
+  const chainLength = Math.max(3, Math.min(50, opts.length || 5));
+  let structureBlock;
+  if (chainLength <= 5) {
+    structureBlock = `A 5-card chain follows this tree:
+- c1 (trigger): initial decision
+- c2 (after c1 ACCEPT): consequence of accepting c1
+- c3 (after c1 DECLINE): consequence of declining c1
+- c4 (after c2 ACCEPT): deeper consequence on accept path
+- c5 (after c3 ACCEPT): deeper consequence on decline path
+
+EVERY child (c2/c3/c4/c5) MUST start its situation with a transition phrase referring to the parent's outcome ("With the X done, ...", "After the Y, ...") . NO random scene changes.`;
+  } else {
+    // Linear spine — each c(i).accept advances to c(i+1), each
+    // c(i).decline ends the chain with a sharp consequence. The
+    // player sees a long arc where they can bail out at any point
+    // (decline) or stay on the ride (accept) and discover what
+    // happens next. This shape is what authors actually want when
+    // they ask for "a 50-card chain": a long branching story they
+    // can swipe through, not a 50-leaf binary tree no one will
+    // ever play through.
+    const suffixes = Array.from({ length: chainLength }, (_, i) => `c${i + 1}`).join(", ");
+    structureBlock = `A ${chainLength}-card chain — long-form story arc.
+Generate these suffixes IN ORDER: ${suffixes}
+
+Shape:
+- c1 (trigger): the inciting event. Stakes feel small. Speaker is reasonable.
+- c2 .. c${chainLength - 1}: each card is the consequence of the PREVIOUS card's ACCEPT swipe. The story advances on accept; decline = the player tries to bail.
+- c${chainLength} (climax): the moment the choice cycle resolves. After this, the chain ends.
+
+For every card c2..c${chainLength}:
+- situation MUST open with a transition phrase referencing the prior card's accept outcome ("With the bill on the floor, …", "After the strike vote, …", "The marshal's signed, so …")
+- Each beat must escalate one notch — new face in the room, harder ask, narrower exit
+- New speakers introduced gradually. NEVER use the same speaker twice in a row unless the narrative explicitly requires it
+- Decline outcomes are FULL exits ("the matter dies here, …") — they don't continue the arc
+
+NO random scene changes. NO repeating beats. Every card adds new information the player didn't have before.`;
+  }
   // Player ask 2026-05: 'i said create a military coup ending chain
   // but this ending is weird. there must be tension excitement
   // curiosity. hook. player will be like whaat i did wrong? why i
@@ -12859,27 +13044,23 @@ Good example of voice + dilemma:
 Cast (speaker → ministry):
 ${speakerLines}
 
-A 5-card chain follows this tree:
-- c1 (trigger): initial decision
-- c2 (after c1 ACCEPT): consequence of accepting c1
-- c3 (after c1 DECLINE): consequence of declining c1
-- c4 (after c2 ACCEPT): deeper consequence on accept path
-- c5 (after c3 ACCEPT): deeper consequence on decline path
-
-EVERY child (c2/c3/c4/c5) MUST start its situation with a transition phrase referring to the parent's outcome ("With the X done, ...", "After the Y, ..."). NO random scene changes.${sourceLine}
+${structureBlock}${sourceLine}
 
 ${themeLine}
-${speakerLine}${endingLine}
+${speakerLine}${endingLine}${lensLine}
 
-Output ONLY this JSON (no prose):
+Output ONLY this JSON (no prose). Include EVERY card asked for in the structure block above — no fewer.
 {"name":"Short chain name","subtitle":"Subtitle · colour","cards":[
 {"suffix":"c1","speaker":"...","ministry":"...","topic":"...","situation":"...","accept":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0},"decline":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0}},
-{"suffix":"c2","speaker":"...","ministry":"...","topic":"...","situation":"...","accept":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0},"decline":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0}},
-{"suffix":"c3","speaker":"...","ministry":"...","topic":"...","situation":"...","accept":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0},"decline":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0}},
-{"suffix":"c4","speaker":"...","ministry":"...","topic":"...","situation":"...","accept":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0},"decline":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0}},
-{"suffix":"c5","speaker":"...","ministry":"...","topic":"...","situation":"...","accept":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0},"decline":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0}}
+... one entry per suffix, in order ...
 ]}`;
 
+  // 2026-05-12 — scale the token budget with chain length. A 50-card
+  // chain at ~280 tokens/card (situation + 2 outcomes + JSON shell)
+  // needs ~14k tokens; the old 2400 cap silently truncated and the
+  // parser landed an incomplete JSON tail. Floor 2400 for short
+  // chains to keep behaviour identical.
+  const maxTokens = Math.max(2400, chainLength * 320);
   if (provider === "claude") {
     const resp = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -12891,7 +13072,7 @@ Output ONLY this JSON (no prose):
       },
       body: JSON.stringify({
         model: "claude-3-5-sonnet-20241022",
-        max_tokens: 2400,
+        max_tokens: maxTokens,
         messages: [{ role: "user", content: prompt }],
       }),
     });
@@ -12909,7 +13090,7 @@ Output ONLY this JSON (no prose):
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.9, maxOutputTokens: 2400, responseMimeType: "application/json" },
+        generationConfig: { temperature: 0.9, maxOutputTokens: maxTokens, responseMimeType: "application/json" },
       }),
     });
     if (!resp.ok) {
@@ -14546,6 +14727,23 @@ async function githubCommit() {
   saveGithubSettings(s);
   const [owner, repo] = s.repo.split("/");
   if (!owner || !repo) { ghSetStatus("Repo must be in 'owner/name' format.", true); return; }
+  // 2026-05-12 — flush every persist sink before reading CHAINS for
+  // the push so the local caches and the remote stay in lockstep.
+  // The race we're closing: persist() fires localStorage sync and
+  // an IDB write that's fire-and-forget. A user clicking ⬆ Push
+  // immediately after their last edit could ship the in-memory
+  // CHAINS array to GitHub while the IDB write was still in flight,
+  // leaving local IDB strictly older than remote until the next
+  // edit triggered another persist(). Awaiting idbDeckPut here
+  // guarantees IDB has the same payload we're about to PUT.
+  ghSetStatus("Flushing local caches…");
+  persist();
+  await idbDeckPut({
+    schemaVersion: DECK_SCHEMA_VERSION,
+    CHAINS, ROOMS, activeRoom,
+    playingSettings: loadPlayingSettings(),
+    savedAt: new Date().toISOString(),
+  });
   ghSetStatus("Looking up current file SHA…");
   let sha = null;
   try {
