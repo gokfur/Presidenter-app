@@ -10130,44 +10130,126 @@ function readVariantsList() {
 // future surface wants to re-enable them; the DOMContentLoaded
 // wiring no longer references them.
 // ===================================================================
+// 2026-05 — player ask: "remove that api thing! you were already
+// generating keep generate when i clicked AI write. do I need api
+// for this?" The ✨ AI write button now runs LOCALLY first with a
+// verb-keyed template generator (instant, no key, no async, no
+// error toast). If a Claude/Gemini key happens to be saved, an
+// async upgrade kicks in afterwards and replaces the local text
+// with a higher-quality AI line. Either way the button always
+// produces output.
+const LOCAL_OUTCOME_TEMPLATES = [
+  // verb regex, accept template (with {speaker}), decline template
+  { re: /\b(sign|approve|authoriz|grant|seal|endors)\w*/i,
+    accept: "{speaker} signs the order. The terms take effect by week's end.",
+    decline: "{speaker} sets the papers aside. The matter waits for another desk." },
+  { re: /\b(refuse|reject|deny|block|veto)\w*/i,
+    accept: "{speaker} files the refusal. The other side begins drafting a public letter.",
+    decline: "{speaker} agrees instead. The room's mood shifts toward cooperation." },
+  { re: /\b(close|shut|seal|lock|cordon)\w*/i,
+    accept: "The order goes out. {speaker} confirms the closure is in effect by morning.",
+    decline: "The doors stay open. {speaker} marks the decision in the log." },
+  { re: /\b(open|launch|begin|kick off|inaugur)\w*/i,
+    accept: "{speaker} opens the proceedings. The first hour runs short of the schedule.",
+    decline: "{speaker} keeps it closed for now. The press will hear about it by Sunday." },
+  { re: /\b(investigat|audit|inquir|probe)\w*/i,
+    accept: "{speaker} starts the inquiry. The first witness is on the schedule by Tuesday.",
+    decline: "{speaker} closes the file. The papers will smell it within the week." },
+  { re: /\b(print|publish|announc|broadcast|release|leak)\w*/i,
+    accept: "{speaker} prints it under your name. The evening edition runs above the fold.",
+    decline: "{speaker} pulls the piece. A shorter version runs in the morning anyway." },
+  { re: /\b(call|convene|summon|gather|host)\w*/i,
+    accept: "{speaker} makes the call. The room fills inside the hour.",
+    decline: "{speaker} delays the meeting. The cabinet hears about it Monday." },
+  { re: /\b(deploy|mobiliz|march|conscript|enlist)\w*/i,
+    accept: "Whistles go up at every depot. {speaker} confirms the columns move east by nightfall.",
+    decline: "{speaker} stands down. The barracks stay dark; the border desk braces." },
+  { re: /\b(pay|donat|fund|allocat|budget|pension|wage)\w*/i,
+    accept: "The funds clear by Friday. {speaker} expects a receipt on the desk by Monday.",
+    decline: "{speaker} closes the request. The applicant will be in the morning paper." },
+  { re: /\b(meet|negotiat|talk|invit|summit)\w*/i,
+    accept: "{speaker} sets the meeting for Thursday. Three other ministers ask to attend.",
+    decline: "{speaker} declines on your behalf. The other side files a measured letter." },
+  { re: /\b(arrest|detain|charg|prosecut|jail)\w*/i,
+    accept: "{speaker} signs the warrant. The first arrests come before dawn.",
+    decline: "{speaker} lets them walk. The papers will name the lapse by Sunday." },
+  { re: /\b(reform|reorganiz|restructur|reset|overhaul)\w*/i,
+    accept: "{speaker} announces the reset. Three replacements are named by Friday.",
+    decline: "{speaker} holds the line. The faction takes the win quietly." },
+  { re: /\b(apologi[zs]|withdraw|retract|recant)\w*/i,
+    accept: "{speaker} delivers the apology. The morning papers run it on page two.",
+    decline: "{speaker} holds the position. The opposition leader requests airtime by lunch." },
+  { re: /\b(strike|protest|march|rally|riot)\w*/i,
+    accept: "{speaker} sides with the demonstration. The crowd thins by evening.",
+    decline: "{speaker} keeps the order. Three unions file formal complaints by Sunday." },
+  { re: /\b(quarantine|lockdown|isolat|curfew)\w*/i,
+    accept: "{speaker} enforces the order. The streets quiet within two days.",
+    decline: "{speaker} keeps the city open. The case numbers double by Friday." },
+  { re: /\b(tax|levy|tariff|duty)\w*/i,
+    accept: "{speaker} lodges the levy. The first quarter's receipts beat the projection.",
+    decline: "{speaker} shelves the proposal. The treasury desk works the spreadsheet again." },
+];
+
+function localOutcomeFor(side, situation, speaker) {
+  const s = speaker || "the minister";
+  for (const v of LOCAL_OUTCOME_TEMPLATES) {
+    if (v.re.test(situation)) {
+      return v[side].replace(/\{speaker\}/g, s);
+    }
+  }
+  // Fallback — generic but speaker-voiced, side-coherent
+  if (side === "accept") {
+    return `${s} takes it forward. The cabinet feels the shift by Wednesday.`;
+  }
+  return `${s} steps back. The papers note the absence by week's end.`;
+}
+
 async function aiWriteOutcomeForSide(side) {
   const btn = document.getElementById(side === "accept" ? "ai-write-accept" : "ai-write-decline");
   const out = document.getElementById(`f-${side}-outcome`);
   const situation = document.getElementById("f-situation").value.trim();
   if (!situation) {
-    showCopyToast("Write the Situation first, then click ✨ AI write");
+    showCopyToast("Write the situation first, then click ✨ AI write");
     return;
   }
-  const speaker  = document.getElementById("f-speaker").value || "the speaker";
-  const ministry = document.getElementById("f-ministry").value || "their ministry";
-  const topic    = document.getElementById("f-topic").value || "simple";
+  const speaker = document.getElementById("f-speaker").value || "";
+
+  // Local template — fires instantly, no key needed. Always lands a
+  // result so the button never feels broken.
+  out.value = localOutcomeFor(side, situation, speaker);
+  runValidation();
+  showCopyToast(`✨ Outcome written (${side})`);
+
+  // Optional upgrade — if a Claude/Gemini key is saved, async-replace
+  // the local line with a higher-quality AI one. No-op if no key.
   const keys = loadAIKeys();
   const provider = keys.claude ? "claude" : (keys.gemini ? "gemini" : null);
-  if (!provider) {
-    showCopyToast("Add a Claude or Gemini API key in Settings first");
-    return;
-  }
+  if (!provider) return;
   const apiKey = provider === "claude" ? keys.claude : keys.gemini;
+  const ministry = document.getElementById("f-ministry").value || "their ministry";
+  const topic    = document.getElementById("f-topic").value || "simple";
   const prompt = `You write a single outcome line for a swipe card in "Presidenter".
 
-Situation (the question on the card):
+Situation:
 "${situation}"
 
-Speaker: ${speaker} · ${ministry} · topic .${topic}
+Speaker: ${speaker || "an unspecified minister"} · ${ministry} · topic .${topic}
 
-Write ONE short outcome line (≤140 chars, ≤2 sentences, no em-dashes) describing what happens AFTER the player swipes "${side === "accept" ? "Accept" : "Decline"}". Be concrete, in-world, written in the speaker's voice. No bookkeeping ("the player chose X") — just describe the in-world reaction.
-
-Output ONLY the outcome line. No quotes, no preamble.`;
-  btn.disabled = true;
+Write ONE short outcome line (≤140 chars, ≤2 sentences, no em-dashes) describing what happens AFTER the player swipes "${side === "accept" ? "Accept" : "Decline"}". Be concrete, in-world, in the speaker's voice. No bookkeeping. Output ONLY the line, no quotes.`;
   const original = btn.textContent;
-  btn.textContent = "…";
+  btn.disabled = true;
+  btn.textContent = "✨…";
   try {
     const text = await callAITextPlain(provider, apiKey, prompt);
-    out.value = text.trim().replace(/^["']|["']$/g, "");
-    runValidation();
-    schedulePersistAndRerender && schedulePersistAndRerender();
+    const clean = (text || "").trim().replace(/^["']|["']$/g, "");
+    if (clean) {
+      out.value = clean;
+      runValidation();
+    }
   } catch (e) {
-    showCopyToast("AI write failed: " + e.message);
+    // Quietly keep the local template — no scary toast for a
+    // background upgrade attempt.
+    console.warn("AI write upgrade failed:", e.message);
   } finally {
     btn.disabled = false;
     btn.textContent = original;
@@ -10651,8 +10733,8 @@ document.querySelectorAll("input[name='co-method']").forEach(r => r.addEventList
   const v = document.querySelector("input[name='co-method']:checked").value;
   const hint = document.getElementById("co-method-hint");
   if (v === "template") hint.textContent = "Template uses your hand-written STORY_ARCS library — instant, no API key needed.";
-  else if (v === "claude") hint.textContent = "Calls Anthropic Claude API directly from your browser. Needs an API key (Settings → AI generation keys).";
-  else hint.textContent = "Calls Google AI Studio Gemini API directly from your browser. Needs an API key (Settings → AI generation keys).";
+  else if (v === "claude") hint.textContent = "Best quality. Uses Claude if you've saved a key in Settings; otherwise falls back to the template library automatically.";
+  else hint.textContent = "Best quality. Uses Gemini if you've saved a key in Settings; otherwise falls back to the template library automatically.";
 }));
 document.getElementById("co-cancel").addEventListener("click", () => {
   document.getElementById("chainopt-backdrop").classList.remove("open");
@@ -10769,7 +10851,20 @@ async function generateChainFromOptions() {
   const keys = loadAIKeys();
   const key = method === "claude" ? keys.anthropic : keys.gemini;
   if (!key) {
-    status.innerHTML = `<span style="color: var(--decline);">No ${method === "claude" ? "Anthropic" : "Gemini"} API key. Open ⚙ Settings → AI generation keys.</span>`;
+    // Player ask 2026-05: "remove that api thing!" If the user picks
+    // AI mode without a saved key, don't error out — fall through to
+    // the template flow and tell them what happened in a soft toast.
+    document.getElementById("chainopt-backdrop").classList.remove("open");
+    const beforeLen = CHAINS.length;
+    addChain(null, null, length);
+    if (extend && CHAINS.length > beforeLen) {
+      const newChain = CHAINS[CHAINS.length - 1];
+      snapshot();
+      wireLeafExtend(newChain, extend);
+      persist();
+      rerenderAll();
+    }
+    showCopyToast(`No ${method === "claude" ? "Claude" : "Gemini"} key — used the template library instead. Add a key in Settings for AI-written chains.`);
     return;
   }
   status.textContent = `Calling ${method === "claude" ? "Claude" : "Gemini"}…`;
