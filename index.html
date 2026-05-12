@@ -3430,6 +3430,7 @@
   <button id="act-import" title="Import a JSON file">⇑</button>
   <button id="act-github" title="Sync to GitHub (push / pull / commit deck.json)">⎇</button>
   <div class="divider"></div>
+  <button id="act-playing-settings" title="Playing Settings — editable game logic (cooldowns, election cadence, era thresholds, card rules)">🎮</button>
   <button id="act-settings" title="Settings — ship to game · wipe · danger zone">⚙</button>
   <div class="ship-counter" id="ship-counter">0 / 0</div>
   <input type="file" id="import-file" accept="application/json" style="display:none;">
@@ -3777,6 +3778,28 @@
     <div id="coach-summary" style="margin: 14px 0; padding: 12px 14px; background: var(--bg-deep); border-radius: 8px; border-left: 3px solid var(--gold); font-size: 12px; line-height: 1.6; color: var(--text-muted);"></div>
     <div id="coach-suggestions"></div>
     <button id="coach-close" style="display:none;" aria-hidden="true"></button>
+  </div>
+</div>
+
+<!-- Playing Settings — editable game-logic knobs. Player ask 2026-
+     05-12: 'add cooldown logic and all game logic in a playing
+     settings screen so I can change numbers, see the logics. Put
+     all logics there and numbers are editable. I will edit and hit
+     commit button that will update the game logic. This includes
+     election logic, election days, era logic and everything.' -->
+<div id="playopt-backdrop" class="modal-backdrop-v2" style="display:none;">
+  <div class="modal-card" style="max-width: 720px;">
+    <div class="modal-header">
+      <h2>🎮 Playing Settings</h2>
+      <button class="modal-close-x" data-fires="playopt-close" aria-label="Close">×</button>
+    </div>
+    <div class="modal-sub">Every numeric knob in one place. Edit the values, click <b>Commit changes</b> to save. The HTML uses these immediately; the Swift engine picks them up next time you push to GitHub + bake.</div>
+    <div id="playopt-body" style="display: flex; flex-direction: column; gap: 20px; margin-top: 14px;"></div>
+    <div class="modal-actions" style="margin-top: 18px;">
+      <button id="playopt-reset" type="button" style="background: transparent; color: var(--text-muted); border: 1px solid var(--hairline); padding: 10px 14px; border-radius: 8px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; cursor: pointer;">Reset to defaults</button>
+      <button id="playopt-commit" type="button" class="primary">✓ Commit changes</button>
+      <button id="playopt-close" style="display:none;" aria-hidden="true"></button>
+    </div>
   </div>
 </div>
 
@@ -12666,6 +12689,148 @@ function computeCoachSuggestions() {
 }
 
 document.getElementById("act-coach").addEventListener("click", showCoachReport);
+
+// ====================================================================
+// PLAYING SETTINGS (Step 8) — editable game-logic knobs. Player ask
+// 2026-05-12: 'put all logics there and numbers are editable. I will
+// edit and hit commit changes button that will update the game logic.'
+//
+// Schema lives in PLAYING_SETTINGS_SCHEMA (grouped by section). Values
+// persist to localStorage. Read by chain generation, validation, and
+// any future engine handoff. Each knob declares: key, label, default,
+// range (min/max), step, and an explainer line.
+// ====================================================================
+const PLAYING_SETTINGS_KEY = "presidenter:playing-settings:v1";
+
+const PLAYING_SETTINGS_SCHEMA = [
+  {
+    section: "Chain pacing",
+    note: "How often a chain repeats and whether every card fires once first.",
+    knobs: [
+      { key: "defaultChainCooldownDays", label: "Default chain cooldown (days)", def: 30, min: 0, max: 365, step: 1, hint: "After a chain fires, it rests this many days before becoming eligible again." },
+      { key: "sameThemeCooldownDays",   label: "Same-theme cooldown (days)",     def: 60, min: 0, max: 365, step: 1, hint: "After a chain fires, other chains with the same chainTheme rest this many days." },
+      { key: "defaultFirstPassRotation", label: "First-pass rotation default (1 = on)", def: 1, min: 0, max: 1, step: 1, hint: "When on, every card in a chain fires once before any card fires twice. New chains inherit this by default." },
+    ]
+  },
+  {
+    section: "Election system",
+    note: "Cadence + runoff thresholds. Engine reads these at vote time.",
+    knobs: [
+      { key: "electionCadenceDays",  label: "Days between elections",      def: 50, min: 20, max: 365, step: 1, hint: "Standard cadence. Set to 0 to disable elections entirely." },
+      { key: "electionRunoffMargin", label: "Runoff margin (% points)",    def: 5,  min: 0,  max: 25,  step: 1, hint: "If two candidates are within this margin, a runoff fires." },
+      { key: "termGoalCount",        label: "Term goals per election",     def: 3,  min: 0,  max: 6,   step: 1, hint: "Number of term goals shown at the start of each new term." },
+    ]
+  },
+  {
+    section: "Era progression",
+    note: "Day boundaries between the four reign eras.",
+    knobs: [
+      { key: "eraFoundingToStrain", label: "Founding → Strain (day)", def: 50,  min: 1, max: 999, step: 1, hint: "First-100-days mood ends here; Strain era begins." },
+      { key: "eraStrainToReform",   label: "Strain → Reform (day)",   def: 200, min: 1, max: 999, step: 1, hint: "Strain era ends; player has earned the right to reform." },
+      { key: "eraReformToLegacy",   label: "Reform → Legacy (day)",   def: 490, min: 1, max: 999, step: 1, hint: "Reform era ends; legacy years begin. Long-reign achievements unlock here." },
+    ]
+  },
+  {
+    section: "Card writing rules",
+    note: "Numeric caps the v30 style guide enforces. Editing these here changes the validation pills + AI prompt caps.",
+    knobs: [
+      { key: "maxSituationChars",   label: "Soft cap on situation chars", def: 140, min: 60,  max: 220, step: 10, hint: "Above this, the slim validation flags 'over the cap'. v30 default 140." },
+      { key: "maxSituationCharsHard", label: "Hard cap on situation chars", def: 220, min: 100, max: 300, step: 10, hint: "Absolute ceiling. styleguideException is required to bypass." },
+      { key: "maxSentences",        label: "Max sentences per situation",  def: 2,   min: 1,   max: 5,   step: 1,  hint: "v30 default 2. Setup + ask." },
+      { key: "meterMinAbsPerSide",  label: "Min absolute meter shift per side", def: 2, min: 0, max: 10, step: 1, hint: "Each side (Accept / Decline) must shift meters by at least this absolute total. Default 2." },
+    ]
+  },
+  {
+    section: "Coach + balance",
+    note: "Thresholds the Coach panel uses for its suggestions.",
+    knobs: [
+      { key: "coachMinDeckSizeForBalance", label: "Min deck size before balance checks", def: 5,  min: 0, max: 100, step: 1, hint: "Coach won't complain about missing topics / ministries below this." },
+      { key: "coachMinDeckForEnding",      label: "Min deck size before 'no ending' alert", def: 8, min: 0, max: 100, step: 1, hint: "Below this, the Coach assumes you're still warming up." },
+      { key: "coachDominantTopicThreshold", label: "Dominant-topic warn threshold (%)", def: 40, min: 10, max: 90, step: 5, hint: "If one topic is more than this % of the deck, Coach suggests diversifying." },
+    ]
+  },
+  {
+    section: "AI generation",
+    note: "Temperature + sample thresholds for the local + AI generators.",
+    knobs: [
+      { key: "aiTemperature",            label: "AI temperature (×100)",         def: 90, min: 0, max: 100, step: 5, hint: "Claude/Gemini sampling temperature. 90 = 0.9 (creative). Lower = more deterministic." },
+      { key: "styleLearnerThreshold",    label: "Style learner sample threshold", def: 3,  min: 0, max: 50, step: 1, hint: "Cards required before the AI prompt picks up your voice profile." },
+      { key: "contextFunnyPer20Cards",   label: "Comic-relief attach per N cards", def: 20, min: 0, max: 100, step: 1, hint: "1 funny / N-card chain. Set to 0 to disable auto-comic-relief." },
+    ]
+  },
+];
+
+function loadPlayingSettings() {
+  try {
+    const raw = localStorage.getItem(PLAYING_SETTINGS_KEY);
+    if (raw) {
+      const saved = JSON.parse(raw);
+      // Merge with defaults so newly-added knobs land with sensible values
+      const merged = {};
+      for (const sec of PLAYING_SETTINGS_SCHEMA) {
+        for (const k of sec.knobs) merged[k.key] = (saved[k.key] != null) ? saved[k.key] : k.def;
+      }
+      return merged;
+    }
+  } catch (e) {}
+  const def = {};
+  for (const sec of PLAYING_SETTINGS_SCHEMA) {
+    for (const k of sec.knobs) def[k.key] = k.def;
+  }
+  return def;
+}
+
+function savePlayingSettings(s) {
+  try { localStorage.setItem(PLAYING_SETTINGS_KEY, JSON.stringify(s)); } catch (e) {}
+}
+
+function renderPlayingSettings() {
+  const current = loadPlayingSettings();
+  const body = document.getElementById("playopt-body");
+  body.innerHTML = PLAYING_SETTINGS_SCHEMA.map(sec => `
+    <div style="padding: 12px 14px; background: var(--bg-deep); border-radius: 10px; border-left: 3px solid var(--gold);">
+      <div style="font-size: 12px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold); margin-bottom: 2px;">${sec.section}</div>
+      <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.5;">${sec.note}</div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        ${sec.knobs.map(k => `
+          <div style="background: var(--surface2); padding: 10px 12px; border-radius: 8px;">
+            <label style="display:block; font-size:10px; letter-spacing:0.10em; text-transform:uppercase; font-weight:700; color:var(--text-muted); margin-bottom: 4px;">${k.label}</label>
+            <input type="number" data-knob="${k.key}" value="${current[k.key]}" min="${k.min}" max="${k.max}" step="${k.step}" style="width: 100%; padding: 6px 8px; background: var(--bg-deep); border: 1px solid var(--hairline); color: var(--text-primary); border-radius: 4px; font-size: 14px;">
+            <div style="font-size: 10px; color: var(--text-faint); margin-top: 4px; line-height: 1.4;">${k.hint}</div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `).join("");
+}
+
+function showPlayingSettings() {
+  renderPlayingSettings();
+  document.getElementById("playopt-backdrop").classList.add("open");
+}
+
+document.getElementById("act-playing-settings").addEventListener("click", showPlayingSettings);
+document.getElementById("playopt-close").addEventListener("click", () => document.getElementById("playopt-backdrop").classList.remove("open"));
+document.getElementById("playopt-backdrop").addEventListener("click", (e) => {
+  if (e.target.id === "playopt-backdrop") e.target.classList.remove("open");
+});
+document.getElementById("playopt-commit").addEventListener("click", () => {
+  const s = {};
+  for (const inp of document.querySelectorAll("#playopt-body [data-knob]")) {
+    const k = inp.getAttribute("data-knob");
+    const v = parseFloat(inp.value);
+    if (!isNaN(v)) s[k] = v;
+  }
+  savePlayingSettings(s);
+  document.getElementById("playopt-backdrop").classList.remove("open");
+  showCopyToast(`✓ Saved ${Object.keys(s).length} settings. New chains use these values immediately.`);
+});
+document.getElementById("playopt-reset").addEventListener("click", () => {
+  if (!confirm("Reset every playing setting to its default value?")) return;
+  localStorage.removeItem(PLAYING_SETTINGS_KEY);
+  renderPlayingSettings();
+  showCopyToast("Reset to defaults. Click 'Commit changes' to save.");
+});
 document.getElementById("act-ship").addEventListener("click", addAllToGame);
 // Mirror handler for the Settings → Ship to game button.
 const settingsShipBtn = document.getElementById("settings-ship-all");
