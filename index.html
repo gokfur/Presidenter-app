@@ -2670,6 +2670,23 @@
     color: var(--text-muted);
     line-height: 1.5;
   }
+  /* Chain header cooldown chip — surfaces the per-chain pacing
+     constraint authored in the wizard (cooldownDays +
+     firstPassRotation). Player ask 2026-05-12. */
+  .chain-header .cooldown-chip {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: rgba(106, 169, 224, 0.12);
+    color: var(--chain3);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 700;
+    border: 1px solid rgba(106, 169, 224, 0.30);
+  }
+
   /* Focused card sits above its siblings so the inspector context
      doesn't get hidden behind another card. Player ask 2026-05:
      "when I am editing a card make sure it comes front so I can see
@@ -3494,6 +3511,26 @@
       <div>
         <label>Custom ending description</label>
         <input id="co-custom-ending" placeholder="e.g. The bank fires you on national TV">
+      </div>
+    </div>
+
+    <!-- Same-chain cooldown (player ask 2026-05-12). 'Don't show this
+         chain again for N days' — prevents repeat fatigue when the
+         deck grows to thousands of chains. Default 30 means a fired
+         chain rests for a month before being eligible to fire again. -->
+    <div class="row">
+      <div>
+        <label>Cooldown <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(days between firings)</span></label>
+        <input id="co-cooldown" type="number" min="0" max="365" step="1" value="30" aria-label="Days before this chain can fire again">
+        <div class="counter" style="text-align:left; color: var(--text-faint);">0 = always eligible. 30 = monthly. Engine enforces this so the same chain doesn't repeat too soon.</div>
+      </div>
+      <div>
+        <label>First-pass rotation</label>
+        <select id="co-rotation">
+          <option value="enforce" selected>Every card fires once first</option>
+          <option value="off">Free draw (weighted only)</option>
+        </select>
+        <div class="counter" style="text-align:left; color: var(--text-faint);">Enforces every card in this chain fires at least once before any card fires twice.</div>
       </div>
     </div>
 
@@ -8197,10 +8234,18 @@ function renderChainHeader(chain) {
   const endingBanner = chain.forcesEnding
     ? `<div class="ending-banner">⚠ Ending Chain · Game Over Path</div>`
     : "";
+  // Cooldown + rotation badge — only when explicitly set on the
+  // chain (legacy chains without these fields don't show it).
+  const cd = (typeof chain.cooldownDays === "number") ? chain.cooldownDays : null;
+  const rot = chain.firstPassRotation === true;
+  const cooldownChip = (cd !== null || rot)
+    ? `<div class="cooldown-chip" title="Engine enforces this chain's pacing">${cd !== null ? `${cd}d cooldown` : ""}${cd !== null && rot ? " · " : ""}${rot ? "1-pass rotation" : ""}</div>`
+    : "";
   el.innerHTML = `
     ${endingBanner}
     <div class="label">${chain.subtitle}</div>
     <div class="title">${chain.name}</div>
+    ${cooldownChip}
     <div class="strip"></div>
     <div class="chain-actions">
       <button class="play" title="Prototype — play through this chain right here (no app needed)">▶</button>
@@ -11810,6 +11855,13 @@ async function generateChainFromOptions() {
   const speaker = document.getElementById("co-speaker").value || null;
   const endingId = document.getElementById("co-ending").value;
   const customEnding = document.getElementById("co-custom-ending").value.trim();
+  // Step 1 — same-chain cooldown + first-pass rotation. Player ask
+  // 2026-05-12: "this fires logic, I will ask you to come up with a
+  // logic that we see all of the cards in the chain. same chain
+  // doesn't happen anytime soon."
+  const cooldownRaw = parseInt(document.getElementById("co-cooldown")?.value || "30", 10);
+  const cooldownDays = isNaN(cooldownRaw) ? 30 : Math.max(0, Math.min(365, cooldownRaw));
+  const rotation = document.getElementById("co-rotation")?.value || "enforce";
   const status = document.getElementById("co-status");
 
   let endingPrompt = null;
@@ -11857,6 +11909,8 @@ async function generateChainFromOptions() {
     document.getElementById("chainopt-backdrop").classList.remove("open");
     const newChain = buildLocalContextChain({ length, theme, speaker, endingPrompt, sourceCtx });
     if (newChain) {
+      newChain.cooldownDays = cooldownDays;
+      newChain.firstPassRotation = (rotation === "enforce");
       snapshot();
       CHAINS.push(newChain);
       if (extend) wireLeafExtend(newChain, extend);
@@ -11916,6 +11970,8 @@ async function generateChainFromOptions() {
         });
       }
     }
+    chain.cooldownDays = cooldownDays;
+    chain.firstPassRotation = (rotation === "enforce");
     CHAINS.push(chain);
     // If this generate was triggered by an "Extend leaf" + button on
     // some card's CHAIN-ENDS path, wire the new c1 onto that path.
