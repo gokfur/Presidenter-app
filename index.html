@@ -2451,6 +2451,89 @@
     outline: 2px solid var(--gold);
     outline-offset: 2px;
   }
+  /* Coach panel — design-assistant suggestions, ranked by priority.
+     Each suggestion is one card with a colored severity stripe, a
+     plain-English title, a one-line "why this matters", and a CTA
+     button that opens the right tool prefilled. Player ask 2026-05:
+     "you will tell me hey we need to create this to balance." */
+  #coach-suggestions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 60vh;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  .coach-card {
+    display: flex;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: 10px;
+    background: var(--surface2);
+    border: 1px solid var(--hairline);
+    border-left-width: 4px;
+    transition: border-color 0.15s, transform 0.1s;
+  }
+  .coach-card:hover {
+    transform: translateY(-1px);
+    border-color: var(--gold);
+  }
+  .coach-card.sev-critical { border-left-color: var(--decline); }
+  .coach-card.sev-high     { border-left-color: #e58a49; }
+  .coach-card.sev-medium   { border-left-color: var(--gold); }
+  .coach-card.sev-low      { border-left-color: var(--accept); }
+  .coach-card .coach-body {
+    flex: 1;
+    min-width: 0;
+  }
+  .coach-card .coach-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .coach-card .coach-reason {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+  .coach-card .coach-evidence {
+    margin-top: 6px;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    color: var(--text-faint);
+    font-family: SF Mono, ui-monospace, monospace;
+  }
+  .coach-card .coach-cta {
+    flex-shrink: 0;
+    align-self: center;
+    padding: 9px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--gold);
+    background: var(--gold);
+    color: var(--bg-deep);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: filter 0.12s;
+  }
+  .coach-card .coach-cta:hover { filter: brightness(1.08); }
+  .coach-card .coach-cta.muted {
+    background: transparent;
+    color: var(--gold);
+  }
+  .coach-empty {
+    padding: 30px 20px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  .coach-empty .big { font-size: 36px; margin-bottom: 8px; }
+
   /* Style-guide exception toggle — sits below the validation pills.
      Gold border so the author sees it's a deliberate escape hatch. */
   .modal-card .styleguide-override {
@@ -3091,6 +3174,7 @@
   <button id="act-undo" title="Undo last change (Cmd-Z)" disabled>↶</button>
   <button id="act-health" title="Run health check on all cards against the project's MD-file rules">✓</button>
   <button id="act-analyze" title="Deck analysis with one-click approve suggestions">Σ</button>
+  <button id="act-coach" title="Coach — design-assistant suggestions on what to author next to balance the deck">🎓</button>
   <button id="act-quickconnect" title="Quick-connect mode (Q) — click two cards to wire them without dragging">⚭</button>
   <button id="act-ship" title="Add all unshipped cards to the game (idempotent — already-shipped cards won't ship twice)">🚀</button>
   <div class="ship-counter" id="ship-counter">0 / 0</div>
@@ -3360,6 +3444,22 @@
     <div class="modal-sub" id="analysis-sub">Distribution of speakers, topics and meter impact across every card.</div>
     <div id="analysis-body"></div>
     <button id="analysis-close" style="display:none;" aria-hidden="true"></button>
+  </div>
+</div>
+
+<!-- Coach modal — design-assistant suggestions on what to author next.
+     Player ask 2026-05: "you will help me. you will make suggestions.
+     you will tell me hey we need to create this to balance." -->
+<div id="coach-backdrop" class="modal-backdrop-v2" style="display:none;">
+  <div class="modal-card" style="max-width: 720px;">
+    <div class="modal-header">
+      <h2>🎓 Deck Coach</h2>
+      <button class="modal-close-x" data-fires="coach-close" aria-label="Close">×</button>
+    </div>
+    <div class="modal-sub">What your deck needs next, ranked by impact. Each suggestion has a one-click action that opens the right tool prefilled.</div>
+    <div id="coach-summary" style="margin: 14px 0; padding: 12px 14px; background: var(--bg-deep); border-radius: 8px; border-left: 3px solid var(--gold); font-size: 12px; line-height: 1.6; color: var(--text-muted);"></div>
+    <div id="coach-suggestions"></div>
+    <button id="coach-close" style="display:none;" aria-hidden="true"></button>
   </div>
 </div>
 
@@ -11412,6 +11512,273 @@ function extractJSONFromAIText(text) {
 document.getElementById("act-undo").addEventListener("click", undo);
 document.getElementById("act-health").addEventListener("click", showHealthReport);
 document.getElementById("act-analyze").addEventListener("click", showAnalysisReport);
+
+// ====================================================================
+// COACH — design-assistant. Watches the deck and surfaces a ranked
+// list of suggestions for what to author next. Player ask 2026-05:
+// "you will help me. you will make suggestions. you will tell me hey
+// we need to create this to balance."
+//
+// Each suggestion has:
+//   severity   "critical" | "high" | "medium" | "low"
+//   title      one-line plain-English (~6 words)
+//   reason     why this matters (1-2 sentences)
+//   evidence   the numbers / counts the suggestion is based on
+//   cta        button label + action (opens the right tool)
+//
+// Ranked critical → low and de-duplicated. Re-evaluated every time
+// the modal opens, so as the deck grows the list naturally evolves.
+// ====================================================================
+function showCoachReport() {
+  const suggestions = computeCoachSuggestions();
+  const allCards = CHAINS.flatMap(c => c.cards || []);
+  const summary = document.getElementById("coach-summary");
+  const body = document.getElementById("coach-suggestions");
+
+  // Top-line summary banner — current deck size + balance posture
+  const ending = CHAINS.filter(c => c.forcesEnding).length;
+  const orphan = CHAINS.find(c => c.id === "orphans");
+  const orphanCount = orphan ? (orphan.cards || []).length : 0;
+  const topicCounts = {};
+  const ministryCounts = {};
+  for (const c of allCards) {
+    topicCounts[c.topic || "?"] = (topicCounts[c.topic || "?"] || 0) + 1;
+    ministryCounts[c.ministry || "?"] = (ministryCounts[c.ministry || "?"] || 0) + 1;
+  }
+  summary.innerHTML = `
+    <b style="color: var(--text-primary);">Deck so far:</b>
+    ${allCards.length} cards · ${CHAINS.length} chain${CHAINS.length === 1 ? "" : "s"}
+    ${orphanCount ? ` · ${orphanCount} orphan` : ""}
+    ${ending ? ` · ${ending} ending chain${ending === 1 ? "" : "s"}` : ""}
+    <br>
+    <span style="color: var(--text-faint); font-size: 11px;">
+      Ranked critical → low. Click an action to open the right tool prefilled.
+    </span>
+  `;
+
+  if (!suggestions.length) {
+    body.innerHTML = `
+      <div class="coach-empty">
+        <div class="big">🎯</div>
+        <div><b>Deck looks balanced.</b></div>
+        <div style="margin-top: 6px;">Keep authoring — the Coach will surface new suggestions as the deck grows past each threshold.</div>
+      </div>`;
+  } else {
+    body.innerHTML = suggestions.map((s, i) => `
+      <div class="coach-card sev-${s.severity}" data-coach-idx="${i}">
+        <div class="coach-body">
+          <div class="coach-title">${s.title}</div>
+          <div class="coach-reason">${s.reason}</div>
+          ${s.evidence ? `<div class="coach-evidence">${s.evidence}</div>` : ""}
+        </div>
+        ${s.cta ? `<button class="coach-cta" data-coach-action="${s.action || ""}">${s.cta}</button>` : ""}
+      </div>
+    `).join("");
+    body.querySelectorAll(".coach-cta").forEach((btn, i) => {
+      btn.addEventListener("click", () => {
+        document.getElementById("coach-backdrop").classList.remove("open");
+        const action = suggestions[i].onClick;
+        if (typeof action === "function") setTimeout(action, 80);
+      });
+    });
+  }
+  document.getElementById("coach-backdrop").classList.add("open");
+}
+
+function computeCoachSuggestions() {
+  const out = [];
+  const allCards = CHAINS.flatMap(c => c.cards || []);
+  const total = allCards.length;
+
+  // === FOUNDATIONAL — only relevant when the deck is small ===
+  if (total === 0) {
+    out.push({
+      severity: "critical",
+      title: "Empty deck. Start with one card.",
+      reason: "The deck has zero cards right now. Author your first situation — a yes/no question from a cabinet voice — and the Coach will guide the next ones from there.",
+      cta: "Add a card",
+      onClick: () => document.getElementById("act-add").click(),
+    });
+    return out;
+  }
+
+  // === BALANCE — topic spread ===
+  const topicCounts = {};
+  for (const c of allCards) topicCounts[c.topic] = (topicCounts[c.topic] || 0) + 1;
+  const wantedTopics = ["scandal", "economy", "military", "diplomacy", "health", "tricky", "simple"];
+  const missingTopics = wantedTopics.filter(t => !topicCounts[t]);
+  if (missingTopics.length && total >= 5) {
+    out.push({
+      severity: missingTopics.length >= 4 ? "high" : "medium",
+      title: `Missing topics: ${missingTopics.slice(0, 4).join(", ")}${missingTopics.length > 4 ? "…" : ""}`,
+      reason: "The engine weights draws by topic. A deck that's all one topic plays one-note. Aim for ≥1 card on each core topic before the player hits day 20.",
+      evidence: `Current spread: ${Object.entries(topicCounts).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([k,v])=>`.${k} ×${v}`).join(" · ")}`,
+      cta: "Add a card",
+      onClick: () => document.getElementById("act-add").click(),
+    });
+  }
+
+  // === BALANCE — overrepresented topic (>40% of deck) ===
+  if (total >= 10) {
+    const top = Object.entries(topicCounts).sort((a,b)=>b[1]-a[1])[0];
+    if (top && top[1] / total > 0.4) {
+      out.push({
+        severity: "medium",
+        title: `.${top[0]} is ${Math.round(top[1]/total*100)}% of the deck — diversify`,
+        reason: `${top[1]} of ${total} cards are .${top[0]}. The player will start to feel the deck has only one topic. Add cards from other topics to widen the surface.`,
+        evidence: `.${top[0]} × ${top[1]} (${Math.round(top[1]/total*100)}%)`,
+        cta: "Add a card",
+        onClick: () => document.getElementById("act-add").click(),
+      });
+    }
+  }
+
+  // === BALANCE — ministry spread ===
+  const ministryCounts = {};
+  for (const c of allCards) ministryCounts[c.ministry || "?"] = (ministryCounts[c.ministry || "?"] || 0) + 1;
+  if (total >= 8) {
+    const seenMinistries = new Set(Object.keys(ministryCounts));
+    const coreMinistries = ["Defense", "Treasury", "Health", "Justice", "Press", "Foreign Affairs", "Education"];
+    const missingCore = coreMinistries.filter(m => !seenMinistries.has(m));
+    if (missingCore.length >= 3) {
+      out.push({
+        severity: "high",
+        title: `${missingCore.length} core ministries silent`,
+        reason: "A good cabinet game needs voices from across the room. Add cards from these ministries so the player isn't always hearing the same desk.",
+        evidence: `Silent: ${missingCore.join(" · ")}`,
+        cta: "Add a card",
+        onClick: () => document.getElementById("act-add").click(),
+      });
+    }
+  }
+
+  // === GAME OVER — no ending chain ===
+  const endingChains = CHAINS.filter(c => c.forcesEnding);
+  const endingLeaves = allCards.filter(c =>
+    (c.accept && c.accept.forcesEnding) || (c.decline && c.decline.forcesEnding));
+  if (!endingChains.length && !endingLeaves.length && total >= 8) {
+    out.push({
+      severity: "critical",
+      title: "No game-over path exists yet",
+      reason: "Reigns-style games need at least one way the reign can fall. Without an ending chain the player drifts forever. Author one collapse arc — a coup, a default, an excommunication.",
+      cta: "Add ending chain",
+      onClick: () => {
+        document.getElementById("act-add").click();
+        setTimeout(() => {
+          const btn = document.querySelector('[data-add="ending"]');
+          if (btn) btn.click();
+        }, 100);
+      },
+    });
+  }
+
+  // === GAME OVER — encourage 2-4 distinct endings ===
+  if ((endingChains.length + endingLeaves.length) === 1 && total >= 25) {
+    out.push({
+      severity: "medium",
+      title: "Add a second ending for variety",
+      reason: "One ending chain means every losing run feels the same. Aim for 2–4 distinct collapses (military coup, economic default, civic uprising) so different play patterns lose differently.",
+      cta: "Add ending chain",
+      onClick: () => {
+        document.getElementById("act-add").click();
+        setTimeout(() => {
+          const btn = document.querySelector('[data-add="ending"]');
+          if (btn) btn.click();
+        }, 100);
+      },
+    });
+  }
+
+  // === CHAIN STRUCTURE — orphans waiting to be wired ===
+  const orphan = CHAINS.find(c => c.id === "orphans");
+  const orphanCount = orphan ? (orphan.cards || []).length : 0;
+  if (orphanCount >= 3) {
+    out.push({
+      severity: "high",
+      title: `${orphanCount} orphan cards waiting to be wired`,
+      reason: "Orphan cards sit alone until they're connected. Drag one onto another to wire them into a chain, or click the 🌱 spawn button on a card to grow a chain around it.",
+      evidence: `Orphan bucket has ${orphanCount} cards`,
+      cta: "Open orphan room",
+      onClick: () => {
+        const sel = document.getElementById("room-selector");
+        if (sel) {
+          for (const opt of sel.options) {
+            if (opt.value === (orphan.room || "Main")) { sel.value = opt.value; sel.dispatchEvent(new Event("change")); break; }
+          }
+        }
+        if (orphan && orphan.cards && orphan.cards[0]) {
+          setTimeout(() => setFocusedCard(orphan.cards[0].id, false), 100);
+        }
+      },
+    });
+  }
+
+  // === CHAIN STRUCTURE — leaf dead-ends ===
+  let leafCount = 0;
+  for (const ch of CHAINS) {
+    for (const c of (ch.cards || [])) {
+      for (const side of ["accept", "decline"]) {
+        const b = c[side];
+        if (!b) continue;
+        const hasTarget = b.target || (b.poolTargets && b.poolTargets.length);
+        const hasTrigger = b.triggersChain || b.forcesEnding;
+        if (!hasTarget && !hasTrigger) leafCount++;
+      }
+    }
+  }
+  if (leafCount >= 6 && total >= 10) {
+    out.push({
+      severity: "medium",
+      title: `${leafCount} swipe paths dead-end into nothing`,
+      reason: "Cards with 'CHAIN ENDS' on both swipes feel incomplete. Click the gold + button on any leaf to extend it into a continuation chain — the AI uses your card's outcome as the seed.",
+      evidence: `${leafCount} leaf path${leafCount === 1 ? "" : "s"} across ${CHAINS.length} chain${CHAINS.length === 1 ? "" : "s"}`,
+      cta: "Skip",
+      action: "skip",
+      onClick: () => { /* informational */ },
+    });
+  }
+
+  // === HEALTH — flag a high % of style-guide exceptions ===
+  const exceptionCount = allCards.filter(c => c.styleguideException).length;
+  if (exceptionCount && exceptionCount / total > 0.2) {
+    out.push({
+      severity: "medium",
+      title: `${exceptionCount} cards bypass the style guide`,
+      reason: "Style-guide exception is an escape hatch, not a default. If >20% of cards skip the rules the deck loses its consistent voice. Open the Health check and trim the exceptions.",
+      evidence: `${exceptionCount} / ${total} (${Math.round(exceptionCount/total*100)}%)`,
+      cta: "Run health check",
+      onClick: () => document.getElementById("act-health").click(),
+    });
+  }
+
+  // === GROWTH — encourage reaching key milestones ===
+  if (total >= 5 && total < 20) {
+    out.push({
+      severity: "low",
+      title: `Deck at ${total} cards — aim for 20`,
+      reason: "Below 20 cards the player will see repeats fast. 20 is the working minimum for a reign to feel varied across 50+ days.",
+      evidence: `${total} cards (${20 - total} to go)`,
+      cta: "Add a card",
+      onClick: () => document.getElementById("act-add").click(),
+    });
+  } else if (total >= 20 && total < 50) {
+    out.push({
+      severity: "low",
+      title: `Deck at ${total} cards — aim for 50`,
+      reason: "50 cards is the sweet spot for a single reign. After 50, focus on chains and endings instead of isolated singles.",
+      evidence: `${total} cards (${50 - total} to go)`,
+      cta: "Add a card",
+      onClick: () => document.getElementById("act-add").click(),
+    });
+  }
+
+  // Sort: critical → high → medium → low
+  const rank = { critical: 0, high: 1, medium: 2, low: 3 };
+  out.sort((a, b) => (rank[a.severity] ?? 9) - (rank[b.severity] ?? 9));
+  return out;
+}
+
+document.getElementById("act-coach").addEventListener("click", showCoachReport);
 document.getElementById("act-ship").addEventListener("click", addAllToGame);
 document.getElementById("act-quickconnect").addEventListener("click", toggleQuickConnect);
 document.getElementById("act-export").addEventListener("click", exportJSONFile);
