@@ -1488,14 +1488,61 @@
     color: var(--text-muted);
     margin-top: 6px;
   }
+  /* Dramatic game-over panel — was a single red chip. Player ask
+     2026-05: "this ending is weird. there must be tension excitement
+     curiosity. hook. player will be like whaat i did wrong?" The
+     panel now reads as a true reign-ending moment: large red title,
+     the ending's scenario flavor line in italic, the cause beneath. */
   #proto-card-view .pc-gameover {
+    margin-top: 16px;
+    padding: 20px 22px;
+    border: 2px solid var(--decline);
+    border-radius: 12px;
+    background: linear-gradient(180deg, rgba(229, 90, 90, 0.12), rgba(229, 90, 90, 0.04));
     text-align: center;
-    padding: 16px;
-    background: var(--decline);
-    color: white;
-    border-radius: 8px;
+    box-shadow: 0 0 24px rgba(229, 90, 90, 0.25);
+    animation: gameOverFadeIn 0.45s ease-out;
+  }
+  @keyframes gameOverFadeIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  #proto-card-view .pc-gameover .go-banner {
+    color: var(--decline);
     font-weight: 800;
-    letter-spacing: 0.18em;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    font-size: 11px;
+    margin-bottom: 6px;
+  }
+  #proto-card-view .pc-gameover .go-title {
+    color: var(--text-primary);
+    font-size: 22px;
+    font-weight: 800;
+    margin-bottom: 10px;
+  }
+  #proto-card-view .pc-gameover .go-cause {
+    color: var(--text-faint);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  #proto-card-view .pc-gameover .go-final {
+    color: var(--text-primary);
+    font-size: 14px;
+    line-height: 1.6;
+    font-style: italic;
+    padding: 12px;
+    background: var(--bg-deep);
+    border-left: 3px solid var(--decline);
+    border-radius: 6px;
+    text-align: left;
+  }
+  #proto-card-view .pc-gameover .go-tag {
+    color: var(--text-faint);
+    font-size: 10px;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
     margin-top: 12px;
   }
@@ -10799,8 +10846,44 @@ async function generateChainWithAI(provider, apiKey, opts) {
     .join("\n");
   const themeLine = opts.theme ? `Theme: ${opts.theme}` : "Theme: any cabinet drama";
   const speakerLine = opts.speaker ? `Starting speaker (c1 MUST be this person): ${opts.speaker}` : "";
+  // Player ask 2026-05: 'i said create a military coup ending chain
+  // but this ending is weird. there must be tension excitement
+  // curiosity. hook. player will be like whaat i did wrong? why i
+  // lost?' The old GAME-OVER MODE line was one sentence. The new
+  // block teaches the AI to compose a real reign-ending arc.
   const endingLine = opts.endingPrompt
-    ? `\nGAME-OVER MODE: c4's Accept outcome must end the game. Reflect: "${opts.endingPrompt}". The c4 Accept outcome must describe the final failure.`
+    ? `
+
+GAME-OVER MODE — write this chain as a SLOW-MOTION COLLAPSE.
+The ending the player is heading toward: "${opts.endingPrompt}"
+
+This is a 4-decision walk down a corridor that's narrowing. Every card the player swipes should feel like one more door slamming shut behind them. Write in 4 emotional beats:
+
+  c1 (THE WARNING)  — Looks routine. One minister flagging "we're at this number" or "this debt is due" or "that minister has been making noise". The Decline option seems safer ("don't escalate"). The player has no idea they just started the clock. NO foreshadowing of doom — that's the trap. End on a yes/no that sounds boring.
+
+  c2 (THE PRESSURE) — After c1 Accept. Now a second voice joins, harder edge. Stakes from c1 have grown — the loan terms got worse, the faction split bigger, the rifles weren't where the count said. The player starts to suspect they're being squeezed. Both swipes carry cost; "right" answer is unclear. End on a question that makes the player hesitate.
+
+  c3 (THE RECOVERY MIRAGE) — After c1 Decline. The "safe path" — but it's been mined. Looks like the responsible move and reads green, but quietly drains a meter that will matter at the end. Player feels like they're winning here. They're not.
+
+  c4 (THE GUILLOTINE) — After c2 Accept. The room is now hostile. Speaker is the actual antagonist of the ending (the marshal who will lead the coup, the treasurer who will sign the default letter, the bishop who will excommunicate). Their question is a velvet trap: ACCEPT means the player capitulates and the country falls, DECLINE means the player tries to fight and gets overpowered anyway — but ACCEPT is the canonical Game Over.
+       c4.accept.outcome MUST be 2-3 punchy sentences that land like a closing door:
+         - First sentence: what the speaker does (signs the order / leads the column / calls the vote)
+         - Second sentence: the room's reaction (the silence, the salute, the press in the hall)
+         - Third sentence (optional): the world's response (the morning paper headline, the foreign telegrams, the citizens at the palace gates)
+       Use concrete physical detail. No generic "your reign ends". Make the player whisper "oh no."
+
+Speaker voice rules for ending chains:
+  - c1 is voiced by an everyday cabinet minister (Treasurer, Health, Education) — the warning should come from someone routine, not the antagonist. NEVER c1 = the eventual aggressor.
+  - c4 IS the antagonist (Marshal, Mob leader, Cardinal, Foreign Premier). They show up here for the first time in the chain.
+  - The intermediate cards (c2, c3) bring in adjacent voices — Press, Justice, Public — reacting to early symptoms.
+
+Topic vibes: c1=.simple or .economy, c2=.scandal or .military, c3=.tricky, c4=.military or .scandal or whatever fits the ending. Avoid .funnyFlavor in ending chains.
+
+Meter rules for ending chains:
+  - Every swipe on the "bad path" (c1.accept → c2.accept → c4.accept) drains the meter that will trigger the ending. Don't be subtle. Drain it by -3 to -5 each step so the player can see the floor coming.
+  - The "recovery path" (c3) bumps the same meter slightly + but costs them another meter (so it FEELS like a save but isn't).
+  - c4.accept must drop the ending's relevant meter by at least -8 — this is the moment the reign ends. c4.decline drops it by -4 (you tried to fight but lost the room).
+`
     : "";
   // Player ask 2026-05: when extending a dead-end card, the AI must
   // *continue the source story*, not invent a random one. The
@@ -11685,7 +11768,23 @@ function renderPrototype() {
       .join(" · ") || "no meter shift";
     let nextLabel = "";
     if (out.gameOver) {
-      nextLabel = `<div class="pc-gameover">⚠ Game over · ${out.endingName}</div>`;
+      // Dramatic ending render — pull the ENDING_SCENARIOS flavor
+      // for the "what just happened to your reign" beat. Player ask
+      // 2026-05: the player should feel "what did I do wrong?"
+      const ending = ENDING_SCENARIOS.find(e => e.id === out.endingId)
+        || ENDING_SCENARIOS.find(e => e.id === protoState.chain.forcesEnding);
+      const final = ending && ending.final
+        ? ending.final
+        : "The cabinet adjourns. The doors stay closed. The country reads about it in the morning paper.";
+      const cause = ending && ending.forces ? ending.forces : null;
+      nextLabel = `
+        <div class="pc-gameover">
+          <div class="go-banner">⚠ Reign over</div>
+          <div class="go-title">${out.endingName || "Game Over"}</div>
+          ${cause ? `<div class="go-cause">Cause · ${cause}</div>` : ""}
+          <div class="go-final">"${final}"</div>
+          <div class="go-tag">${protoState.step} ${protoState.step === 1 ? "decision" : "decisions"} · meters at env ${protoState.meters.env} · mil ${protoState.meters.mil} · wel ${protoState.meters.wel} · eco ${protoState.meters.eco}</div>
+        </div>`;
     } else if (out.nextId) {
       const nc = protoState.chain.cards.find(c => c.id === out.nextId);
       nextLabel = nc ? `<div style="text-align:center; color: var(--text-muted); font-size: 12px;">→ Next card: <b style="color: var(--text-primary);">${nc.speaker}</b></div>` : "";
@@ -11701,7 +11800,11 @@ function renderPrototype() {
       </div>
       ${nextLabel}
       <div class="pc-buttons" style="margin-top: 12px;">
-        ${out.gameOver || (!out.nextId && !out.targetMissing) ? `<button class="decline" onclick="endPrototype()">End</button>` : `<button class="accept" onclick="advancePrototype()">Continue ▶</button>`}
+        ${out.gameOver
+          ? `<button class="decline" onclick="endPrototype()">End reign</button>`
+          : (!out.nextId && !out.targetMissing)
+            ? `<button class="decline" onclick="endPrototype()">End</button>`
+            : `<button class="accept" onclick="advancePrototype()">Continue ▶</button>`}
       </div>
     `;
     return;
@@ -11738,10 +11841,25 @@ window.prototypeSwipe = function(side) {
   }
   protoState.step++;
   protoState.history.push(`<span style="color: var(--${side === 'accept' ? 'accept' : 'decline'}); font-weight: 700;">${side.toUpperCase()}</span> · ${card.speaker} — "${(b.outcome || "").slice(0, 60)}${(b.outcome || "").length > 60 ? "…" : ""}"`);
-  // Resolve next
+  // Resolve next. Player ask 2026-05: "I created a 20 card chain
+  // and prototype ended in 2 cards." The pool was rolling the
+  // funny / side-beat pick which is a leaf, and the prototype
+  // treated that leaf as end-of-chain. Now we prefer pool members
+  // that have their OWN children — so the prototype stays on a
+  // story path. Genuine all-leaf pools fall back to random pick.
   let nextId = null;
   if (b.poolTargets && b.poolTargets.length) {
-    nextId = b.poolTargets[Math.floor(Math.random() * b.poolTargets.length)];
+    const hasChildren = (cid) => {
+      const tc = protoState.chain.cards.find(c => c.id === cid);
+      if (!tc) return false;
+      const ta = tc.accept || {}, td = tc.decline || {};
+      return !!(ta.target || (ta.poolTargets && ta.poolTargets.length)
+             || td.target || (td.poolTargets && td.poolTargets.length)
+             || ta.forcesEnding || td.forcesEnding);
+    };
+    const live = b.poolTargets.filter(hasChildren);
+    const pool = live.length ? live : b.poolTargets;
+    nextId = pool[Math.floor(Math.random() * pool.length)];
   } else if (b.target) {
     nextId = b.target;
   }
@@ -11753,6 +11871,7 @@ window.prototypeSwipe = function(side) {
     targetMissing: nextId && !allIds.has(nextId),
     targetMissingId: nextId,
     gameOver: !!b.forcesEnding,
+    endingId: b.forcesEnding || null,
     endingName: b.forcesEnding ? ((ENDING_SCENARIOS.find(e => e.id === b.forcesEnding) || {}).name || b.forcesEnding) : null,
   };
   renderPrototype();
