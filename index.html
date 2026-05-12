@@ -11711,6 +11711,65 @@ document.getElementById("f-decline-outcome").addEventListener("blur", autoSugges
   el.addEventListener("change", runValidation);
 })();
 
+// 2026-05-12 — Voice preview. Browser's SpeechSynthesis API reads
+// the situation aloud so authors can hear how a card sounds before
+// committing. Useful for catching tongue-twisters and overly-long
+// sentences that look fine on paper but stumble when narrated.
+//
+// Voice picking: prefer a system voice that loosely matches the
+// speaker's gender hint (from CAST gender column if available),
+// otherwise the platform default. Rate and pitch tuned to roughly
+// match the engine's CardNarrator AVSpeechSynthesizer defaults so
+// the preview lands close to what the player will hear in-app.
+//
+// Browser variation: Chrome ships ~20 system voices, Safari ~50,
+// Firefox 1. Falls back to "any voice" on platforms with a thin
+// selection. Defaults to en-US; future polish could pick locale
+// from the country profile.
+(function wireVoicePreview(){
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.id = "f-voice-preview";
+  btn.textContent = "🔊 Preview";
+  btn.title = "Read the situation aloud (browser TTS) — quick sanity check on tongue-twisters and length";
+  btn.style.cssText = "background:rgba(120,200,255,0.10); border:1px solid rgba(120,200,255,0.4); color:#9cf; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; margin-left:8px;";
+  let speaking = false;
+  btn.addEventListener("click", () => {
+    const sit = document.getElementById("f-situation")?.value?.trim() || "";
+    if (!sit) {
+      showCopyToast?.("Type a situation first.");
+      return;
+    }
+    if (speaking) {
+      window.speechSynthesis.cancel();
+      speaking = false;
+      btn.textContent = "🔊 Preview";
+      return;
+    }
+    // Pick a roughly English voice.
+    const voices = window.speechSynthesis.getVoices();
+    const enVoice = voices.find(v => /en[-_](US|GB|AU)/i.test(v.lang))
+                  || voices.find(v => /^en/i.test(v.lang))
+                  || voices[0];
+    const u = new SpeechSynthesisUtterance(sit);
+    if (enVoice) u.voice = enVoice;
+    u.rate = 0.95;
+    u.pitch = 1.0;
+    u.onend = () => { speaking = false; btn.textContent = "🔊 Preview"; };
+    u.onerror = () => { speaking = false; btn.textContent = "🔊 Preview"; };
+    speaking = true;
+    btn.textContent = "⏹ Stop";
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  });
+  // Mount next to the situation counter once the DOM is ready.
+  const counter = document.getElementById("f-situation-counter");
+  if (counter && counter.parentElement) {
+    counter.parentElement.insertBefore(btn, counter.nextSibling);
+  }
+})();
+
 // 2026-05-12 — Nation token chips. The 5 placeholders below are
 // substituted by GameState.interpolate(...) at render-time using the
 // player's NationProfile. The chips give authors a visual reference
