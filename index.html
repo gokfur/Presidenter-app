@@ -12350,6 +12350,28 @@ function showCoachReport() {
   const milestoneLine = unlockedKeys > 0
     ? `<b>Author milestones:</b> ${unlockedKeys} unlocked${newUnlocks.length ? ` (${newUnlocks.length} new!)` : ""}`
     : `<b>Author milestones:</b> 0 / 7 unlocked`;
+  // Step 5 — surface the style learner. After 3+ samples, show the
+  // profile so the author sees what they're trending toward. Player
+  // ask: 'The style learner is a quiet power tool. Surface the
+  // profile to the user.'
+  const styleSummary = styleProfileSummary(3);
+  const styleHTML = styleSummary ? `
+    <details style="margin-top: 10px; padding: 10px 12px; background: rgba(255,255,255,0.03); border-radius: 8px;">
+      <summary style="cursor: pointer; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700; color: var(--gold);">🎙 Your voice (${styleSummary.samples} cards sampled)</summary>
+      <div style="margin-top: 10px; font-size: 11px; line-height: 1.7; color: var(--text-muted);">
+        <div><b style="color: var(--text-primary);">Average:</b> ${styleSummary.avgLen} chars · ${styleSummary.avgSentences} sentences</div>
+        ${styleSummary.topOpeners.length ? `<div><b style="color: var(--text-primary);">Common openers:</b> ${styleSummary.topOpeners.map(s => `<span style="color: var(--gold);">"${s}…"</span>`).join(" · ")}</div>` : ""}
+        ${styleSummary.topClosers.length ? `<div><b style="color: var(--text-primary);">Common closers:</b> ${styleSummary.topClosers.map(s => `<span style="color: var(--gold);">"…${s}"</span>`).join(" · ")}</div>` : ""}
+        ${styleSummary.topTopics.length ? `<div><b style="color: var(--text-primary);">Top topics:</b> ${styleSummary.topTopics.map(t => `.${t}`).join(" · ")}</div>` : ""}
+        ${styleSummary.topMinistries.length ? `<div><b style="color: var(--text-primary);">Top ministries:</b> ${styleSummary.topMinistries.join(" · ")}</div>` : ""}
+        ${styleSummary.recentExamples.length ? `<div style="margin-top: 8px;"><b style="color: var(--text-primary);">Recent examples:</b><div style="margin-top: 4px; font-style: italic; color: var(--text-secondary);">${styleSummary.recentExamples.slice(0, 3).map(s => `<div style="margin-top: 4px;">"${s}"</div>`).join("")}</div></div>` : ""}
+        <div style="margin-top: 8px; font-size: 10px; color: var(--text-faint); font-style: italic;">After 3+ cards, every AI generation reads this profile and writes in your voice.</div>
+      </div>
+    </details>` : `
+    <div style="margin-top: 10px; padding: 10px 12px; background: rgba(255,255,255,0.03); border-radius: 8px; font-size: 11px; color: var(--text-faint);">
+      <b style="color: var(--gold);">🎙 Your voice:</b> author 3+ cards by hand and the Coach will learn your tone, common openers, and closers — then every AI generation writes in your voice.
+    </div>
+  `;
   summary.innerHTML = `
     <div style="display: flex; flex-wrap: wrap; gap: 14px; align-items: baseline;">
       <div><b style="color: var(--text-primary);">Deck so far:</b>
@@ -12361,6 +12383,7 @@ function showCoachReport() {
     ${newUnlocks.length ? `<div style="margin-top: 8px; padding: 8px 10px; background: rgba(212,168,80,0.15); border-radius: 6px; color: var(--gold);">
       🎉 New: ${newUnlocks.map(u => u.label).join(" · ")}
     </div>` : ""}
+    ${styleHTML}
     <div style="margin-top: 6px; color: var(--text-faint); font-size: 11px;">
       Ranked critical → low. Click an action to open the right tool prefilled.
     </div>
