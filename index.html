@@ -2508,7 +2508,15 @@
 <div id="github-backdrop" class="modal-backdrop-v2" style="display:none;">
   <div class="modal-card" style="max-width: 540px;">
     <h2>Sync to GitHub</h2>
-    <div class="modal-sub">Commit your deck to a separate GitHub repo so the cards live in two places (browser + git). Token + repo settings are stored in localStorage. Use a fine-grained personal access token with <code>contents: write</code> on the target repo only.</div>
+    <div class="modal-sub">Commit your deck to a separate GitHub repo so the cards live in two places (browser + git). Token + repo settings are stored in localStorage.</div>
+    <div style="background: rgba(106, 169, 224, 0.10); border-left: 3px solid var(--chain3); padding: 10px 12px; border-radius: 8px; margin-bottom: 14px; font-size: 12px; line-height: 1.5;">
+      <b style="color: var(--chain3); letter-spacing: 0.08em;">📡 Share with a friend</b><br>
+      This authoring tool is live at:<br>
+      <a href="https://gokfur.github.io/Presidenter-app/" target="_blank" style="color: var(--gold); font-family: SF Mono, monospace; font-size: 11px;">https://gokfur.github.io/Presidenter-app/</a><br>
+      <span style="color: var(--text-muted); font-size: 11px;">Send that URL to your collaborator. Once you've added them at
+      <a href="https://github.com/gokfur/Presidenter-deck/settings/access" target="_blank" style="color: var(--gold);">repo settings → access</a>,
+      they generate their own PAT (see below) and commit/pull just like you.</span>
+    </div>
     <div class="row">
       <div>
         <label>Personal access token</label>
