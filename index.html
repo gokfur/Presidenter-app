@@ -9204,6 +9204,10 @@ let didDrag = false;
 function applyTransform() {
   world.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
   document.getElementById("zoom-readout").textContent = Math.round(zoom * 100) + "%";
+  // Step 9 — pan/zoom triggers viewport re-virtualization. Throttled
+  // to rAF so dragging doesn't run computeVirtualCards 60× per
+  // second wastefully.
+  if (typeof scheduleVirtualUpdate === "function") scheduleVirtualUpdate();
 }
 
 canvas.addEventListener("mousedown", (e) => {
@@ -9863,14 +9867,105 @@ function deleteCard(cardId) {
   showCopyToast(toDelete.size === 1 ? "Card deleted" : `Deleted ${toDelete.size} cards (parent + ${toDelete.size - 1} children)`);
 }
 
+// Step 9 — viewport-virtualized rendering. Player ask 2026-05-12:
+// 'virtualize the canvas. Only render cards in viewport + 1 screen
+// margin. Otherwise 5k+ cards crawl. Remember we have rooms as well.'
+//
+// Two-stage approach:
+//   rerenderAll() always renders the chain HEADERS for every room-
+//     active chain (cheap — one DOM node per chain) so the room
+//     filter and chain titles stay snappy.
+//   For card BODIES, computeVirtualCards() walks the in-room cards,
+//     computes each card's world-coordinate position, and only
+//     renders cards whose position falls inside the viewport
+//     rectangle + a 1-screen margin on every side. Outside that
+//     zone, the card's DOM node is removed.
+//   applyTransform() (pan/zoom) calls scheduleVirtualUpdate() so as
+//     the user pans/zooms, only the now-visible cards re-render.
+//
+// Rooms: chainInActiveRoom() filters out chains in other rooms
+// BEFORE virtualization runs, so switching rooms triggers a full
+// re-virtualization.
+//
+// renderedCardIds tracks which cards are currently DOM-mounted so
+// the next pass can compute add/remove diffs cheaply.
+
+const renderedCardIds = new Set();
+let virtualUpdatePending = false;
+
+function scheduleVirtualUpdate() {
+  if (virtualUpdatePending) return;
+  virtualUpdatePending = true;
+  requestAnimationFrame(() => {
+    virtualUpdatePending = false;
+    computeVirtualCards();
+  });
+}
+
+function computeVirtualCards() {
+  const visibleChains = CHAINS.filter(chainInActiveRoom);
+  // Compute the viewport rectangle in WORLD coordinates. The world is
+  // transformed by `translate(panX, panY) scale(zoom)` so:
+  //   world_x = (screen_x - panX) / zoom
+  const canvasRect = canvas.getBoundingClientRect();
+  const viewW = canvasRect.width / zoom;
+  const viewH = canvasRect.height / zoom;
+  const viewLeft   = -panX / zoom;
+  const viewTop    = -panY / zoom;
+  // 1-screen margin on every side
+  const marginX = viewW;
+  const marginY = viewH;
+  const minX = viewLeft - marginX;
+  const maxX = viewLeft + viewW + marginX;
+  const minY = viewTop - marginY;
+  const maxY = viewTop + viewH + marginY;
+
+  const shouldRender = new Set();
+  for (const chain of visibleChains) {
+    for (const card of (chain.cards || [])) {
+      const pos = cardPosition(chain, card);
+      // Cards are ~320 wide × ~280 tall — anything intersecting the
+      // expanded viewport counts.
+      const cardRight  = pos.x + 320;
+      const cardBottom = pos.y + 280;
+      if (cardRight < minX || pos.x > maxX || cardBottom < minY || pos.y > maxY) continue;
+      shouldRender.add(card.id);
+    }
+  }
+
+  // Remove cards that drifted out of the expanded viewport
+  for (const id of Array.from(renderedCardIds)) {
+    if (!shouldRender.has(id)) {
+      const el = document.getElementById(id);
+      if (el) el.remove();
+      renderedCardIds.delete(id);
+    }
+  }
+  // Add cards that drifted in
+  for (const chain of visibleChains) {
+    for (const card of (chain.cards || [])) {
+      if (!shouldRender.has(card.id)) continue;
+      if (renderedCardIds.has(card.id)) continue;
+      renderCard(chain, card);
+      renderedCardIds.add(card.id);
+    }
+  }
+  // Re-apply focus + filter UI on the newly-mounted nodes
+  if (focusedCardId && renderedCardIds.has(focusedCardId)) applyFocusUI();
+  applyFilterUI();
+}
+
 function rerenderAll() {
   document.querySelectorAll(".chain-header, .card").forEach(el => el.remove());
+  renderedCardIds.clear();
   // Only render chains in the active room. The full CHAINS array still
   // exists in memory + localStorage; the room filter is purely a view
   // concern. activeRoom === "__all__" renders everything.
   const visible = CHAINS.filter(chainInActiveRoom);
   visible.forEach(renderChainHeader);
-  visible.forEach(c => c.cards.forEach(card => renderCard(c, card)));
+  // Card bodies are virtualized — only viewport ± 1 screen get DOM
+  // nodes. Player ask 2026-05-12: virtualize the canvas.
+  computeVirtualCards();
   rebuildArrowsForMode();
   if (focusedCardId) applyFocusUI();
   applyFilterUI();
