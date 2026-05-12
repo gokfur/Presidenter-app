@@ -12041,6 +12041,33 @@ Output ONLY the outcome line. No quotes, no preamble.`;
 // a 6-variant pool keyed off the click count (length of history)
 // so repeated clicks rotate through alternatives. Falls through
 // to the simple template if a situation matches LOCAL_OUTCOME_TEMPLATES.
+// 2026-05-12 — local-only noun extraction (shared with
+// localSituationAwareOutcomes). Pulls the first plausible noun
+// phrase from the situation so generic outcome templates can
+// REFERENCE the player's actual text. Falls back to "the matter"
+// when nothing extractable is found.
+function extractSituationNoun(s) {
+  if (!s) return "the matter";
+  const PATTERNS = [
+    /(?:the|a|an|my|our|this|that)\s+([a-z][a-z\-]+(?:\s+[a-z][a-z\-]+)?)/i,
+    /([a-z][a-z\-]+(?:\s+[a-z][a-z\-]+)?)\s*\?\s*$/i,
+  ];
+  const STOP = /^(sign|do|approve|accept|refuse|grant|take|give|hold|move|leave|act|see|read|tell|let|say|consider|donate|talk|meet|see|hear|wait|come|go|cover|open|close|send|pay|stop|start)$/i;
+  for (const re of PATTERNS) {
+    const m = s.match(re);
+    if (m && m[1]) {
+      let phrase = m[1].trim().toLowerCase();
+      if (!STOP.test(phrase)) {
+        if (/the\s+/i.test(s.slice(Math.max(0, s.toLowerCase().indexOf(phrase) - 4), s.toLowerCase().indexOf(phrase)))) {
+          return "the " + phrase;
+        }
+        return phrase;
+      }
+    }
+  }
+  return "the matter";
+}
+
 function localOutcomeVariant(side, situation, speaker, previousList) {
   const s = speaker || "the minister";
   // Try the specific-match template first — these are tuned per
@@ -12053,31 +12080,41 @@ function localOutcomeVariant(side, situation, speaker, previousList) {
       break; // fall through to variants
     }
   }
-  // 6 variant pools per side. Generic enough to read as on-topic
-  // for any situation; first-person, ≤140 chars, no em-dashes.
+  // 2026-05-12 — variant pools with {N} placeholder for the
+  // extracted noun. Each click rotates through the unused
+  // variants AND substitutes the situation's noun so the outcome
+  // ALWAYS reads as relevant ("I sign the auction" not "I do it").
+  const noun = extractSituationNoun(situation);
   const ACCEPT_VARIANTS = [
-    `I agree. The room takes the win; the cost lands by Friday.`,
-    `I sign. We move on the matter today; the side effects arrive next week.`,
-    `I do it. The cabinet exhales; the follow-up is already being drafted.`,
-    `I grant it. The bench thanks me on the record; it costs me off it.`,
-    `I move on it. The credit travels fast; the bill follows slower.`,
-    `I take the offer. We close it before the press files; the receipt has my name on it.`,
+    `I agree. The room takes the win on {N}; the cost lands by Friday.`,
+    `I sign. We move on {N} today; the side effects arrive next week.`,
+    `I do it. {N} is in motion; the follow-up is already being drafted.`,
+    `I grant it. {N} ships with my name attached; the credit goes elsewhere.`,
+    `I move on {N}. The credit travels fast; the bill follows slower.`,
+    `I take the offer. {N} closes before the press files; the receipt has my name.`,
+    `I commit. {N} carries forward today; the audit will note the speed.`,
+    `I authorise it. {N} is in the system before lunch; the consequences are not.`,
   ];
   const DECLINE_VARIANTS = [
-    `I refuse. The room reads the silence; the file does not stay closed for long.`,
-    `I decline. The matter is held; the press fills the hour we just lost.`,
-    `I don't. The desk clears by lunch; the absence travels louder than the page would have.`,
-    `I withhold it. The ask travels elsewhere; the answer comes back doubled.`,
-    `I say no. The bench files it under "signal"; the next ask comes louder.`,
-    `I leave it. The room closes politely; the ground shifts under our feet by morning.`,
+    `I refuse. The press notes the silence on {N}; the file doesn't stay closed.`,
+    `I decline. {N} is held; the press fills the hour we just lost.`,
+    `I don't. {N} stays open; rumour fills in louder than the page would have.`,
+    `I withhold {N}. The ask travels elsewhere; the answer comes back doubled.`,
+    `I say no. The bench files {N} under "signal"; the next ask comes louder.`,
+    `I leave {N} alone. The room closes politely; the ground shifts under our feet by morning.`,
+    `I block it. {N} dies politely; the next ask wears a different hat.`,
+    `I balk. {N} drifts to the next desk; the cabinet reads the hesitation.`,
   ];
   const pool = side === "accept" ? ACCEPT_VARIANTS : DECLINE_VARIANTS;
-  // Find the first variant not already in the history.
-  for (const candidate of pool) {
+  // Find the first variant not already in the history. Substitute
+  // the noun into each line before comparing so the same template
+  // with a different noun isn't considered "already used."
+  for (const template of pool) {
+    const candidate = template.replace(/\{N\}/g, noun);
     if (!previousList.includes(candidate)) return candidate;
   }
   // All variants used — cycle back to the first.
-  return pool[(previousList.length) % pool.length];
+  return pool[(previousList.length) % pool.length].replace(/\{N\}/g, noun);
 }
 
 async function aiWriteVariantOfSituation() {
