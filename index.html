@@ -3891,8 +3891,25 @@
     <div class="row full">
       <div>
         <label>Situation (the question on the card)</label>
+        <!-- 2026-05-12 — Nation tokens. The engine substitutes these 5
+             placeholders at render-time using the player's chosen
+             NationProfile (country, leader name, ceremonial honorific
+             etc.). Clicking a chip inserts the token at the cursor in
+             whichever editable text field had focus last (situation,
+             outcomes, trickyClue). Validator below flags any {...}
+             pattern outside this set so authors don't ship a card with
+             {monarch} when only {leader} exists. -->
+        <div class="nation-token-row" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; font-size:12px;">
+          <span style="color:var(--text-faint); align-self:center;">Tokens:</span>
+          <button type="button" class="nation-token-chip" data-token="{leader}" title="The player's leader name (e.g. Mira Halen)">{leader}</button>
+          <button type="button" class="nation-token-chip" data-token="{country}" title="The player's country name (e.g. Karelya)">{country}</button>
+          <button type="button" class="nation-token-chip" data-token="{honorific}" title="Honorific from leader title (e.g. President, Queen, Chancellor)">{honorific}</button>
+          <button type="button" class="nation-token-chip" data-token="{nation}" title="Composed: 'the Republic of Karelya' / 'the Kingdom of Karelya' etc.">{nation}</button>
+          <button type="button" class="nation-token-chip" data-token="{president}" title="Legacy alias for the leader's first name (kept for back-compat)">{president}</button>
+        </div>
         <textarea id="f-situation" maxlength="220" placeholder="Two sentences of setup, one yes/no question. Speaker = the one presenting the choice."></textarea>
         <div class="counter" id="f-situation-counter">0 / 140 chars · 0 sentences</div>
+        <div class="nation-token-warning" id="f-situation-token-warning" style="display:none; margin-top:4px; padding:4px 8px; background:rgba(255,170,40,0.12); border-left:3px solid #fa3; font-size:12px; color:#fc6;"></div>
         <!-- Slim validation status — collapses 8 pills into one line.
              Click to expand the full breakdown. Player ask 2026-05:
              "add a card UI is still too much. Simplify." -->
@@ -11655,6 +11672,86 @@ document.getElementById("f-decline-outcome").addEventListener("blur", autoSugges
   const el = document.getElementById("f-styleguide-exception");
   if (!el) return;
   el.addEventListener("change", runValidation);
+})();
+
+// 2026-05-12 — Nation token chips. The 5 placeholders below are
+// substituted by GameState.interpolate(...) at render-time using the
+// player's NationProfile. The chips give authors a visual reference
+// + click-to-insert-at-cursor; the validator flags any {...} pattern
+// the engine doesn't know about (typos like {monarch} or {pres}).
+//
+// Tracking the last-focused input lets a chip click land the token
+// in whichever editable text the author touched most recently
+// (situation, accept outcome, decline outcome, tricky clue), not just
+// the situation field.
+const NATION_TOKEN_SET = new Set([
+  "{leader}", "{country}", "{honorific}", "{nation}", "{president}"
+]);
+const NATION_TOKEN_TARGET_IDS = ["f-situation", "f-accept-outcome",
+                                  "f-decline-outcome", "f-trickyclue"];
+(function wireNationTokens(){
+  let lastFocusedId = "f-situation";
+  for (const id of NATION_TOKEN_TARGET_IDS) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    el.addEventListener("focus", () => { lastFocusedId = id; });
+  }
+  for (const chip of document.querySelectorAll(".nation-token-chip")) {
+    chip.addEventListener("click", () => {
+      const token = chip.getAttribute("data-token") || "";
+      if (!token) return;
+      const target = document.getElementById(lastFocusedId);
+      if (!target) return;
+      const start = target.selectionStart ?? target.value.length;
+      const end = target.selectionEnd ?? target.value.length;
+      target.value = target.value.slice(0, start) + token + target.value.slice(end);
+      const caret = start + token.length;
+      target.setSelectionRange(caret, caret);
+      target.focus();
+      target.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  }
+  // Validator: scan situation for {...} sequences and flag any that
+  // aren't in the supported set. Runs on every input event via the
+  // existing runValidation chain (situation's input listener already
+  // fires; we hook the warning rerender here).
+  function refreshTokenWarning() {
+    const sit = document.getElementById("f-situation")?.value || "";
+    const warn = document.getElementById("f-situation-token-warning");
+    if (!warn) return;
+    const found = sit.match(/\{[a-zA-Z_]+\}/g) || [];
+    const unknown = [...new Set(found)].filter(t => !NATION_TOKEN_SET.has(t));
+    if (unknown.length === 0) {
+      warn.style.display = "none";
+      warn.textContent = "";
+    } else {
+      warn.style.display = "block";
+      warn.textContent = "⚠ Unknown token" + (unknown.length > 1 ? "s" : "")
+        + ": " + unknown.join(", ")
+        + " — engine only substitutes {leader} {country} {honorific} {nation} {president}.";
+    }
+  }
+  document.getElementById("f-situation")?.addEventListener("input", refreshTokenWarning);
+  // Chip styling (inline since the rest of the modal uses inline CSS
+  // for one-offs like the topic chips).
+  const style = document.createElement("style");
+  style.textContent = `
+    .nation-token-chip {
+      background: rgba(255, 200, 80, 0.10);
+      border: 1px solid rgba(255, 200, 80, 0.40);
+      color: var(--gold);
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 11px;
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+    .nation-token-chip:hover {
+      background: rgba(255, 200, 80, 0.22);
+    }
+  `;
+  document.head.appendChild(style);
 })();
 
 // Show/hide the flag-name fallback when the meter dropdown toggles
