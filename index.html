@@ -674,6 +674,111 @@
     border: 2px solid var(--decline) !important;
     box-shadow: 0 0 24px rgba(215, 118, 118, 0.3), 0 8px 26px rgba(0,0,0,0.55);
   }
+  /* Step badge — "1/3 · the warning" etc. so the player feels the
+     coup approaching. Player ask 2026-05: "user should feel that
+     the coup was coming." Step 1 is yellow-ish (caution), 2 is
+     amber (heat rising), 3 is red (guillotine). */
+  .card .doom-step {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 8px 0;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 800;
+    border-left: 3px solid var(--decline);
+  }
+  .card .doom-step-1 {
+    background: rgba(212, 168, 80, 0.10);
+    border-left-color: var(--gold);
+    color: var(--gold);
+  }
+  .card .doom-step-2 {
+    background: rgba(229, 138, 73, 0.12);
+    border-left-color: #e58a49;
+    color: #f0a065;
+  }
+  .card .doom-step-3 {
+    background: rgba(229, 90, 90, 0.16);
+    border-left-color: var(--decline);
+    color: var(--decline);
+  }
+  .card .doom-step .doom-step-num {
+    background: currentColor;
+    color: var(--bg-deep);
+    padding: 2px 6px;
+    border-radius: 3px;
+    letter-spacing: 0;
+  }
+  .card .doom-step .doom-step-label {
+    color: var(--text-primary);
+    font-weight: 700;
+  }
+  .card .doom-step .doom-step-end {
+    margin-left: auto;
+    color: var(--text-muted);
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0.04em;
+    font-size: 10px;
+  }
+
+  /* Meter foreshadow line — names the meter draining toward 0 and
+     shows how much the worst swipe takes. Lets the player see the
+     floor coming, beat by beat. */
+  .card .doom-meter {
+    margin: 4px 0 8px;
+    padding: 6px 10px;
+    background: var(--bg-deep);
+    border-left: 2px solid var(--decline);
+    border-radius: 4px;
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.4;
+  }
+  .card .doom-meter b { color: var(--decline); font-weight: 700; }
+
+  /* Trigger banner — the loud "▶ ACCEPT WILL END YOUR REIGN" pill on
+     the specific c4 swipe that fires forcesEnding. Player ask
+     2026-05: "add a pill which says which option causes a coup
+     show that." */
+  .card .doom-trigger {
+    margin: 10px 0;
+    padding: 12px 14px;
+    border-radius: 8px;
+    border: 2px solid var(--decline);
+    background: linear-gradient(180deg, rgba(229, 90, 90, 0.18), rgba(229, 90, 90, 0.06));
+    text-align: center;
+    box-shadow: 0 0 12px rgba(229, 90, 90, 0.20);
+  }
+  .card .doom-trigger.decline {
+    border-color: var(--decline);
+  }
+  .card .doom-trigger .doom-trigger-label {
+    color: var(--decline);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-weight: 800;
+    margin-bottom: 4px;
+  }
+  .card .doom-trigger .doom-trigger-name {
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    margin-bottom: 2px;
+  }
+  .card .doom-trigger .doom-trigger-cause {
+    color: var(--text-faint);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
 
   /* Fate lines — what happens on Accept / Decline. Always visible
      so the player doesn't have to expand the card to see the
@@ -7764,12 +7869,12 @@ function renderCard(chain, card) {
   const audit = auditCard(card);
   const el = document.createElement("div");
   // Doom-path detection: cards on c1→c2→c4 of an ending chain.
-  // The big DOOM pills are gone (per player ask) — the fate-lines
-  // at the bottom of the card now spell out the consequence.
   let doom = false;
+  let doomStep = 0;
   if (chain.forcesEnding) {
     const suffix = card.id.replace(chain.id + "-", "");
-    if (["c1", "c2", "c4"].includes(suffix)) doom = true;
+    const stepMap = { c1: 1, c2: 2, c4: 3 };
+    if (stepMap[suffix]) { doom = true; doomStep = stepMap[suffix]; }
   }
   el.className = "card" + (card.pool ? " pool" : "") + (doom ? " doom-path" : "");
   el.id = card.id;
@@ -7781,8 +7886,71 @@ function renderCard(chain, card) {
   if (!card.accept?.forcesEnding && chain.forcesEnding && card.id.endsWith("-c4")) {
     if (card.accept) card.accept.forcesEnding = chain.forcesEnding;
   }
-  const doomBadgeHTML = ""; // doom pills removed — fate-lines replace them
-  const gameOverBadge = ""; // moved into the per-swipe fate line
+
+  // Doom-path step badge + meter foreshadowing + trigger banner.
+  // Player ask 2026-05: "add a pill which says which option causes a
+  // coup show that. and remember user should feel that the coup was
+  // coming." Three new chips per doom card:
+  //   1. Step badge — "1/3 · the warning" / "2/3 · the pressure" /
+  //      "3/3 · the guillotine" so the player feels the buildup.
+  //   2. Meter foreshadow — names the meter the ending tracks and
+  //      shows how much THIS swipe drains it (toward 0).
+  //   3. Trigger banner — on the c4 card whose swipe actually fires
+  //      forcesEnding, a loud "▶ ACCEPT WILL END YOUR REIGN" line.
+  let doomBadgeHTML = "";
+  let doomTriggerHTML = "";
+  if (doom) {
+    const ending = ENDING_SCENARIOS.find(e => e.id === chain.forcesEnding) || {};
+    const endingName = ending.name || chain.forcesEnding || "Game Over";
+    const cause = ending.forces || "";
+    const stepLabel = { 1: "the warning", 2: "the pressure", 3: "the guillotine" }[doomStep] || "";
+    // Which meter is this ending tracking? Look at pushes (the meter
+    // shifts the ending applies if hit) — pick the most-negative key.
+    const pushes = ending.pushes || {};
+    let trackedMeter = null;
+    let mostNeg = 0;
+    for (const k of ["env","mil","wel","eco"]) {
+      const v = pushes[k] || 0;
+      if (v < mostNeg) { mostNeg = v; trackedMeter = k; }
+    }
+    // How much THIS card's worst swipe drains the tracked meter
+    const meterLabels = { env: "Environment", mil: "Military", wel: "Wellness", eco: "Economy" };
+    let meterPressureLine = "";
+    if (trackedMeter && (card.accept || card.decline)) {
+      const a = (card.accept || {})[trackedMeter] || 0;
+      const d = (card.decline || {})[trackedMeter] || 0;
+      const worst = Math.min(a, d);
+      if (worst < 0) {
+        const swipeWord = a < d ? "Accept" : "Decline";
+        meterPressureLine = `<div class="doom-meter">⬇ ${meterLabels[trackedMeter]} drains <b>${worst}</b> on ${swipeWord} · the coup hits when this meter reaches 0</div>`;
+      }
+    }
+    doomBadgeHTML = `
+      <div class="doom-step doom-step-${doomStep}" title="${endingName} · ${cause}">
+        <span class="doom-step-num">${doomStep}/3</span>
+        <span class="doom-step-label">${stepLabel}</span>
+        <span class="doom-step-end">→ ${endingName}</span>
+      </div>
+      ${meterPressureLine}
+    `;
+    // Trigger banner — explicit "this swipe causes the coup" pill
+    // on whichever side has forcesEnding (usually c4 Accept).
+    for (const side of ["accept", "decline"]) {
+      const b = card[side];
+      if (b && b.forcesEnding) {
+        const sideName = side === "accept" ? "ACCEPT" : "DECLINE";
+        const sideClass = side;
+        doomTriggerHTML += `
+          <div class="doom-trigger ${sideClass}">
+            <div class="doom-trigger-label">▶ ${sideName} WILL END YOUR REIGN</div>
+            <div class="doom-trigger-name">${endingName}</div>
+            ${cause ? `<div class="doom-trigger-cause">${cause}</div>` : ""}
+          </div>
+        `;
+      }
+    }
+  }
+  const gameOverBadge = ""; // legacy slot — replaced by doom-trigger above
 
   const flagBlock = card.requires
     ? `<div class="reqflag">Requires <b>${card.requires}</b></div>` : "";
@@ -7837,7 +8005,9 @@ function renderCard(chain, card) {
       <span class="topic-chip">.${card.topic}</span>
       ${card.cardType && card.cardType !== "swipe" ? `<span class="cardtype-chip ${card.cardType}">${card.cardType === "recurring" && card.cadenceDays ? `every ${card.cadenceDays}d` : card.cardType}</span>` : ""}
     </div>
+    ${doomBadgeHTML}
     <div class="situation">${card.situation}</div>
+    ${doomTriggerHTML}
     ${gameOverBadge}
     ${card.trickyClue ? `<div class="tricky-clue-chip"><b>Clue</b> ${card.trickyClue}</div>` : ""}
     ${flagBlock}
