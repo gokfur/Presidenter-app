@@ -5466,7 +5466,17 @@ function exportJSONFile() {
     const choice = confirm(`Export options:\n\nOK = Export just "${activeRoom}" (${roomChains.length} chains)\nCancel = Export the entire deck (${CHAINS.length} chains)`);
     if (choice) { chainsToExport = roomChains; suffix = "_" + activeRoom.replace(/[^a-z0-9]/gi, "_"); }
   }
-  const payload = { schemaVersion: DECK_SCHEMA_VERSION, CHAINS: chainsToExport, ROOMS, activeRoom, exportedAt: new Date().toISOString(), partial: activeRoom !== "__all__" && chainsToExport.length < CHAINS.length };
+  const payload = {
+    schemaVersion: DECK_SCHEMA_VERSION,
+    CHAINS: chainsToExport,
+    ROOMS,
+    activeRoom,
+    // 2026-05-12 — include playingSettings in every export so a deck
+    // file is fully self-describing (knobs + cards together).
+    playingSettings: loadPlayingSettings(),
+    exportedAt: new Date().toISOString(),
+    partial: activeRoom !== "__all__" && chainsToExport.length < CHAINS.length,
+  };
   const data = JSON.stringify(payload, null, 2);
   const blob = new Blob([data], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -14493,7 +14503,17 @@ async function githubCommit() {
     ghSetStatus("Network error: " + e.message, true); return;
   }
   ghSetStatus(sha ? `Found existing file. Committing update…` : "No file yet. Creating new file…");
-  const payload = { CHAINS, ROOMS, activeRoom, exportedAt: new Date().toISOString() };
+  // 2026-05-12 — include playingSettings + schemaVersion in the GitHub
+  // push payload so bake-swift can extract the 18 knobs and ship them
+  // as a bundled `playing-settings.json` resource alongside the baked
+  // Chain*.swift files. Falls back to defaults if the user never
+  // opened the 🎮 Playing Settings modal.
+  const payload = {
+    schemaVersion: DECK_SCHEMA_VERSION,
+    CHAINS, ROOMS, activeRoom,
+    playingSettings: loadPlayingSettings(),
+    exportedAt: new Date().toISOString(),
+  };
   const content = btoa(unescape(encodeURIComponent(JSON.stringify(payload, null, 2))));
   const body = { message: s.message, content, branch: s.branch };
   if (sha) body.sha = sha;
