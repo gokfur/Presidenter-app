@@ -4319,6 +4319,12 @@ function loadPersisted() {
     // gave me these chains. this is not wiping."
     CHAINS.length = 0;
     parsed.forEach(c => CHAINS.push(c));
+    // One-time scrub — strip auto-attached "Parallel · Funny break"
+    // pool members from any chain the user already has in
+    // localStorage. The auto-attach feature was retired in
+    // 2026-05 (player ask: the funny card had no relation to the
+    // chain context). Existing decks need cleanup once.
+    scrubAutoFunnyBreaks();
     return true;
   } catch (e) {
     console.warn("loadPersisted failed", e);
@@ -4330,6 +4336,42 @@ function resetToSource() {
   if (!confirm("Reset everything to the original 25 cards?\nAll edits, additions, and deletions will be lost.")) return;
   localStorage.removeItem(STORAGE_KEY);
   location.reload();
+}
+
+// One-time cleanup — strip the auto-attached funny-break parallels
+// from every chain. Walks pool members + the cards array; if a card
+// has role === "Parallel · Funny break" OR id ends in "-funny", it
+// gets removed and its id is pulled out of any parent poolTargets.
+function scrubAutoFunnyBreaks() {
+  let removed = 0;
+  for (const chain of CHAINS) {
+    if (!chain.cards) continue;
+    const toRemove = new Set();
+    for (const c of chain.cards) {
+      const isAutoFunny = c.role === "Parallel · Funny break" || (c.id && c.id.endsWith("-funny"));
+      if (isAutoFunny) toRemove.add(c.id);
+    }
+    if (!toRemove.size) continue;
+    // Pull from cards array
+    chain.cards = chain.cards.filter(c => !toRemove.has(c.id));
+    // Pull from any parent poolTargets / target
+    for (const c of chain.cards) {
+      for (const side of ["accept", "decline"]) {
+        const b = c[side];
+        if (!b) continue;
+        if (b.target && toRemove.has(b.target)) b.target = null;
+        if (b.poolTargets) {
+          b.poolTargets = b.poolTargets.filter(t => !toRemove.has(t));
+          if (b.poolTargets.length === 0) delete b.poolTargets;
+        }
+      }
+    }
+    removed += toRemove.size;
+  }
+  if (removed > 0) {
+    console.info(`[scrub] removed ${removed} auto-funny-break pool cards from existing chains`);
+    persist();
+  }
 }
 
 // ===================================================================
@@ -5096,52 +5138,18 @@ function addChain(name, subtitle, length) {
         added++;
       }
     }
-    // Add at least one funny card to every 20-card chain so the
-    // pacing isn't unrelenting drama. 10-card chains get one ~50%
-    // of the time. Player ask 2026-05: "add at least 1 funny card
-    // to a chain of 20."
-    if (length >= 20 || (length >= 10 && Math.random() < 0.5)) {
-      const alreadyFunny = chain.cards.some(c => c.topic === "funnyFlavor" || c.topic === "funnyAccident");
-      if (!alreadyFunny) {
-        const funnyPool = STANDALONE_CARDS.filter(c => c.category === "Funny");
-        const funny = pickRandom(funnyPool);
-        if (funny) {
-          // Attach the funny card as a parallel option on c1's
-          // ACCEPT side so it sits in the same tree zone as the
-          // other parallels and the player can hit it on a re-run.
-          const parentCard = chain.cards[0];
-          const branch = parentCard.accept;
-          if (branch.target && !branch.poolTargets) {
-            branch.poolTargets = [branch.target];
-            branch.target = null;
-          }
-          if (!branch.poolTargets) branch.poolTargets = [];
-          if (!branch.setFlag) branch.setFlag = parentCard.id + "_accept";
-          const newId = parentCard.id + "-funny";
-          const funnyCard = {
-            id: newId,
-            role: "Parallel · Funny break",
-            level: 1, col: "parallel", pool: true,
-            speaker: funny.speaker,
-            ministry: funny.ministry,
-            topic: funny.topic,
-            situation: funny.situation,
-            requires: branch.setFlag,
-            memoryFragment: MEMORY_FRAGMENTS[funny.speaker] || undefined,
-            accept: { setFlag: null, target: null,
-                      outcome: funny.accept.outcome,
-                      env: funny.accept.env, mil: funny.accept.mil,
-                      wel: funny.accept.wel, eco: funny.accept.eco },
-            decline: { setFlag: null, target: null,
-                       outcome: funny.decline.outcome,
-                       env: funny.decline.env, mil: funny.decline.mil,
-                       wel: funny.decline.wel, eco: funny.decline.eco },
-          };
-          chain.cards.push(funnyCard);
-          branch.poolTargets.push(newId);
-        }
-      }
-    }
+    // 2026-05 retired — used to auto-attach a "Funny break" standalone
+    // (cat / pigeon / wrong-anthem) as a pool option on c1's Accept
+    // side for chains ≥10. Intent was pacing relief, but pool
+    // members are supposed to be PARALLEL PATHS from the same
+    // decision — stuffing a non-sequitur in there meant a player
+    // who Accepted "Sign the cheap bid?" might land on "Apologise
+    // for the anthem mix-up?" Player ask 2026-05: "the band played
+    // one has no relation with the context. why so?" Funny cards
+    // belong in the standalone deck, where the engine surfaces
+    // them BETWEEN chains as palette cleansers — not glued into a
+    // chain's pool. Use the ⭐ Standalone button to drop one if a
+    // specific chain genuinely needs a tonal break.
     chain.room = (activeRoom === "__all__") ? "Main" : activeRoom;
     CHAINS.push(chain);
     const needed = rightmostX + 900;
