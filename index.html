@@ -10839,6 +10839,8 @@ function learnFromCard(card) {
   p.recent.unshift(sit);
   if (p.recent.length > 8) p.recent.length = 8;
   saveStyleProfile(p);
+  // Step 4 — update author lifetime + daily stats.
+  bumpAuthorStats();
 }
 
 function styleProfileSummary(maxRecent = 5) {
@@ -12204,6 +12206,121 @@ document.getElementById("act-analyze").addEventListener("click", showAnalysisRep
 // Ranked critical → low and de-duplicated. Re-evaluated every time
 // the modal opens, so as the deck grows the list naturally evolves.
 // ====================================================================
+// ====================================================================
+// Coach prefilled CTAs (Step 4) — instead of opening a blank Add Card
+// modal, the suggestion's CTA opens it with the suggested ministry +
+// topic + speaker pre-selected so the author lands ready to type the
+// situation. Player ask 2026-05-12: 'Coach act on it buttons should
+// preview the outcome. Add a card CTA → opens Add Card modal pre-
+// filled with the suggested ministry + topic, not a blank modal.'
+// ====================================================================
+function openAddCardWith(prefill) {
+  // Closes the choice modal first if it's open (the Coach CTA may
+  // route through it), then opens the Add Card modal and applies
+  // the prefill after the DOM updates.
+  document.getElementById("addchoice-backdrop")?.classList.remove("open");
+  openModal();
+  setTimeout(() => {
+    if (prefill?.speaker) {
+      const sp = document.getElementById("f-speaker");
+      if (sp) {
+        sp.value = prefill.speaker;
+        sp.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    }
+    if (prefill?.ministry) {
+      const m = document.getElementById("f-ministry");
+      if (m && m.value !== prefill.ministry) {
+        m.value = prefill.ministry;
+        m.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    }
+    if (prefill?.topic) {
+      const t = document.getElementById("f-topic");
+      if (t) {
+        t.value = prefill.topic;
+        t.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    }
+    // Move keyboard focus to the situation textarea — speaker and
+    // topic are pre-selected, the next thing the author writes is
+    // the situation.
+    document.getElementById("f-situation")?.focus();
+  }, 100);
+}
+
+// ====================================================================
+// AUTHOR MILESTONES + DAILY CHECK-IN (Step 4) — player ask: 'per-day
+// check-ins (you authored 8 cards today, here's what's still
+// missing), achievement-style milestones for the AUTHOR (first 50
+// cards, first balanced deck, first ending chain).'
+//
+// State lives in localStorage under presidenter:author-stats:v1.
+// Recomputed on every Coach open; new milestones get a one-time
+// celebratory toast.
+// ====================================================================
+const AUTHOR_STATS_KEY = "presidenter:author-stats:v1";
+
+function loadAuthorStats() {
+  try {
+    const raw = localStorage.getItem(AUTHOR_STATS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return {
+    todayKey: "",          // YYYY-MM-DD of the active session day
+    todayCount: 0,         // cards saved today
+    totalCards: 0,         // lifetime cards saved
+    milestones: {},        // { "first-card": "2026-05-12", ... }
+  };
+}
+
+function saveAuthorStats(s) {
+  try { localStorage.setItem(AUTHOR_STATS_KEY, JSON.stringify(s)); } catch (e) {}
+}
+
+function bumpAuthorStats() {
+  // Called from learnFromCard for every user-authored card.
+  const s = loadAuthorStats();
+  const today = new Date().toISOString().slice(0, 10);
+  if (s.todayKey !== today) {
+    s.todayKey = today;
+    s.todayCount = 0;
+  }
+  s.todayCount += 1;
+  s.totalCards += 1;
+  saveAuthorStats(s);
+}
+
+function checkAuthorMilestones(deck) {
+  // Returns newly-unlocked milestones since the last check. Updates
+  // the persisted milestones map.
+  const s = loadAuthorStats();
+  s.milestones = s.milestones || {};
+  const today = new Date().toISOString().slice(0, 10);
+  const unlocks = [];
+  function unlock(key, label) {
+    if (s.milestones[key]) return;
+    s.milestones[key] = today;
+    unlocks.push({ key, label });
+  }
+  if (s.totalCards >= 1)   unlock("first-card",   "🌱 First card authored");
+  if (s.totalCards >= 10)  unlock("ten-cards",    "📝 10 cards in the bank");
+  if (s.totalCards >= 50)  unlock("fifty-cards",  "📚 50 cards — a real deck");
+  if (s.totalCards >= 100) unlock("hundred-cards","💯 100 cards authored");
+  if (s.totalCards >= 500) unlock("five-hundred", "🏆 500 cards · proper author");
+  // First balanced deck — every core topic has ≥1 card
+  const core = ["scandal", "economy", "military", "diplomacy", "health", "tricky", "simple"];
+  const topicSet = new Set((deck || []).map(c => c.topic));
+  if (core.every(t => topicSet.has(t))) unlock("balanced-topics", "⚖ Balanced deck · every core topic covered");
+  // First ending chain
+  const endings = (CHAINS || []).some(c => c.forcesEnding) ||
+    (deck || []).some(c =>
+      (c.accept && c.accept.forcesEnding) || (c.decline && c.decline.forcesEnding));
+  if (endings) unlock("first-ending", "⚑ First ending chain · reigns can fall");
+  saveAuthorStats(s);
+  return unlocks;
+}
+
 function showCoachReport() {
   const suggestions = computeCoachSuggestions();
   const allCards = CHAINS.flatMap(c => c.cards || []);
@@ -12220,15 +12337,33 @@ function showCoachReport() {
     topicCounts[c.topic || "?"] = (topicCounts[c.topic || "?"] || 0) + 1;
     ministryCounts[c.ministry || "?"] = (ministryCounts[c.ministry || "?"] || 0) + 1;
   }
+  // Author stats + daily check-in + newly-unlocked milestones.
+  // Step 4: surface author momentum at the top of the Coach modal.
+  const authorStats = loadAuthorStats();
+  const newUnlocks = checkAuthorMilestones(allCards);
+  const today = new Date().toISOString().slice(0, 10);
+  const todayCount = (authorStats.todayKey === today) ? authorStats.todayCount : 0;
+  const unlockedKeys = Object.keys(authorStats.milestones || {}).length + newUnlocks.length;
+  const dailyLine = todayCount > 0
+    ? `<b>Today:</b> ${todayCount} card${todayCount === 1 ? "" : "s"} authored`
+    : `<b>Today:</b> no cards yet — what's next?`;
+  const milestoneLine = unlockedKeys > 0
+    ? `<b>Author milestones:</b> ${unlockedKeys} unlocked${newUnlocks.length ? ` (${newUnlocks.length} new!)` : ""}`
+    : `<b>Author milestones:</b> 0 / 7 unlocked`;
   summary.innerHTML = `
-    <b style="color: var(--text-primary);">Deck so far:</b>
-    ${allCards.length} cards · ${CHAINS.length} chain${CHAINS.length === 1 ? "" : "s"}
-    ${orphanCount ? ` · ${orphanCount} orphan` : ""}
-    ${ending ? ` · ${ending} ending chain${ending === 1 ? "" : "s"}` : ""}
-    <br>
-    <span style="color: var(--text-faint); font-size: 11px;">
+    <div style="display: flex; flex-wrap: wrap; gap: 14px; align-items: baseline;">
+      <div><b style="color: var(--text-primary);">Deck so far:</b>
+        ${allCards.length} cards · ${CHAINS.length} chain${CHAINS.length === 1 ? "" : "s"}${orphanCount ? ` · ${orphanCount} orphan` : ""}${ending ? ` · ${ending} ending chain${ending === 1 ? "" : "s"}` : ""}
+      </div>
+      <div style="color: var(--accept);">${dailyLine}</div>
+      <div style="color: var(--gold);">${milestoneLine}</div>
+    </div>
+    ${newUnlocks.length ? `<div style="margin-top: 8px; padding: 8px 10px; background: rgba(212,168,80,0.15); border-radius: 6px; color: var(--gold);">
+      🎉 New: ${newUnlocks.map(u => u.label).join(" · ")}
+    </div>` : ""}
+    <div style="margin-top: 6px; color: var(--text-faint); font-size: 11px;">
       Ranked critical → low. Click an action to open the right tool prefilled.
-    </span>
+    </div>
   `;
 
   if (!suggestions.length) {
@@ -12283,13 +12418,14 @@ function computeCoachSuggestions() {
   const wantedTopics = ["scandal", "economy", "military", "diplomacy", "health", "tricky", "simple"];
   const missingTopics = wantedTopics.filter(t => !topicCounts[t]);
   if (missingTopics.length && total >= 5) {
+    const targetTopic = missingTopics[0];
     out.push({
       severity: missingTopics.length >= 4 ? "high" : "medium",
       title: `Missing topics: ${missingTopics.slice(0, 4).join(", ")}${missingTopics.length > 4 ? "…" : ""}`,
       reason: "The engine weights draws by topic. A deck that's all one topic plays one-note. Aim for ≥1 card on each core topic before the player hits day 20.",
       evidence: `Current spread: ${Object.entries(topicCounts).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([k,v])=>`.${k} ×${v}`).join(" · ")}`,
-      cta: "Add a card",
-      onClick: () => document.getElementById("act-add").click(),
+      cta: `Add a .${targetTopic} card`,
+      onClick: () => openAddCardWith({ topic: targetTopic }),
     });
   }
 
@@ -12316,13 +12452,17 @@ function computeCoachSuggestions() {
     const coreMinistries = ["Defense", "Treasury", "Health", "Justice", "Press", "Foreign Affairs", "Education"];
     const missingCore = coreMinistries.filter(m => !seenMinistries.has(m));
     if (missingCore.length >= 3) {
+      const targetMinistry = missingCore[0];
+      // Pick a speaker from that ministry if we have one
+      const speakersInMinistry = SPEAKERS_BY_MINISTRY[targetMinistry] || [];
+      const targetSpeaker = speakersInMinistry[0] || null;
       out.push({
         severity: "high",
         title: `${missingCore.length} core ministries silent`,
         reason: "A good cabinet game needs voices from across the room. Add cards from these ministries so the player isn't always hearing the same desk.",
         evidence: `Silent: ${missingCore.join(" · ")}`,
-        cta: "Add a card",
-        onClick: () => document.getElementById("act-add").click(),
+        cta: `Add ${targetMinistry} card`,
+        onClick: () => openAddCardWith({ ministry: targetMinistry, speaker: targetSpeaker }),
       });
     }
   }
