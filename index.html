@@ -3226,6 +3226,13 @@
             <option value="recurring">Recurring (every N days)</option>
             <option value="anniversary">Anniversary (fires on a day)</option>
             <option value="meter">Meter-triggered (auto-fires)</option>
+            <option value="dailyHeadline">Daily headline (front-page beat)</option>
+            <option value="disaster">Disaster (forced red-rim)</option>
+            <option value="electionPrompt">Election prompt (promise/verdict)</option>
+            <option value="cabinetMeeting">Cabinet meeting (loyalty pulse)</option>
+            <option value="councilWhisper">Council whisper (court overlay)</option>
+            <option value="welcomeBack">Welcome-back (return after gap)</option>
+            <option value="eraPack">Era pack (quarterly bundle)</option>
           </select>
           <!-- cadenceDays shown only when cardType = recurring -->
           <input id="ins-cadence-days" type="number" min="1" max="365" placeholder="cadence days (e.g. 7 for weekly)" style="display:none; margin-top:6px;">
@@ -3483,9 +3490,42 @@
         <div class="ac-title">Chain</div>
         <div class="ac-sub">Connected set with the full options flow — length, theme, speaker, optional game-over ending.</div>
       </button>
+      <button class="ac-tile" data-ac="special">
+        <div class="ac-icon">✨</div>
+        <div class="ac-title">Special card type</div>
+        <div class="ac-sub">Daily headline / disaster / election prompt / cabinet meeting / council whisper / welcome-back / era pack / letter / recurring / anniversary / meter-triggered.</div>
+      </button>
     </div>
 
     <button id="addchoice-close" style="display:none;" aria-hidden="true"></button>
+  </div>
+</div>
+
+<!-- 2026-05-12 — Special card type picker. Sub-modal triggered by the
+     "Special card type" tile in addchoice. Calls createSpecialTypeCard
+     with the picked cardType. Each entry maps to the per-type bucket
+     chain on the canvas. -->
+<div id="specialtype-backdrop" class="modal-backdrop-v2" style="display:none;">
+  <div class="modal-card" style="max-width: 580px;">
+    <div class="modal-header">
+      <h2>Pick a special card type</h2>
+      <button class="modal-close-x" data-fires="specialtype-close" aria-label="Close">×</button>
+    </div>
+    <div class="modal-sub">Each type spawns a placeholder card into a per-type bucket on the canvas. Open the inspector to fill in content.</div>
+    <div class="addchoice-tiles" style="grid-template-columns: repeat(2, 1fr);">
+      <button class="ac-tile" data-st="letter"><div class="ac-icon">✉️</div><div class="ac-title">Letter</div><div class="ac-sub">Info beat · no swipe</div></button>
+      <button class="ac-tile" data-st="recurring"><div class="ac-icon">🔁</div><div class="ac-title">Recurring</div><div class="ac-sub">Fires every N days</div></button>
+      <button class="ac-tile" data-st="anniversary"><div class="ac-icon">🎂</div><div class="ac-title">Anniversary</div><div class="ac-sub">Fires on a specific day</div></button>
+      <button class="ac-tile" data-st="meter"><div class="ac-icon">📊</div><div class="ac-title">Meter-triggered</div><div class="ac-sub">Auto-fires on threshold</div></button>
+      <button class="ac-tile" data-st="dailyHeadline"><div class="ac-icon">📰</div><div class="ac-title">Daily headline</div><div class="ac-sub">Newspaper front-page beat</div></button>
+      <button class="ac-tile" data-st="disaster"><div class="ac-icon">🚨</div><div class="ac-title">Disaster</div><div class="ac-sub">Forced card · red rim</div></button>
+      <button class="ac-tile" data-st="electionPrompt"><div class="ac-icon">🗳</div><div class="ac-title">Election prompt</div><div class="ac-sub">Day 15 promise / Day 50 verdict</div></button>
+      <button class="ac-tile" data-st="cabinetMeeting"><div class="ac-icon">👥</div><div class="ac-title">Cabinet meeting</div><div class="ac-sub">Minister loyalty pulse</div></button>
+      <button class="ac-tile" data-st="councilWhisper"><div class="ac-icon">🤫</div><div class="ac-title">Council whisper</div><div class="ac-sub">Court chatter overlay</div></button>
+      <button class="ac-tile" data-st="welcomeBack"><div class="ac-icon">👋</div><div class="ac-title">Welcome-back</div><div class="ac-sub">Fires on re-open after gap</div></button>
+      <button class="ac-tile" data-st="eraPack"><div class="ac-icon">🏛</div><div class="ac-title">Era pack</div><div class="ac-sub">Quarterly themed bundle</div></button>
+    </div>
+    <button id="specialtype-close" style="display:none;" aria-hidden="true"></button>
   </div>
 </div>
 
@@ -12082,8 +12122,34 @@ document.querySelectorAll("#addchoice-backdrop .ac-tile").forEach(t => {
     setTimeout(() => {
       if (kind === "single") openModal(focusedCardId);
       else if (kind === "chain") showChainOptionsModal();
+      else if (kind === "special") {
+        // 2026-05-12 — open the special-type picker sub-modal.
+        document.getElementById("specialtype-backdrop").classList.add("open");
+        document.getElementById("specialtype-backdrop").style.display = "flex";
+      }
     }, 60);
   });
+});
+// 2026-05-12 — special-type picker tile click handlers.
+document.querySelectorAll("#specialtype-backdrop .ac-tile").forEach(t => {
+  t.addEventListener("click", () => {
+    const st = t.getAttribute("data-st");
+    if (!st) return;
+    document.getElementById("specialtype-backdrop").classList.remove("open");
+    document.getElementById("specialtype-backdrop").style.display = "none";
+    setTimeout(() => createSpecialTypeCard(st), 60);
+  });
+});
+document.getElementById("specialtype-backdrop").addEventListener("click", (e) => {
+  if (e.target.id === "specialtype-backdrop") {
+    e.target.classList.remove("open");
+    e.target.style.display = "none";
+  }
+});
+document.querySelector("#specialtype-backdrop .modal-close-x")?.addEventListener("click", () => {
+  const bd = document.getElementById("specialtype-backdrop");
+  bd.classList.remove("open");
+  bd.style.display = "none";
 });
 document.getElementById("addchoice-backdrop").addEventListener("click", (e) => {
   if (e.target.id === "addchoice-backdrop") e.target.classList.remove("open");
@@ -12100,23 +12166,52 @@ document.getElementById("addchoice-close").addEventListener("click", () =>
 // ===================================================================
 function createSpecialTypeCard(cardType, extras = {}) {
   snapshot();
+  // 2026-05-12 — extended with 7 additional surface types covering
+  // the gap-analysis findings: dailyHeadline, disaster, electionPrompt,
+  // cabinetMeeting, councilWhisper, welcomeBack, eraPack. The pattern
+  // stays the same — each type gets a per-type bucket chain on the
+  // canvas with sensible placeholders that the author fills in via
+  // the inspector. Engine reads `card.cardType` to route the card to
+  // the right runtime path (newspaper headline view, disaster banner,
+  // election overlay, etc.).
   const bucketId = {
-    letter:      "letters",
-    recurring:   "recurring",
-    anniversary: "anniversaries",
-    meter:       "meter_triggers",
+    letter:           "letters",
+    recurring:        "recurring",
+    anniversary:      "anniversaries",
+    meter:            "meter_triggers",
+    dailyHeadline:    "daily_headlines",
+    disaster:         "disasters",
+    electionPrompt:   "election_prompts",
+    cabinetMeeting:   "cabinet_meetings",
+    councilWhisper:   "council_whispers",
+    welcomeBack:      "welcome_back",
+    eraPack:          "era_pack",
   }[cardType];
   const bucketName = {
-    letter:      "Letter Cards",
-    recurring:   "Recurring Cards",
-    anniversary: "Anniversary Cards",
-    meter:       "Meter-Triggered Cards",
+    letter:           "Letter Cards",
+    recurring:        "Recurring Cards",
+    anniversary:      "Anniversary Cards",
+    meter:            "Meter-Triggered Cards",
+    dailyHeadline:    "Daily Headline Cards",
+    disaster:         "Disaster Cards",
+    electionPrompt:   "Election Prompt Cards",
+    cabinetMeeting:   "Cabinet Meeting Cards",
+    councilWhisper:   "Council Whisper Cards",
+    welcomeBack:      "Welcome-Back Cards",
+    eraPack:          "Era Pack Cards",
   }[cardType];
   const bucketSubtitle = {
-    letter:      "Info beats · no swipe",
-    recurring:   "Fires every N days",
-    anniversary: "Fires on a specific day",
-    meter:       "Auto-fires on threshold",
+    letter:           "Info beats · no swipe",
+    recurring:        "Fires every N days",
+    anniversary:      "Fires on a specific day",
+    meter:            "Auto-fires on threshold",
+    dailyHeadline:    "Newspaper front-page (3-line)",
+    disaster:         "Forced cards w/ red rim",
+    electionPrompt:   "Day 15 promise + Day 50 verdict",
+    cabinetMeeting:   "Minister loyalty pulse",
+    councilWhisper:   "Court chatter overlay",
+    welcomeBack:      "Fires on re-open after gap",
+    eraPack:          "Quarterly themed bundle",
   }[cardType];
 
   let bucket = CHAINS.find(c => c.id === bucketId);
@@ -12136,26 +12231,80 @@ function createSpecialTypeCard(cardType, extras = {}) {
   }
   const idx = bucket.cards.length + 1;
   const placeholderSituation = {
-    letter:      "A sealed envelope arrives. Open it to read the letter inside.",
-    recurring:   "Weekly briefing. The desk has news to share.",
-    anniversary: "An anniversary lands today. The room pauses to mark it.",
-    meter:       "The pressure has crossed a line. Someone steps forward.",
+    letter:         "A sealed envelope arrives. Open it to read the letter inside.",
+    recurring:      "Weekly briefing. The desk has news to share.",
+    anniversary:    "An anniversary lands today. The room pauses to mark it.",
+    meter:          "The pressure has crossed a line. Someone steps forward.",
+    dailyHeadline:  "MORNING POST · Three-line front page. Speaker: editor. Tone: ironic.",
+    disaster:       "A disaster lands. Red rim, no escape. Pick a response, both bad.",
+    electionPrompt: "Promise day. The bench wants a platform. Pick one stance.",
+    cabinetMeeting: "Cabinet meets. The minister carries the room. Their loyalty leans.",
+    councilWhisper: "A whisper passes the table. Hard to catch, easier to act on.",
+    welcomeBack:    "You return. The desk has news. Where were you?",
+    eraPack:        "An era-specific beat. Set minEra/maxEra in the inspector.",
   }[cardType];
   const placeholderOutcome = {
-    letter:      "The letter is read. The reign moves on.",
-    recurring:   "The briefing closes. The desk will return next time.",
-    anniversary: "The moment is noted. Life keeps moving.",
-    meter:       "The room reacts. The meters settle a beat.",
+    letter:         "The letter is read. The reign moves on.",
+    recurring:      "The briefing closes. The desk will return next time.",
+    anniversary:    "The moment is noted. Life keeps moving.",
+    meter:          "The room reacts. The meters settle a beat.",
+    dailyHeadline:  "The paper goes to print. The bench reads it at breakfast.",
+    disaster:       "The fallout lands. The reign absorbs the loss.",
+    electionPrompt: "The platform locks in. The verdict comes on day 50.",
+    cabinetMeeting: "The minister's faction shifts. Loyalty moves a notch.",
+    councilWhisper: "The whisper passes. Some courtiers carry it forward.",
+    welcomeBack:    "The desk catches you up. The reign continues.",
+    eraPack:        "The pack beat plays. The era moves a little.",
+  }[cardType];
+  // Default speakers tuned per-type so the inspector lands on something
+  // sensible. Author can rewrite via the speaker chip cluster.
+  const placeholderSpeaker = {
+    letter:         "Curator Brandt",
+    recurring:      "Press Secretary Lindi",
+    anniversary:    "Curator Brandt",
+    meter:          "Press Secretary Lindi",
+    dailyHeadline:  "Editor Halvik",
+    disaster:       "Inspector Hova",
+    electionPrompt: "Press Secretary Lindi",
+    cabinetMeeting: "Marshal Dren Volk",
+    councilWhisper: "Counsel Aren",
+    welcomeBack:    "Press Secretary Lindi",
+    eraPack:        "Curator Brandt",
+  }[cardType];
+  const placeholderMinistry = {
+    letter:         "Heritage",
+    recurring:      "Press",
+    anniversary:    "Heritage",
+    meter:          "Press",
+    dailyHeadline:  "Press",
+    disaster:       "Interior",
+    electionPrompt: "Press",
+    cabinetMeeting: "Defense",
+    councilWhisper: "Justice",
+    welcomeBack:    "Press",
+    eraPack:        "Heritage",
   }[cardType];
 
   const newCard = {
     id: bucketId + "-" + idx,
-    role: { letter: "Letter", recurring: "Recurring", anniversary: "Anniversary", meter: "Meter-triggered" }[cardType],
+    role: {
+      letter:         "Letter",
+      recurring:      "Recurring",
+      anniversary:    "Anniversary",
+      meter:          "Meter-triggered",
+      dailyHeadline:  "Daily Headline",
+      disaster:       "Disaster",
+      electionPrompt: "Election Prompt",
+      cabinetMeeting: "Cabinet Meeting",
+      councilWhisper: "Council Whisper",
+      welcomeBack:    "Welcome-Back",
+      eraPack:        "Era Pack",
+    }[cardType],
     level: 0,
     col: "center",
-    speaker: "Press Secretary Lindi",
-    ministry: "Press",
-    topic: "simple",
+    speaker: placeholderSpeaker,
+    ministry: placeholderMinistry,
+    topic: cardType === "disaster" ? "disaster" : "simple",
     cardType,
     situation: placeholderSituation,
     requires: null,
