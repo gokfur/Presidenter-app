@@ -3856,7 +3856,11 @@
       <div style="font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; color: var(--decline); margin-bottom: 10px;">⚠ Danger zone</div>
       <div style="display: flex; flex-direction: column; gap: 8px;">
         <button id="settings-clear-all" style="padding: 10px; border: 1px solid var(--decline); background: transparent; color: var(--decline); border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;">🗑 Clear ALL chains (start over)</button>
-        <button id="settings-reset-source" style="padding: 10px; border: 1px solid var(--hairline); background: transparent; color: var(--text-primary); border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;">⟲ Reset to source 25 cards</button>
+        <!-- 2026-05-12 — "Reset to source 25 cards" button retired per
+             user ask. The source decks are stale post-cull; users
+             never want to revert to them. The function definition
+             stays in place (below) in case a future build re-exposes
+             it under a debug-only entry point. -->
         <button id="settings-wipe-storage" style="padding: 10px; border: 1px solid var(--hairline); background: transparent; color: var(--text-muted); border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;">💾 Wipe localStorage (full reset)</button>
       </div>
     </div>
@@ -4079,6 +4083,24 @@
     </div>
     <div class="modal-sub">
       v30 voice: <b>witty · slightly cynical · mysterious</b>. Two short sentences, ends in a yes/no question, both swipes carry a cost. Lands as a standalone — wire it later.
+    </div>
+
+    <!-- 2026-05-12 — Inline AI helpers above the form. Author types
+         ONE LINE in `f-ai-seed` and clicks ✨ AI Fill to have every
+         field below filled. Grammar check runs the situation +
+         outcomes through a lighter AI pass that suggests fixes
+         without changing meaning. Both buttons no-op silently when
+         no API key is configured. -->
+    <div class="row full" style="margin-bottom: 8px;">
+      <div>
+        <label>✨ AI helpers <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(optional — one-line scenario + grammar check)</span></label>
+        <div style="display:flex; gap:8px; align-items:stretch;">
+          <input id="f-ai-seed" type="text" placeholder="Type a one-line scenario here for ✨ AI Fill (e.g. Treasurer panics about a bond auction shortfall)" style="flex:1;">
+          <button type="button" id="f-ai-fill" title="AI fills every field below from your one-line scenario" style="background:rgba(255,200,80,0.15); border:1px solid rgba(255,200,80,0.45); color:var(--gold); padding:4px 12px; border-radius:6px; font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer; white-space:nowrap;">✨ AI Fill</button>
+          <button type="button" id="f-grammar-check" title="Run grammar / style check on the situation + both outcomes — keeps meaning, suggests fixes" style="background:rgba(120,200,255,0.10); border:1px solid rgba(120,200,255,0.40); color:#9cf; padding:4px 12px; border-radius:6px; font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer; white-space:nowrap;">📝 Grammar</button>
+        </div>
+        <div id="f-ai-status" style="font-size:11px; color:var(--text-faint); margin-top:6px; min-height:14px;"></div>
+      </div>
     </div>
 
     <!-- Chain + parent dropdowns retired 2026-05 (player ask: "remove
@@ -10369,6 +10391,11 @@ function closeModal() {
   if (artReset) artReset.checked = false;
   const cbReset = document.getElementById("f-conscience-beat");
   if (cbReset) cbReset.value = "";
+  // 2026-05-12 — clear inline AI helpers on fresh modal open.
+  const aiSeed = document.getElementById("f-ai-seed");
+  if (aiSeed) aiSeed.value = "";
+  const aiStatus = document.getElementById("f-ai-status");
+  if (aiStatus) aiStatus.textContent = "";
   document.getElementById("f-trickyclue-row").style.display = "none";
   document.getElementById("f-speaker").value = "";
   document.getElementById("f-ministry").value = "";
@@ -13577,6 +13604,181 @@ Pick the most plausible speaker for this scenario. Output ONLY this JSON (no pro
 }
 document.getElementById("qc-generate").addEventListener("click", generateQuickCard);
 
+// 2026-05-12 — Inline AI helpers inside the Add-a-card modal.
+//
+//   ✨ AI Fill — fills every form field below from the one-line
+//                scenario in the f-ai-seed input. Same prompt shape
+//                as the standalone Quick Card modal, just plumbed
+//                back into the form fields instead of creating an
+//                orphan.
+//   📝 Grammar — runs the current situation + both outcomes through
+//                an AI grammar / style pass. Author reviews the
+//                proposed fix per field and clicks accept on each.
+//                Preserves meaning; only fixes wording.
+//
+// Both no-op silently with a status hint when no API key is
+// configured.
+function setAiHelperStatus(text, isError) {
+  const el = document.getElementById("f-ai-status");
+  if (!el) return;
+  el.textContent = text || "";
+  el.style.color = isError ? "var(--decline)" : "var(--text-faint)";
+}
+
+async function aiFillFromSeed() {
+  const seed = document.getElementById("f-ai-seed")?.value?.trim() || "";
+  if (!seed) {
+    setAiHelperStatus("Type a one-line scenario first.", true);
+    return;
+  }
+  const keys = loadAIKeys();
+  let key = keys.anthropic || keys.claude || null;
+  let provider = key ? "claude" : null;
+  if (!key && keys.gemini) { key = keys.gemini; provider = "gemini"; }
+  if (!key) {
+    setAiHelperStatus("No API key configured. Save a Claude or Gemini key in Settings.", true);
+    return;
+  }
+  const fillBtn = document.getElementById("f-ai-fill");
+  fillBtn.disabled = true;
+  setAiHelperStatus(`Calling ${provider === "claude" ? "Claude" : "Gemini"}…`);
+
+  const speakerLines = Object.entries(SPEAKERS_BY_MINISTRY)
+    .map(([m, names]) => `  ${m}: ${names.join(", ")}`).join("\n");
+
+  const prompt = `You write decision cards for "Presidenter", a Reigns-style swipe game.
+
+FORMAT (v30): Every card is ONE speaker leaning into the desk with TWO short sentences. Sentence 1 = situation. Sentence 2 = ask (yes/no question). ≤140 chars total. NO em-dashes. ENDS in "?". TONE: witty, slightly cynical, mysterious. Every card is a moral dilemma — both swipes hurt.
+
+Cast (speaker → ministry):
+${speakerLines}
+
+Author's scenario seed: "${seed}"
+
+Pick the most plausible speaker for the scenario. Output ONLY this JSON:
+{"speaker":"...","ministry":"...","topic":"...","situation":"...","accept":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0},"decline":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0}}`;
+
+  try {
+    const text = await callAITextPlain(provider, key, prompt);
+    const card = extractJSONFromAIText(text);
+    // Plumb into the existing form fields.
+    if (card.speaker) {
+      document.getElementById("f-speaker").value = card.speaker;
+      const m = MINISTRY_OF[card.speaker];
+      if (m) {
+        document.getElementById("f-ministry").value = m;
+        document.getElementById("f-ministry").disabled = true;
+      } else if (card.ministry) {
+        document.getElementById("f-ministry").value = card.ministry;
+      }
+    }
+    if (card.topic) {
+      const topicEl = document.getElementById("f-topic");
+      topicEl.value = card.topic;
+      topicEl.dispatchEvent(new Event("change"));
+    }
+    if (card.situation) document.getElementById("f-situation").value = card.situation;
+    if (card.accept) {
+      document.getElementById("f-accept-outcome").value = card.accept.outcome || "";
+      document.getElementById("f-accept-env").value = String(card.accept.env ?? 0);
+      document.getElementById("f-accept-mil").value = String(card.accept.mil ?? 0);
+      document.getElementById("f-accept-wel").value = String(card.accept.wel ?? 0);
+      document.getElementById("f-accept-eco").value = String(card.accept.eco ?? 0);
+    }
+    if (card.decline) {
+      document.getElementById("f-decline-outcome").value = card.decline.outcome || "";
+      document.getElementById("f-decline-env").value = String(card.decline.env ?? 0);
+      document.getElementById("f-decline-mil").value = String(card.decline.mil ?? 0);
+      document.getElementById("f-decline-wel").value = String(card.decline.wel ?? 0);
+      document.getElementById("f-decline-eco").value = String(card.decline.eco ?? 0);
+    }
+    runValidation();
+    setAiHelperStatus("✓ Filled. Edit any field, then save.");
+  } catch (err) {
+    setAiHelperStatus("Error: " + err.message, true);
+  } finally {
+    fillBtn.disabled = false;
+  }
+}
+document.getElementById("f-ai-fill").addEventListener("click", aiFillFromSeed);
+
+async function grammarCheckCard() {
+  const sit = document.getElementById("f-situation")?.value?.trim() || "";
+  const accOut = document.getElementById("f-accept-outcome")?.value?.trim() || "";
+  const decOut = document.getElementById("f-decline-outcome")?.value?.trim() || "";
+  if (!sit && !accOut && !decOut) {
+    setAiHelperStatus("Type a situation or outcome first.", true);
+    return;
+  }
+  const keys = loadAIKeys();
+  let key = keys.anthropic || keys.claude || null;
+  let provider = key ? "claude" : null;
+  if (!key && keys.gemini) { key = keys.gemini; provider = "gemini"; }
+  if (!key) {
+    setAiHelperStatus("No API key configured. Save a Claude or Gemini key in Settings.", true);
+    return;
+  }
+  const btn = document.getElementById("f-grammar-check");
+  btn.disabled = true;
+  setAiHelperStatus(`Calling ${provider === "claude" ? "Claude" : "Gemini"}…`);
+
+  const prompt = `Grammar + style check on three short strings from a Reigns-style decision card. KEEP THE MEANING UNCHANGED. Fix typos, awkward phrasing, missing punctuation, em-dash usage (replace em-dashes with periods or commas), tense slips, missing "?" at end of question. Each output string MUST be ≤140 chars. NO em-dashes. The situation MUST end in "?".
+
+If a string is already clean, return it verbatim. If you have nothing to fix on a string, the "changed" field for that string is false. Mark only changed strings as changed:true.
+
+Strings:
+- situation: "${sit}"
+- accept_outcome: "${accOut}"
+- decline_outcome: "${decOut}"
+
+Output ONLY this JSON:
+{
+  "situation": {"text": "...", "changed": true|false, "reason": "..."},
+  "accept_outcome": {"text": "...", "changed": true|false, "reason": "..."},
+  "decline_outcome": {"text": "...", "changed": true|false, "reason": "..."}
+}`;
+
+  try {
+    const text = await callAITextPlain(provider, key, prompt);
+    const result = extractJSONFromAIText(text);
+    const changes = [];
+    if (result.situation?.changed && result.situation.text !== sit) {
+      changes.push({ field: "situation", id: "f-situation", oldText: sit, newText: result.situation.text, reason: result.situation.reason || "" });
+    }
+    if (result.accept_outcome?.changed && result.accept_outcome.text !== accOut) {
+      changes.push({ field: "accept outcome", id: "f-accept-outcome", oldText: accOut, newText: result.accept_outcome.text, reason: result.accept_outcome.reason || "" });
+    }
+    if (result.decline_outcome?.changed && result.decline_outcome.text !== decOut) {
+      changes.push({ field: "decline outcome", id: "f-decline-outcome", oldText: decOut, newText: result.decline_outcome.text, reason: result.decline_outcome.reason || "" });
+    }
+    if (!changes.length) {
+      setAiHelperStatus("✓ Grammar OK — no changes suggested.");
+      return;
+    }
+    // Per-field confirmation: walk the changes and ask the author
+    // before applying each. Keeps watchdog control over AI edits.
+    let applied = 0;
+    for (const c of changes) {
+      const ok = confirm(
+        `Fix ${c.field}?\n\n— Was: ${c.oldText}\n+ Now: ${c.newText}\n\n${c.reason ? "(" + c.reason + ")" : ""}`
+      );
+      if (ok) {
+        document.getElementById(c.id).value = c.newText;
+        applied++;
+      }
+    }
+    runValidation();
+    setAiHelperStatus(applied
+      ? `✓ Applied ${applied}/${changes.length} grammar fix${applied === 1 ? "" : "es"}.`
+      : `Skipped all ${changes.length} suggested fixes.`);
+  } catch (err) {
+    setAiHelperStatus("Error: " + err.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+document.getElementById("f-grammar-check").addEventListener("click", grammarCheckCard);
+
 // 2026-05-12 — 🚀 Batch generate. AI generates N standalone cards on
 // a theme; each lands as an orphan. Author plays watchdog — keep
 // the good ones, edit, delete the duds.
@@ -14476,9 +14678,9 @@ document.getElementById("settings-clear-all").addEventListener("click", () => {
   clearAllChains();
   document.getElementById("settings-backdrop").classList.remove("open");
 });
-document.getElementById("settings-reset-source").addEventListener("click", () => {
-  resetToSource();
-});
+// 2026-05-12 — Reset-to-source handler retired (button removed from
+// the danger zone; function definition stays in place at line ~5577
+// so any future debug entry point can wire it back).
 document.getElementById("settings-wipe-storage").addEventListener("click", () => {
   if (!confirm("Wipe ALL local data for this site?\n\n  · CHAINS (localStorage + IndexedDB)\n  · ROOMS (back to Main only)\n  · GitHub settings\n  · Undo history\n\nPage will reload to an EMPTY canvas. This can't be undone.")) return;
   // Write an explicit empty deck so loadPersisted treats this as
