@@ -2526,6 +2526,108 @@
     outline: 2px solid var(--gold);
     outline-offset: 2px;
   }
+  /* ====================================================================
+     2026-05-12 — Tailwind-style refresh on the create flow + global
+     contrast fixes. Player ask: "Add a card UI is still too much.
+     Use Tailwind design system. Check contrast — black chevrons not
+     visible." Native HTML number-input spinners are gone everywhere
+     (they render dark-on-dark). Steppers replace them where users
+     need to nudge values; everywhere else the input is plain.
+     ==================================================================== */
+  /* Global — kill the native spinner everywhere it shows up. */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+  /* Slim validation status — one line, click to expand the breakdown.
+     Replaces the 8-pill row that dominated the modal. */
+  .validation-summary.slim {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: var(--bg-deep);
+    border-radius: 8px;
+    border-left: 3px solid var(--hairline);
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .validation-summary.slim.passing { border-left-color: var(--accept); }
+  .validation-summary.slim.failing { border-left-color: var(--decline); }
+  .validation-summary.slim .v-summary {
+    flex: 1;
+    min-width: 0;
+    line-height: 1.5;
+  }
+  .validation-summary.slim .v-summary b { color: var(--text-primary); }
+  .validation-summary.slim .v-toggle {
+    background: transparent;
+    border: 1px solid var(--hairline);
+    color: var(--text-muted);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .validation-summary.slim .v-toggle:hover {
+    color: var(--gold);
+    border-color: var(--gold);
+  }
+  .validation-summary.slim .v-pill-list {
+    display: none;
+    flex-basis: 100%;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+  }
+  .validation-summary.slim.open .v-pill-list { display: flex; }
+
+  /* Advanced accordion — single foldable group for the rarely-touched
+     fields. Sits between the swipes and the Add-to-canvas button. */
+  .advanced-fold {
+    margin-top: 14px;
+    padding: 10px 12px;
+    background: var(--bg-deep);
+    border: 1px solid var(--hairline);
+    border-radius: 10px;
+  }
+  .advanced-fold summary {
+    cursor: pointer;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--text-muted);
+    padding: 2px 0;
+    user-select: none;
+  }
+  .advanced-fold[open] summary { color: var(--gold); }
+  .advanced-fold .advanced-body {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--hairline);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .advanced-fold .adv-row label {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--text-faint);
+    margin-bottom: 4px;
+  }
+
   /* "What to add?" tiles. Two big buttons side-by-side; hover gold.
      Player ask 2026-05 — single entry point instead of a 12-row
      popover. */
@@ -3654,8 +3756,9 @@
       <h2 id="modal-title">Add a card</h2>
       <button class="modal-close-x" data-fires="modal-cancel" aria-label="Close">×</button>
     </div>
-    <div class="modal-sub">v30 rules: ≤140 chars, <b>≤2 short sentences</b>, ends in a yes/no question, no other cast as subject. Tone is <b>witty, slightly cynical, mysterious</b>. Both swipes must feel like a cost — every card is a <b>moral dilemma</b>.</div>
-    <div class="modal-sub" style="margin-top: -4px; color: var(--gold);">⭐ Every new card lands as <b>standalone</b>. Wire it into a chain later by dragging, or click <b>Generate chain from this card</b> on the canvas to grow a story around it.</div>
+    <div class="modal-sub">
+      v30 voice: <b>witty · slightly cynical · mysterious</b>. Two short sentences, ends in a yes/no question, both swipes carry a cost. Lands as a standalone — wire it later.
+    </div>
 
     <!-- Chain + parent dropdowns retired 2026-05 (player ask: "remove
          chains in this dropdown cos if i have 300 chains it wont fit.
@@ -3709,52 +3812,18 @@
         <label>Situation (the question on the card)</label>
         <textarea id="f-situation" maxlength="220" placeholder="Two sentences of setup, one yes/no question. Speaker = the one presenting the choice."></textarea>
         <div class="counter" id="f-situation-counter">0 / 140 chars · 0 sentences</div>
-        <div class="validation-summary" id="f-situation-validation"></div>
-        <!-- Style-guide override — when checked, all v29 hard rules
-             become advisory pills. Player ask 2026-05: "add a
-             checkbox that says make styleguide exception. so, i can
-             create some out of box card." -->
-        <label class="styleguide-override">
-          <input type="checkbox" id="f-styleguide-exception">
-          <span>
-            <b>Make style-guide exception</b>
-            <span class="sub">All v29 rules become advisory. The card ships even if it's over the length cap, doesn't end in a yes/no, names another cast member, etc. Use sparingly — the chip on the card surfaces "Style-guide exception" so you can find these later.</span>
-          </span>
-        </label>
+        <!-- Slim validation status — collapses 8 pills into one line.
+             Click to expand the full breakdown. Player ask 2026-05:
+             "add a card UI is still too much. Simplify." -->
+        <div class="validation-summary slim" id="f-situation-validation"></div>
       </div>
     </div>
 
-    <!-- Condition builder — three controls (meter / op / value) instead
-         of the free-text grammar. Player ask 2026-05: "make this part
-         a dropdown that make me select meters and select greater or
-         lower and write the value." Free-text fallback under a small
-         "advanced" toggle for the rare flag-gate case. -->
-    <div class="row full">
-      <div>
-        <label>Fires only if <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(optional gate on a meter or day)</span></label>
-        <div class="cond-builder">
-          <select id="f-cond-meter" class="cond-meter">
-            <option value="">— always fires —</option>
-            <option value="environment">Environment</option>
-            <option value="military">Military</option>
-            <option value="wellness">Wellness</option>
-            <option value="economy">Economy</option>
-            <option value="day">Day</option>
-            <option value="__flag__">Requires flag…</option>
-          </select>
-          <select id="f-cond-op" class="cond-op" aria-label="Comparator">
-            <option value="<">is less than</option>
-            <option value=">">is greater than</option>
-            <option value="<=">is at most</option>
-            <option value=">=">is at least</option>
-            <option value="=">equals</option>
-          </select>
-          <input id="f-cond-value" type="number" class="cond-value" placeholder="value (0-100)" aria-label="Threshold value">
-        </div>
-        <input id="f-cond-flag" placeholder="flag name (e.g. audit_named)" style="display:none; margin-top:8px;">
-        <input id="f-condition" type="hidden">
-      </div>
-    </div>
+    <!-- Style-guide exception + Fires-only-if + Cross-chain triggers
+         + Custom meters + Parallel options all live under one
+         "Advanced (optional)" accordion. Collapsed by default so
+         the create flow stays a 4-field form. -->
+    <input id="f-condition" type="hidden">
 
     <div class="branch-block accept">
       <h3>▶ Accept</h3>
@@ -3816,15 +3885,6 @@
           </div>
         </div>
       </details>
-      <div class="parallel-block" id="parallel-accept">
-        <div class="parallel-label">Parallel options · the game picks one at random</div>
-        <div class="parallel-list" id="parallel-accept-list">none yet — leads straight to the target card</div>
-        <div class="parallel-bulk">
-          <label>How many?</label>
-          <input id="parallel-count-accept" type="number" min="1" max="10" value="2" aria-label="Number of parallel options to generate on Accept">
-          <button type="button" class="parallel-add" id="parallel-add-accept">✨ Generate</button>
-        </div>
-      </div>
     </div>
 
     <div class="branch-block decline">
@@ -3887,23 +3947,72 @@
           </div>
         </div>
       </details>
-      <div class="parallel-block" id="parallel-decline">
-        <div class="parallel-label">Parallel options · the game picks one at random</div>
-        <div class="parallel-list" id="parallel-decline-list">none yet — leads straight to the target card</div>
-        <div class="parallel-bulk">
-          <label>How many?</label>
-          <input id="parallel-count-decline" type="number" min="1" max="10" value="2" aria-label="Number of parallel options to generate on Decline">
-          <button type="button" class="parallel-add" id="parallel-add-decline">✨ Generate</button>
-        </div>
-      </div>
     </div>
 
-    <!-- 2026-05 simplification (player ask): removed era / scheme /
-         tutorial / coup-threshold / achievement / requires-chain /
-         fires-day / author notes / export-JSON details. The health
-         check auto-derives achievements, the inspector still has
-         the rarely-used fields under "Extras", and exports run via
-         the ⬇ button. Card creation should be fast, not exhaustive. -->
+    <!-- Advanced fields — collapsed by default. Style-guide exception,
+         "Fires only if" gate, parallel options. Player ask 2026-05:
+         "Add a card UI is still too much. Simplify." -->
+    <details class="advanced-fold">
+      <summary>⚙ Advanced (optional)</summary>
+      <div class="advanced-body">
+        <!-- Style-guide override -->
+        <label class="styleguide-override">
+          <input type="checkbox" id="f-styleguide-exception">
+          <span>
+            <b>Make style-guide exception</b>
+            <span class="sub">All v30 rules become advisory. The card ships even if it's over the length cap, doesn't end in a yes/no, etc. The chip on the card surfaces "Style-guide exception."</span>
+          </span>
+        </label>
+
+        <!-- Fires only if -->
+        <div class="adv-row">
+          <label>Fires only if <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(optional gate)</span></label>
+          <div class="cond-builder">
+            <select id="f-cond-meter" class="cond-meter">
+              <option value="">— always fires —</option>
+              <option value="environment">Environment</option>
+              <option value="military">Military</option>
+              <option value="wellness">Wellness</option>
+              <option value="economy">Economy</option>
+              <option value="day">Day</option>
+              <option value="__flag__">Requires flag…</option>
+            </select>
+            <select id="f-cond-op" class="cond-op" aria-label="Comparator">
+              <option value="<">is less than</option>
+              <option value=">">is greater than</option>
+              <option value="<=">is at most</option>
+              <option value=">=">is at least</option>
+              <option value="=">equals</option>
+            </select>
+            <input id="f-cond-value" type="number" class="cond-value" placeholder="value" aria-label="Threshold value">
+          </div>
+          <input id="f-cond-flag" placeholder="flag name (e.g. audit_named)" style="display:none; margin-top:8px;">
+        </div>
+
+        <!-- Parallel options — only meaningful when editing an existing card -->
+        <div class="adv-row" id="f-parallels-row" style="display:none;">
+          <label>Parallel options <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(siblings the engine picks one at random)</span></label>
+          <div class="parallel-block" id="parallel-accept">
+            <div class="parallel-label">Accept side</div>
+            <div class="parallel-list" id="parallel-accept-list">none yet</div>
+            <div class="parallel-bulk">
+              <label>How many?</label>
+              <input id="parallel-count-accept" type="number" min="1" max="10" value="2" aria-label="Number of parallel options to generate on Accept">
+              <button type="button" class="parallel-add" id="parallel-add-accept">✨ Generate</button>
+            </div>
+          </div>
+          <div class="parallel-block" id="parallel-decline" style="margin-top: 12px;">
+            <div class="parallel-label">Decline side</div>
+            <div class="parallel-list" id="parallel-decline-list">none yet</div>
+            <div class="parallel-bulk">
+              <label>How many?</label>
+              <input id="parallel-count-decline" type="number" min="1" max="10" value="2" aria-label="Number of parallel options to generate on Decline">
+              <button type="button" class="parallel-add" id="parallel-add-decline">✨ Generate</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </details>
 
     <div class="modal-actions">
       <button id="modal-save" class="primary" disabled>Add to canvas</button>
@@ -9500,6 +9609,11 @@ function openModal(presetParentId, editId) {
   }
 
   modalBackdrop.classList.add("open");
+  // Parallel options only matter when editing an existing card —
+  // they attach as pool members on its swipe targets. Hide the
+  // entire row in NEW mode. Player ask 2026-05: simplify the modal.
+  const parallelsRow = document.getElementById("f-parallels-row");
+  if (parallelsRow) parallelsRow.style.display = editingCardId ? "block" : "none";
   if (!editingCardId) {
     document.getElementById("f-speaker").focus();
   }
@@ -10337,19 +10451,43 @@ function runValidation() {
   const exception = document.getElementById("f-styleguide-exception")?.checked || false;
   validation.classList.toggle("exception", exception);
 
+  // Slim validation — one line summary + collapsible breakdown.
+  // Counts pass/fail and surfaces ONLY the first 2 failing rules as
+  // text. Player ask 2026-05: "Add a card UI is still too much."
+  const checks = [
+    { ok: lenOk,         label: "≤140 chars" },
+    { ok: sentencesOk,   label: "≤2 sentences" },
+    { ok: endsInQ,       label: "ends in '?'" },
+    { ok: subjectOk,     label: "speaker = subject" },
+    { ok: emDashOk,      label: "no em-dashes" },
+    { ok: outcomesOk,    label: "both outcomes set" },
+    { ok: meterAcceptOk, label: "Accept meter ≥2" },
+    { ok: meterDeclineOk,label: "Decline meter ≥2" },
+    { ok: parentOk,      label: "parent slot" },
+    { ok: !!speaker && speakerOnCast, label: "speaker on cast-50" },
+  ];
+  const passing = checks.filter(c => c.ok).length;
+  const total = checks.length;
+  const failing = checks.filter(c => !c.ok);
+  validation.classList.toggle("passing", passing === total);
+  validation.classList.toggle("failing", passing < total && !exception);
+  const summaryLine = exception
+    ? `<b style="color: var(--gold);">⚠ Style-guide exception ON</b> · rules are advisory.`
+    : passing === total
+      ? `<b style="color: var(--accept);">✓ All ${total} rules passing</b>`
+      : `<b>${passing}/${total} passing</b> · need: ${failing.slice(0, 2).map(c => c.label).join(", ")}${failing.length > 2 ? `, +${failing.length - 2} more` : ""}`;
   validation.innerHTML = `
-    ${exception ? `<span class="v-pill" style="background:var(--gold); color:var(--bg-deep); border-color:var(--gold);">⚠ Style-guide exception ON</span>` : ""}
-    <span class="v-pill ${lenOk ? "" : "fail"}" title="Soft cap from v29: keep the situation short enough to swipe quickly.">${lenOk ? "✓" : "✗"} ≤140 chars</span>
-    <span class="v-pill ${sentencesOk ? "" : "fail"}" title="v30 hard cap — two short sentences. Setup + ask.">${sentencesOk ? "✓" : "✗"} ≤2 sentences</span>
-    <span class="v-pill ${endsInQ ? "" : "fail"}" title="Card must end in a yes/no question for the binary Accept/Decline swipe.">${endsInQ ? "✓" : "✗"} ends in ?</span>
-    <span class="v-pill ${subjectOk ? "" : "fail"}" title="The situation must not name another registered cast member as the subject.">${subjectOk ? "✓" : "✗"} speaker = subject</span>
-    <span class="v-pill ${emDashOk ? "" : "fail"}" title="No em-dashes in player-facing strings — uses commas or periods instead.">${emDashOk ? "✓" : "✗"} no em-dashes</span>
-    <span class="v-pill ${outcomesOk ? "" : "fail"}" title="Both Accept and Decline outcomes are required.">${outcomesOk ? "✓" : "✗"} outcomes set</span>
-    <span class="v-pill ${meterAcceptOk ? "" : "fail"}" title="Accept side must shift meters by at least 2 absolute total.">${meterAcceptOk ? "✓" : "✗"} accept ≥2 abs</span>
-    <span class="v-pill ${meterDeclineOk ? "" : "fail"}" title="Decline side must shift meters by at least 2 absolute total.">${meterDeclineOk ? "✓" : "✗"} decline ≥2 abs</span>
-    <span class="v-pill ${parentOk ? "" : "fail"}" title="Pick a parent card and side to attach this card under.">${parentOk ? "✓" : "✗"} parent slot</span>
-    ${speaker ? `<span class="v-pill ${speakerOnCast ? "" : "fail"}" title="${speakerOnCast ? "Speaker is on the cast list." : "Not in cast — consider one of the 18 registered names."}">${speakerOnCast ? "✓" : "⚠"} cast 50</span>` : `<span class="v-pill fail">✗ speaker required</span>`}
+    <div class="v-summary">${summaryLine}</div>
+    <button type="button" class="v-toggle" data-toggle-v>${validation.classList.contains("open") ? "Hide" : "Details"}</button>
+    <div class="v-pill-list">
+      ${checks.map(c => `<span class="v-pill ${c.ok ? "" : "fail"}">${c.ok ? "✓" : "✗"} ${c.label}</span>`).join("")}
+    </div>
   `;
+  const tog = validation.querySelector("[data-toggle-v]");
+  if (tog) tog.addEventListener("click", () => {
+    validation.classList.toggle("open");
+    tog.textContent = validation.classList.contains("open") ? "Hide" : "Details";
+  });
 
   // Save-enable rule:
   //   normal mode  → every v29 pill green AND speaker AND ministry
@@ -10365,6 +10503,53 @@ function runValidation() {
          && speaker && ministry;
   }
   saveBtn.disabled = !allOk;
+}
+
+// Auto-suggest meter shifts based on topic + side. Player ask 2026-05:
+// "If there are things you can autocreate, just do it and simplify."
+// Fires when the topic changes OR an outcome is typed AND the meters
+// are still all zero (so it never overrides authored values). Each
+// suggestion follows the v30 rule of ≥2 absolute total per side.
+const TOPIC_METER_SUGGESTIONS = {
+  // accept side defaults             decline side defaults
+  economy:    { accept: { eco: -2, wel: 1 },  decline: { eco: 1,  wel: -2 } },
+  military:   { accept: { mil: 3,  eco: -1 }, decline: { mil: -2, wel: 1 } },
+  scandal:    { accept: { wel: 1,  mil: -2 }, decline: { wel: -3, mil: 0 } },
+  diplomacy:  { accept: { mil: -1, eco: 1 },  decline: { mil: 1,  eco: -1 } },
+  health:     { accept: { wel: 3,  eco: -1 }, decline: { wel: -3, eco: 1 } },
+  tricky:     { accept: { wel: 1,  eco: -1 }, decline: { wel: -1, eco: 1 } },
+  simple:     { accept: { wel: 1,  eco: -1 }, decline: { wel: -1, eco: 1 } },
+  environment:{ accept: { env: 2,  eco: -1 }, decline: { env: -2, eco: 1 } },
+  family:     { accept: { wel: 2 },           decline: { wel: -2 } },
+  romance:    { accept: { wel: 2 },           decline: { wel: -2 } },
+  disaster:   { accept: { env: -2, wel: -2 }, decline: { env: -3, wel: -1 } },
+  funnyFlavor:{ accept: { wel: 1 },           decline: { wel: -1 } },
+  funnyAccident:{accept:{ wel: 1 },           decline: { wel: -1 } },
+};
+function metersAllZero(side) {
+  for (const m of ["env","mil","wel","eco"]) {
+    const v = parseInt(document.getElementById(`f-${side}-${m}`).value || "0", 10);
+    if (v !== 0) return false;
+  }
+  return true;
+}
+function autoSuggestMeters() {
+  const topicVal = document.getElementById("f-topic").value;
+  const ministry = document.getElementById("f-ministry").value.trim();
+  const topic = resolveTopic(topicVal, ministry);
+  const suggestion = TOPIC_METER_SUGGESTIONS[topic];
+  if (!suggestion) return;
+  for (const side of ["accept", "decline"]) {
+    if (!metersAllZero(side)) continue;
+    const s = suggestion[side] || {};
+    for (const m of ["env","mil","wel","eco"]) {
+      if (s[m] != null) {
+        const el = document.getElementById(`f-${side}-${m}`);
+        if (el) el.value = String(s[m]);
+      }
+    }
+  }
+  runValidation();
 }
 
 // Auto-resolve the topic when the user leaves the picker on 'auto'.
@@ -11117,6 +11302,14 @@ for (const id of ["f-accept-outcome", "f-decline-outcome", "f-accept-cond",
   el.addEventListener("input", runValidation);
   el.addEventListener("change", runValidation);
 }
+// Auto-suggest meters when the topic changes or the user types into
+// an outcome (and the meters are still zero). Player ask 2026-05.
+for (const id of ["f-topic", "f-accept-outcome", "f-decline-outcome"]) {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener("change", autoSuggestMeters);
+}
+document.getElementById("f-accept-outcome").addEventListener("blur", autoSuggestMeters);
+document.getElementById("f-decline-outcome").addEventListener("blur", autoSuggestMeters);
 // Style-guide exception checkbox — runs validation on toggle so the
 // pills + save button reflect the new mode instantly. Player ask
 // 2026-05.
