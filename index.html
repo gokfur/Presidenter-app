@@ -13657,12 +13657,73 @@ async function githubCommit() {
       const url = result.content && result.content.html_url;
       ghSetStatus(`✓ Committed. ${url ? "Open in GitHub: " + url : ""}`);
       showCopyToast(`Pushed ${CHAINS.length} chains to ${s.repo}`);
+      // Step 6 — auto-bake the Pages mirror. Player ask 2026-05-12:
+      // "auto-bake to Swift on Push to GitHub. Wire it into
+      // githubCommit so the Pages mirror auto-updates whenever you
+      // commit." After the deck.json push succeeds, also PUT
+      // deck-seed.json to gokfur/Presidenter-app (the public Pages
+      // repo). Fails silently with a soft toast if the PAT lacks
+      // perms on that repo — the user can still run bin/sync-pages
+      // from the terminal as a fallback.
+      await mirrorDeckSeedToPages(s.token, content);
     } else {
       const t = await putResp.text();
       ghSetStatus(`PUT failed (${putResp.status}): ${t.slice(0, 200)}`, true);
     }
   } catch (e) {
     ghSetStatus("Network error: " + e.message, true);
+  }
+}
+
+// Pushes the same base64 deck payload to gokfur/Presidenter-app as
+// deck-seed.json so the Pages mirror auto-hydrates on next visitor
+// load. Best-effort: if the PAT doesn't have write access on the
+// Pages repo, surfaces a soft hint and lets the user keep going.
+async function mirrorDeckSeedToPages(token, content) {
+  const PAGES_OWNER = "gokfur";
+  const PAGES_REPO = "Presidenter-app";
+  const SEED_PATH = "deck-seed.json";
+  const BRANCH = "main";
+  try {
+    // Look up the existing seed's SHA (needed for the PUT update)
+    let sha = null;
+    const getResp = await fetch(`https://api.github.com/repos/${PAGES_OWNER}/${PAGES_REPO}/contents/${SEED_PATH}?ref=${BRANCH}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" }
+    });
+    if (getResp.ok) {
+      const data = await getResp.json();
+      sha = data.sha;
+    } else if (getResp.status === 404) {
+      sha = null; // new file
+    } else if (getResp.status === 401 || getResp.status === 403) {
+      showCopyToast("Pages auto-bake skipped — your token doesn't have access to the Pages repo. Run bin/sync-pages from terminal to update the live link.");
+      return;
+    } else {
+      // unknown error, treat as soft fail
+      showCopyToast("Pages mirror update skipped — run bin/sync-pages to sync.");
+      return;
+    }
+    const body = {
+      message: `Auto-bake deck-seed.json (${new Date().toISOString().slice(0, 10)})`,
+      content,
+      branch: BRANCH,
+    };
+    if (sha) body.sha = sha;
+    const putResp = await fetch(`https://api.github.com/repos/${PAGES_OWNER}/${PAGES_REPO}/contents/${SEED_PATH}`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/vnd.github+json" },
+      body: JSON.stringify(body),
+    });
+    if (putResp.ok) {
+      showCopyToast("✓ Pages mirror updated — live in 30-60s at gokfur.github.io/Presidenter-app/");
+    } else {
+      const t = await putResp.text();
+      showCopyToast(`Pages mirror skipped (${putResp.status}). Run bin/sync-pages from terminal.`);
+      console.warn("mirrorDeckSeedToPages failed:", t.slice(0, 200));
+    }
+  } catch (e) {
+    console.warn("mirrorDeckSeedToPages error:", e);
+    showCopyToast("Pages mirror skipped (network). Run bin/sync-pages from terminal.");
   }
 }
 async function githubPull() {
