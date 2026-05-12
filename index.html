@@ -2075,6 +2075,163 @@
     grid-template-columns: repeat(4, 1fr);
     gap: 8px;
   }
+  /* 2026-05 player ask — meter inputs had no labels, tiny black chevrons.
+     The labeled variant adds a colored tag on top of each input and
+     sizes the number control bigger so the spinners are usable. */
+  .modal-card .meter-row.labeled {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-top: 4px;
+  }
+  .modal-card .meter-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .modal-card .meter-field .meter-tag {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--text-muted);
+  }
+  .modal-card .meter-field.env .meter-tag { color: var(--accept); }
+  .modal-card .meter-field.mil .meter-tag { color: var(--decline); }
+  .modal-card .meter-field.wel .meter-tag { color: var(--chain4); }
+  .modal-card .meter-field.eco .meter-tag { color: var(--chain3); }
+  .modal-card .meter-field input[type="number"] {
+    width: 100%;
+    padding: 9px 10px;
+    font-size: 14px;
+    text-align: center;
+    background: var(--surface2);
+    color: var(--text-primary);
+    border: 1px solid var(--hairline);
+    border-radius: 6px;
+    /* iOS / Safari: the native spinner is tiny and dark. Force the
+       browser to show the bigger reveal-on-focus arrows. */
+    -webkit-appearance: auto;
+    appearance: auto;
+  }
+  .modal-card .meter-field input[type="number"]:focus {
+    border-color: var(--gold);
+    outline: none;
+  }
+  /* AI mini button — surfaces next to outcome labels for one-click
+     auto-write via Claude/Gemini (player ask 2026-05). */
+  .ai-mini-btn {
+    margin-left: 8px;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: linear-gradient(135deg, var(--gold), #d4a850);
+    color: var(--bg-deep);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    vertical-align: middle;
+  }
+  .ai-mini-btn:hover { filter: brightness(1.1); }
+  .ai-mini-btn:disabled { opacity: 0.5; cursor: wait; }
+  /* Variants list — alt phrasings of the situation, stacked one per
+     row with a small delete button each. */
+  .variants-list {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .variants-list:empty { display: none; }
+  .variants-list .variant-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 6px 8px;
+    border: 1px solid var(--hairline);
+    border-radius: 6px;
+    background: var(--surface2);
+  }
+  .variants-list .variant-row .variant-text {
+    flex: 1;
+    font-size: 12px;
+    color: var(--text-primary);
+  }
+  .variants-list .variant-row button {
+    background: transparent;
+    border: 1px solid var(--hairline);
+    color: var(--text-muted);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .variants-list .variant-row button:hover { color: var(--decline); border-color: var(--decline); }
+  /* Drag-to-connect side picker — appears at the drop point with two
+     big buttons so the author explicitly chooses Accept or Decline.
+     Replaces the old confirm() dialog that defaulted to Accept. */
+  .side-picker-pop {
+    position: fixed;
+    z-index: 10000;
+    transform: translate(-50%, 10px);
+    background: var(--surface2);
+    border: 1px solid var(--gold);
+    border-radius: 10px;
+    padding: 12px 14px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 260px;
+  }
+  .side-picker-pop .sp-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--gold);
+    text-align: center;
+  }
+  .side-picker-pop .sp-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: center;
+    margin-bottom: 4px;
+  }
+  .side-picker-pop .sp-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .side-picker-pop button {
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border: 1px solid var(--hairline);
+    background: var(--surface);
+    color: var(--text-primary);
+  }
+  .side-picker-pop .sp-accept {
+    background: var(--accept);
+    color: var(--bg-deep);
+    border-color: var(--accept);
+  }
+  .side-picker-pop .sp-decline {
+    background: var(--decline);
+    color: var(--bg-deep);
+    border-color: var(--decline);
+  }
+  .side-picker-pop .sp-cancel {
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 10px;
+    padding: 4px 8px;
+    align-self: center;
+  }
   .modal-card .modal-actions {
     display: flex; gap: 10px;
     justify-content: flex-end;
@@ -2757,15 +2914,15 @@
 <div id="modal-backdrop">
   <div id="add-card-modal" class="modal-card" role="dialog" aria-modal="true">
     <h2 id="modal-title">Add a card</h2>
-    <div class="modal-sub">v29 rules apply: ≤140 chars, ≤3 sentences, ends in a yes/no question, no other cast as subject.</div>
+    <div class="modal-sub">v29 rules apply: ≤140 chars, ≤3 sentences, ends in a yes/no question, no other cast as subject. Leave the chain set to <b>Orphan</b> if you just want to draft a single card — wire it into a chain later, or click "Generate chain" to grow a story around it.</div>
 
     <div class="row">
       <div>
-        <label>Chain</label>
+        <label>Chain <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(optional)</span></label>
         <select id="f-chain"></select>
       </div>
       <div>
-        <label>Attach under (parent · side)</label>
+        <label id="f-parent-label">Attach under (parent · side)</label>
         <select id="f-parent"></select>
       </div>
     </div>
@@ -2791,8 +2948,11 @@
         <select id="f-topic"></select>
       </div>
       <div>
-        <label>Role label (free text)</label>
-        <input id="f-role" placeholder="e.g. Grandchild · Accept on C4">
+        <!-- Memory fragment surfaces here only when the speaker has a
+             canonical fragment in SPEAKERS.md. Otherwise the row hides.
+             Player ask 2026-05: role label was redundant — removed. -->
+        <label>Memory fragment <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(auto-fills)</span></label>
+        <input id="f-memory" placeholder="e.g. the audit ledger">
       </div>
     </div>
 
@@ -2804,50 +2964,16 @@
       </div>
     </div>
 
-    <!-- Memory fragment (auto-filled from SPEAKERS.md registry) -->
     <div class="row full">
       <div>
-        <label>Memory fragment <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(auto-filled for recurring speakers · used by "Cabinet Remembers")</span></label>
-        <input id="f-memory" placeholder="e.g. the audit ledger">
-      </div>
-    </div>
-
-    <!-- Era gating + scheme trigger + tutorial flag -->
-    <div class="row">
-      <div>
-        <label>Min era (optional)</label>
-        <select id="f-min-era">
-          <option value="">— any —</option>
-        </select>
-      </div>
-      <div>
-        <label>Max era (optional)</label>
-        <select id="f-max-era">
-          <option value="">— any —</option>
-        </select>
-      </div>
-    </div>
-    <div class="row">
-      <div>
-        <label>Fires scheme (on Accept)</label>
-        <select id="f-scheme">
-          <option value="">— none —</option>
-        </select>
-      </div>
-      <div style="display: flex; align-items: end; padding-bottom: 8px;">
-        <label style="display: flex; align-items: center; gap: 6px; text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--text-primary); font-size: 12px;">
-          <input type="checkbox" id="f-tutorial" style="width: auto;">
-          Tutorial-only card
+        <label>Situation (the question on the card)
+          <button type="button" id="ai-write-variant" class="ai-mini-btn" title="Generate an alternative phrasing of this situation via AI">✨ Variant</button>
         </label>
-      </div>
-    </div>
-
-    <div class="row full">
-      <div>
-        <label>Situation (the question on the card)</label>
         <textarea id="f-situation" maxlength="220" placeholder="Two sentences of setup, one yes/no question. Speaker = the one presenting the choice."></textarea>
         <div class="counter" id="f-situation-counter">0 / 140 chars · 0 sentences</div>
         <div class="validation-summary" id="f-situation-validation"></div>
+        <!-- Alternative phrasings live here. Each gets a trash button. -->
+        <div id="f-variants-list" class="variants-list"></div>
       </div>
     </div>
 
@@ -2865,16 +2991,30 @@
       <h3>▶ Accept</h3>
       <div class="row full">
         <div>
-          <label>Outcome (what happens after Accept)</label>
+          <label>Outcome (what happens after Accept)
+            <button type="button" id="ai-write-accept" class="ai-mini-btn" title="AI-write the Accept outcome based on the situation">✨ AI write</button>
+          </label>
           <textarea id="f-accept-outcome" placeholder="Halvik prints six lines under your name. The bench reads at breakfast."></textarea>
         </div>
       </div>
       <label>Meter effects</label>
-      <div class="meter-row">
-        <input id="f-accept-env" type="number" placeholder="env" value="0">
-        <input id="f-accept-mil" type="number" placeholder="mil" value="0">
-        <input id="f-accept-wel" type="number" placeholder="wel" value="0">
-        <input id="f-accept-eco" type="number" placeholder="eco" value="0">
+      <div class="meter-row labeled">
+        <div class="meter-field env">
+          <span class="meter-tag">Environment</span>
+          <input id="f-accept-env" type="number" min="-10" max="10" value="0">
+        </div>
+        <div class="meter-field mil">
+          <span class="meter-tag">Military</span>
+          <input id="f-accept-mil" type="number" min="-10" max="10" value="0">
+        </div>
+        <div class="meter-field wel">
+          <span class="meter-tag">Wellness</span>
+          <input id="f-accept-wel" type="number" min="-10" max="10" value="0">
+        </div>
+        <div class="meter-field eco">
+          <span class="meter-tag">Economy</span>
+          <input id="f-accept-eco" type="number" min="-10" max="10" value="0">
+        </div>
       </div>
       <details>
         <summary>↗ Cross-chain trigger (optional)</summary>
@@ -2902,16 +3042,30 @@
       <h3>◀ Decline</h3>
       <div class="row full">
         <div>
-          <label>Outcome (what happens after Decline)</label>
+          <label>Outcome (what happens after Decline)
+            <button type="button" id="ai-write-decline" class="ai-mini-btn" title="AI-write the Decline outcome based on the situation">✨ AI write</button>
+          </label>
           <textarea id="f-decline-outcome" placeholder="Halvik prints the audit summary alone. The headline asks the question you didn't answer."></textarea>
         </div>
       </div>
       <label>Meter effects</label>
-      <div class="meter-row">
-        <input id="f-decline-env" type="number" placeholder="env" value="0">
-        <input id="f-decline-mil" type="number" placeholder="mil" value="0">
-        <input id="f-decline-wel" type="number" placeholder="wel" value="0">
-        <input id="f-decline-eco" type="number" placeholder="eco" value="0">
+      <div class="meter-row labeled">
+        <div class="meter-field env">
+          <span class="meter-tag">Environment</span>
+          <input id="f-decline-env" type="number" min="-10" max="10" value="0">
+        </div>
+        <div class="meter-field mil">
+          <span class="meter-tag">Military</span>
+          <input id="f-decline-mil" type="number" min="-10" max="10" value="0">
+        </div>
+        <div class="meter-field wel">
+          <span class="meter-tag">Wellness</span>
+          <input id="f-decline-wel" type="number" min="-10" max="10" value="0">
+        </div>
+        <div class="meter-field eco">
+          <span class="meter-tag">Economy</span>
+          <input id="f-decline-eco" type="number" min="-10" max="10" value="0">
+        </div>
       </div>
       <details>
         <summary>↗ Cross-chain trigger (optional)</summary>
@@ -2935,49 +3089,12 @@
       </div>
     </div>
 
-    <div class="row full">
-      <div>
-        <label>A/B variants <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(optional — one per line, engine picks one at random on re-runs)</span></label>
-        <textarea id="f-variants" placeholder="Alternative phrasing 1?&#10;Alternative phrasing 2?"></textarea>
-      </div>
-    </div>
-
-    <div class="row">
-      <div>
-        <label>Coup trigger threshold <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(0-100; engine fires the scheme above)</span></label>
-        <input id="f-coup-threshold" type="number" min="0" max="100" placeholder="e.g. 75">
-      </div>
-      <div>
-        <label>Fires achievement on Accept <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(achievement id)</span></label>
-        <input id="f-achievement" placeholder="e.g. first_audit">
-      </div>
-    </div>
-
-    <div class="row">
-      <div>
-        <label>Requires chain completed <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(comma-sep chain ids)</span></label>
-        <input id="f-requires-chain" placeholder="e.g. books, border">
-      </div>
-      <div>
-        <label>Fires on day <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(timed event — empty = anytime)</span></label>
-        <input id="f-fires-day" type="number" min="0" placeholder="e.g. 50">
-      </div>
-    </div>
-
-    <div class="row full">
-      <div>
-        <label>Author notes <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">(private — not shown in game, not in export)</span></label>
-        <textarea id="f-notes" placeholder="reminders, links to docs, follow-up TODOs…"></textarea>
-      </div>
-    </div>
-
-    <details>
-      <summary>📋 Export JSON (paste into the source to keep)</summary>
-      <textarea id="json-out" readonly></textarea>
-      <div class="modal-actions" style="margin-top:8px; padding-top:0; border-top:none;">
-        <button id="copy-json-btn">Copy JSON</button>
-      </div>
-    </details>
+    <!-- 2026-05 simplification (player ask): removed era / scheme /
+         tutorial / coup-threshold / achievement / requires-chain /
+         fires-day / author notes / export-JSON details. The health
+         check auto-derives achievements, the inspector still has
+         the rarely-used fields under "Extras", and exports run via
+         the ⬇ button. Card creation should be fast, not exhaustive. -->
 
     <div class="modal-actions">
       <button id="modal-cancel">Cancel</button>
@@ -3389,41 +3506,44 @@ function cardPosition(chain, card) {
 //   Tier 5+ — 16 specialty cabinet / royals / civic
 // Total: 50.
 const SPEAKERS_BY_MINISTRY = {
-  // ===== Tier 1 — recurring ministers (23) =====
+  // Synced 2026-05 with docs/CAST_50.md — exactly 50 names, no drift.
+  // ===== Tier 1 — recurring ministers (23, SPEAKERS.md §3.1) =====
   "Audit":           ["Auditor Calla"],
-  "Press":           ["Editor Halvik", "Press Secretary Lindi", "Editor Bjork"],
+  "Press":           ["Editor Halvik", "Press Secretary Lindi"],
   "Treasury":        ["Treasurer Halen Vorr", "Tax Commissioner Brask"],
-  "Justice":         ["Magistrate Pell", "Counsel Aren"],
-  "Defense":         ["Marshal Dren Volk", "General Marek", "Brigadier Ines",
-                      "Colonel Pret", "Aide-de-Camp Ren Halsey"],
+  "Justice":         ["Counsel Aren", "Magistrate Pell", "Justice Vorinna"],
+  "Defense":         ["Marshal Dren Volk", "General Marek", "Brigadier Ines", "Colonel Pret"],
   "Foreign Affairs": ["Ambassador Hess"],
   "Health":          ["Dr. Myra"],
   "Education":       ["Principal Vorn"],
   "Economy":         ["Economist Ansa", "Economist Kael"],
   "Energy":          ["Engineer Ilva"],
   "Interior":        ["Inspector Hova"],
-  "Industry":        ["Foreman Kell"],
+  "Labor":           ["Foreman Kell"],
   "Tourism":         ["Tourism Director Estrid"],
-  "Culture":         ["Director Ansa", "Curator Brandt"],
-  "Research":        ["Lead Researcher Adden"],
-  "Activism":        ["Activist Niro"],
-  // ===== Tier 2 — family (5) =====
-  "Family":          ["Spouse Mira", "Daughter Inka", "Son Tobi", "Father Olen", "Sister Ada"],
+  "Culture":         ["Director Ansa"],
+  "Heritage":        ["Curator Brandt"],
+  "Science":         ["Lead Researcher Adden"],
+  // ===== Tier 2 — family (5) — generic canonical names per CAST_50.md =====
+  "Family":          ["Your Spouse", "Your Eldest", "Your Sister", "Your Father-in-law", "Your Cousin"],
   // ===== Tier 3 — citizens (3) =====
   "The Public":      ["Selma", "Osman", "Aysel"],
   // ===== Tier 4 — foreign heads of state (3) =====
-  "Foreign":         ["President Marenne Vael", "Premier Rasic Dolgov", "President Yusra Tehari"],
-  // ===== Tier 5+ — specialty cabinet / royals / civic (16) =====
-  "Labour":          ["Labour Minister Sten"],
-  "Agriculture":     ["Agriculture Minister Mireth"],
-  "Environment":     ["Environment Minister Reva"],
-  "Housing":         ["Housing Minister Donal"],
-  "Communications":  ["Communications Minister Lyra"],
-  "Veterans":        ["Veterans Minister Karth"],
-  "Trade":           ["Trade Envoy Renna"],
-  "Civic":           ["Mayor of Verith", "Union Leader Kavak", "Student Leader Ivar", "Refugee Coordinator Olek"],
-  "Religion":        ["Bishop Adira"],
-  "Royal Court":     ["Queen Halira", "Prince Erren", "Princess Vora"],
+  "Foreign":         ["President Marenne Vael", "Premier Rasic Dolgov", "Chairwoman Yusra Tehari"],
+  // ===== Tier 5 — cabinet executive + generic ministers (5) =====
+  "Cabinet":         ["Chief of Staff Orra", "Minister Korva", "Minister Halden", "Chief Draza", "Aide-de-Camp Ren Halsey"],
+  // ===== Tier 6 — opposition press (2) =====
+  "Opposition":      ["Editor Bjork", "Opposition Leader Rho"],
+  // ===== Tier 7 — environmental specialists (2) =====
+  "Environment":     ["Forester Tam", "Marine Biologist Ressa"],
+  // ===== Tier 8 — ambassadors (1) =====
+  "Diplomatic Corps":["Ambassador Linnea Vael"],
+  // ===== Tier 9 — religion + royal court (3) =====
+  "Religion":        ["Cardinal Erethon"],
+  "Royal Court":     ["Chamberlain Veyra", "Princess Vora"],
+  // ===== Tier 10 — civic + activist (2; Justice Vorinna is in Justice above) =====
+  "Civic":           ["Mayor Pava"],
+  "Activism":        ["Activist Niro"],
 };
 
 // Reverse lookup: speaker → ministry
@@ -8322,14 +8442,29 @@ function refreshParallelUI(side) {
 }
 
 function populateModalDropdowns() {
-  // Chain dropdown
+  // Chain dropdown — includes an "Orphan" option so the author can
+  // drop a single card without wiring it into a chain. Player ask
+  // 2026-05: "when i am adding a single card it doesnt have to be
+  // part of a chain. my plan is i will add a single card and later
+  // connect it to a chain."
   const chainSel = document.getElementById("f-chain");
-  chainSel.innerHTML = CHAINS.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
+  chainSel.innerHTML =
+    '<option value="__orphan__">— Orphan card (no chain yet) —</option>' +
+    CHAINS.filter(c => c.id !== "orphans").map(c => `<option value="${c.id}">${c.name}</option>`).join("");
 
-  // Parent dropdown
+  // Parent dropdown — hidden when chain == orphan, shown otherwise
   const parentSel = document.getElementById("f-parent");
+  const parentLabel = document.getElementById("f-parent-label");
   function refreshParents() {
     const chainId = chainSel.value;
+    if (chainId === "__orphan__") {
+      // Orphan mode — no parent wiring; show a friendly note instead
+      parentSel.style.display = "none";
+      parentLabel.innerHTML = 'Attach under (parent · side) <span style="color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0;">— skipped for orphan cards</span>';
+      return;
+    }
+    parentSel.style.display = "";
+    parentLabel.textContent = "Attach under (parent · side)";
     const chain = CHAINS.find(c => c.id === chainId);
     if (!chain) return;
     const opts = [];
@@ -8394,12 +8529,10 @@ function populateModalDropdowns() {
     runValidation();
   });
 
-  // Era + scheme dropdowns
-  const eraOpts = '<option value="">— any —</option>' + ERAS.map(e => `<option value="${e}">.${e}</option>`).join("");
-  document.getElementById("f-min-era").innerHTML = eraOpts;
-  document.getElementById("f-max-era").innerHTML = eraOpts;
-  document.getElementById("f-scheme").innerHTML =
-    SCHEMES.map(s => `<option value="${s === 'none' ? '' : s}">${s === 'none' ? '— none —' : s}</option>`).join("");
+  // Era + scheme dropdowns — these used to live in the create modal
+  // but were retired in the 2026-05 simplification. The inspector
+  // still surfaces them under "Extras" for the rare cases where they
+  // matter. Lookup tables (ERAS / SCHEMES) stay used by validators.
 
   // Trigger chain dropdowns
   const acceptTrig = document.getElementById("f-accept-trigger");
@@ -8452,21 +8585,12 @@ function openModal(presetParentId, editId) {
       const topicEl = document.getElementById("f-topic");
       topicEl.value = editCard.topic || "tricky";
       topicEl.dispatchEvent(new Event("change"));
-      document.getElementById("f-role").value = editCard.role || "";
       document.getElementById("f-situation").value = editCard.situation || "";
       document.getElementById("f-condition").value = editCard.condition || "";
       document.getElementById("f-trickyclue").value = editCard.trickyClue || "";
       document.getElementById("f-memory").value = editCard.memoryFragment || (MEMORY_FRAGMENTS[editCard.speaker] || "");
-      document.getElementById("f-min-era").value = editCard.minEra || "";
-      document.getElementById("f-max-era").value = editCard.maxEra || "";
-      document.getElementById("f-scheme").value = editCard.scheme || "";
-      document.getElementById("f-tutorial").checked = !!editCard.tutorialOnly;
-      document.getElementById("f-notes").value = editCard.notes || "";
-      document.getElementById("f-variants").value = (editCard.situationVariants || []).join("\n");
-      document.getElementById("f-coup-threshold").value = editCard.coupTriggerThreshold || "";
-      document.getElementById("f-achievement").value = (editCard.accept && editCard.accept.firesAchievement) || editCard.firesAchievement || "";
-      document.getElementById("f-requires-chain").value = (editCard.requiresChainCompleted || []).join(", ");
-      document.getElementById("f-fires-day").value = editCard.firesOnDay || "";
+      // Alt phrasings restore into the variants list (one row per phrasing)
+      renderVariantsList(editCard.situationVariants || []);
       // Branches
       for (const side of ["accept", "decline"]) {
         const b = editCard[side] || {};
@@ -8520,19 +8644,14 @@ function closeModal() {
   modalBackdrop.classList.remove("open");
   editingCardId = null;
   // Reset fields
-  for (const id of ["f-role", "f-situation", "f-condition",
-                    "f-trickyclue", "f-memory", "f-notes",
-                    "f-variants", "f-coup-threshold", "f-achievement",
-                    "f-requires-chain", "f-fires-day",
+  for (const id of ["f-situation", "f-condition",
+                    "f-trickyclue", "f-memory",
                     "f-accept-outcome", "f-decline-outcome",
                     "f-accept-cond", "f-decline-cond"]) {
     const el = document.getElementById(id);
     if (el) el.value = "";
   }
-  document.getElementById("f-min-era").value = "";
-  document.getElementById("f-max-era").value = "";
-  document.getElementById("f-scheme").value = "";
-  document.getElementById("f-tutorial").checked = false;
+  renderVariantsList([]);
   document.getElementById("f-trickyclue-row").style.display = "none";
   document.getElementById("f-speaker").value = "";
   document.getElementById("f-ministry").value = "";
@@ -8545,7 +8664,6 @@ function closeModal() {
   }
   document.getElementById("f-accept-trigger").value = "";
   document.getElementById("f-decline-trigger").value = "";
-  document.getElementById("json-out").value = "";
   document.getElementById("modal-title").textContent = "Add a card";
   saveBtn.textContent = "Add to canvas";
 }
@@ -8737,9 +8855,66 @@ function endDrag(clientX, clientY) {
   if (!sourceCard || !targetCard) return;
   const sourceChain = CHAINS.find(c => c.cards.includes(sourceCard));
   const targetChain = CHAINS.find(c => c.cards.includes(targetCard));
-  const sideAnswer = confirm(`From ${sourceCard.speaker} (${sourceId}) → ${targetCard.speaker} (${targetCardId})\n\nOK = connect on ACCEPT swipe\nCancel = connect on DECLINE swipe`);
-  const side = sideAnswer ? "accept" : "decline";
+  // Inline side picker — player ask 2026-05: "i dragged from one card
+  // to another and it became accept by default. let me select if i
+  // wanan make it accept or decline." Replaces the old confirm()
+  // dialog with a proper two-button popover near the drop point.
+  showSidePicker(clientX, clientY, sourceCard, targetCard, (side) => {
+    finishDragConnection(sourceCard, targetCard, sourceChain, targetChain, side, wasParallel);
+  });
+}
 
+// Two-button popover anchored at the drop point. The caller passes
+// (clientX, clientY) and a callback (side) → void. Clicking outside
+// or pressing Escape cancels without wiring anything.
+function showSidePicker(clientX, clientY, sourceCard, targetCard, onPick) {
+  // Remove any leftover popover
+  document.querySelectorAll(".side-picker-pop").forEach(n => n.remove());
+  const pop = document.createElement("div");
+  pop.className = "side-picker-pop";
+  pop.style.left = clientX + "px";
+  pop.style.top  = clientY + "px";
+  pop.innerHTML = `
+    <div class="sp-title">${sourceCard.speaker} → ${targetCard.speaker}</div>
+    <div class="sp-sub">Connect this link on which swipe?</div>
+    <div class="sp-buttons">
+      <button class="sp-decline" type="button" data-side="decline">◀ Decline</button>
+      <button class="sp-accept" type="button" data-side="accept">▶ Accept</button>
+    </div>
+    <button class="sp-cancel" type="button">Cancel</button>
+  `;
+  document.body.appendChild(pop);
+  function close() {
+    pop.remove();
+    document.removeEventListener("mousedown", outside, true);
+    document.removeEventListener("keydown", esc);
+  }
+  function outside(e) {
+    if (!pop.contains(e.target)) close();
+  }
+  function esc(e) {
+    if (e.key === "Escape") close();
+  }
+  pop.querySelectorAll("[data-side]").forEach(b => {
+    b.addEventListener("click", () => {
+      const side = b.getAttribute("data-side");
+      close();
+      onPick(side);
+    });
+  });
+  pop.querySelector(".sp-cancel").addEventListener("click", close);
+  setTimeout(() => {
+    document.addEventListener("mousedown", outside, true);
+    document.addEventListener("keydown", esc);
+  }, 0);
+}
+
+// Continuation of the original endDrag wiring, moved out so the side
+// picker callback can invoke it after the user has chosen Accept or
+// Decline. wasParallel = true means Shift was held → add as pool.
+function finishDragConnection(sourceCard, targetCard, sourceChain, targetChain, side, wasParallel) {
+  const sourceId = sourceCard.id;
+  const targetCardId = targetCard.id;
   // Parallel-mode drop (Shift held during drag): add target as a
   // pool member alongside any existing follow-up. Engine picks one
   // at random per playthrough.
@@ -9269,7 +9444,11 @@ function runValidation() {
     const c = CHAINS.flatMap(ch => ch.cards).find(x => x.id === editingCardId);
     return c && c.level === 0;
   })();
-  const parentOk = editingSeed ? true : (!!parentVal && parentVal.includes("|"));
+  // Orphan-card flow: chain set to __orphan__ skips parent wiring.
+  const chainVal = document.getElementById("f-chain").value;
+  const parentOk = (chainVal === "__orphan__" || editingSeed)
+    ? true
+    : (!!parentVal && parentVal.includes("|"));
   // Speaker on cast list (warn but allow)
   const speakerOnCast = CAST.has(speaker);
 
@@ -9294,11 +9473,33 @@ function runValidation() {
               && outcomesOk && meterAcceptOk && meterDeclineOk && parentOk
               && speaker && ministry;
   saveBtn.disabled = !allOk;
-  document.getElementById("json-out").value = buildCardJSON();
 }
 
 function buildCardJSON() {
   const chainId = document.getElementById("f-chain").value;
+  // Orphan-card path — no chain wiring, no parent set-flag.
+  if (chainId === "__orphan__") {
+    const variants = readVariantsList();
+    const card = {
+      id: "orphans-pending",
+      role: "Orphan",
+      level: 0,
+      col: "center",
+      speaker: document.getElementById("f-speaker").value.trim(),
+      ministry: document.getElementById("f-ministry").value.trim(),
+      topic: document.getElementById("f-topic").value,
+      situation: document.getElementById("f-situation").value.trim(),
+      requires: null,
+      accept: makeBranch("accept"),
+      decline: makeBranch("decline"),
+    };
+    const mem = document.getElementById("f-memory").value.trim();
+    if (mem) card.memoryFragment = mem;
+    const trickyClue = document.getElementById("f-trickyclue").value.trim();
+    if (trickyClue) card.trickyClue = trickyClue;
+    if (variants.length) card.situationVariants = variants;
+    return JSON.stringify(card, null, 2);
+  }
   const chain = CHAINS.find(c => c.id === chainId);
   if (!chain) return "";
 
@@ -9307,7 +9508,7 @@ function buildCardJSON() {
     if (!existing) return "";
     const card = {
       id: existing.id,
-      role: document.getElementById("f-role").value.trim() || existing.role,
+      role: existing.role,
       level: existing.level,
       col: existing.col,
       speaker: document.getElementById("f-speaker").value.trim(),
@@ -9323,15 +9524,12 @@ function buildCardJSON() {
       condition: document.getElementById("f-condition").value.trim(),
       trickyClue: document.getElementById("f-trickyclue").value.trim(),
       memoryFragment: document.getElementById("f-memory").value.trim(),
-      minEra: document.getElementById("f-min-era").value,
-      maxEra: document.getElementById("f-max-era").value,
-      scheme: document.getElementById("f-scheme").value,
-      tutorialOnly: document.getElementById("f-tutorial").checked,
-      notes: document.getElementById("f-notes").value.trim(),
     };
     for (const [k, v] of Object.entries(optional)) {
       if (v) card[k] = v;
     }
+    const variants = readVariantsList();
+    if (variants.length) card.situationVariants = variants;
     return JSON.stringify(card, null, 2);
   }
 
@@ -9342,7 +9540,7 @@ function buildCardJSON() {
   const setFlag = "from_" + parentId + "_" + side;
   const card = {
     id: newId,
-    role: document.getElementById("f-role").value || "Authored",
+    role: "Authored",
     level: 3,
     col: "authored",
     speaker: document.getElementById("f-speaker").value.trim(),
@@ -9353,6 +9551,12 @@ function buildCardJSON() {
     accept: makeBranch("accept"),
     decline: makeBranch("decline"),
   };
+  const mem = document.getElementById("f-memory").value.trim();
+  if (mem) card.memoryFragment = mem;
+  const trickyClue = document.getElementById("f-trickyclue").value.trim();
+  if (trickyClue) card.trickyClue = trickyClue;
+  const variants = readVariantsList();
+  if (variants.length) card.situationVariants = variants;
   return JSON.stringify(card, null, 2);
 }
 
@@ -9383,7 +9587,6 @@ function saveCard() {
     card.speaker = document.getElementById("f-speaker").value.trim();
     card.ministry = document.getElementById("f-ministry").value.trim();
     card.topic = document.getElementById("f-topic").value;
-    card.role = document.getElementById("f-role").value.trim() || card.role;
     card.situation = document.getElementById("f-situation").value.trim();
     const cond = document.getElementById("f-condition").value.trim();
     if (cond) card.condition = cond;
@@ -9393,32 +9596,9 @@ function saveCard() {
     if (tricky) card.trickyClue = tricky; else delete card.trickyClue;
     const mem = document.getElementById("f-memory").value.trim();
     if (mem) card.memoryFragment = mem; else delete card.memoryFragment;
-    const minE = document.getElementById("f-min-era").value;
-    const maxE = document.getElementById("f-max-era").value;
-    if (minE) card.minEra = minE; else delete card.minEra;
-    if (maxE) card.maxEra = maxE; else delete card.maxEra;
-    const scheme = document.getElementById("f-scheme").value;
-    if (scheme) card.scheme = scheme; else delete card.scheme;
-    card.tutorialOnly = document.getElementById("f-tutorial").checked;
-    if (!card.tutorialOnly) delete card.tutorialOnly;
-    const notes = document.getElementById("f-notes").value.trim();
-    if (notes) card.notes = notes; else delete card.notes;
-    // New engine-compat fields (player ask 2026-05 gap list):
-    const variants = document.getElementById("f-variants").value.split("\n").map(s => s.trim()).filter(Boolean);
+    // Alternative phrasings — collected from the variants list
+    const variants = readVariantsList();
     if (variants.length) card.situationVariants = variants; else delete card.situationVariants;
-    const coup = parseInt(document.getElementById("f-coup-threshold").value, 10);
-    if (!isNaN(coup) && coup >= 0) card.coupTriggerThreshold = coup; else delete card.coupTriggerThreshold;
-    const ach = document.getElementById("f-achievement").value.trim();
-    if (ach) {
-      if (!card.accept) card.accept = {};
-      card.accept.firesAchievement = ach;
-    } else if (card.accept) {
-      delete card.accept.firesAchievement;
-    }
-    const reqChain = document.getElementById("f-requires-chain").value.split(",").map(s => s.trim()).filter(Boolean);
-    if (reqChain.length) card.requiresChainCompleted = reqChain; else delete card.requiresChainCompleted;
-    const day = parseInt(document.getElementById("f-fires-day").value, 10);
-    if (!isNaN(day) && day >= 0) card.firesOnDay = day; else delete card.firesOnDay;
     // requiredFlags compatibility — engine uses array
     if (card.requires) {
       card.requiredFlags = [card.requires];
@@ -9448,11 +9628,49 @@ function saveCard() {
     return;
   }
 
-  // ===== NEW — append a new card and wire the parent branch
+  // ===== NEW — append a new card.
+  // Two paths: orphan (no chain) or attached to a chain's open swipe slot.
+  const chainId = document.getElementById("f-chain").value;
   const parentVal = document.getElementById("f-parent").value;
+
+  if (chainId === "__orphan__") {
+    // Orphan card — lands in the "orphans" bucket chain, unwired.
+    // Author can later drag-connect it into a chain or click
+    // "Generate chain" to grow a story around it.
+    snapshot();
+    let bucket = CHAINS.find(c => c.id === "orphans");
+    if (!bucket) {
+      const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + 920 : 80;
+      bucket = {
+        id: "orphans",
+        name: "Orphan Cards",
+        subtitle: "Single cards · not wired into a chain yet",
+        chainTheme: "civic",
+        color: "var(--gold)",
+        x: rightmostX,
+        room: (activeRoom === "__all__") ? "Main" : activeRoom,
+        cards: [],
+      };
+      CHAINS.push(bucket);
+    }
+    const newCard = JSON.parse(buildCardJSON());
+    // Re-id under the orphans bucket so it doesn't collide
+    const seq = bucket.cards.length + 1;
+    newCard.id = "orphans-" + seq;
+    newCard.level = 0;
+    newCard.col = "center";
+    newCard.role = newCard.role || "Orphan";
+    bucket.cards.push(newCard);
+    persist();
+    closeModal();
+    rerenderAll();
+    setTimeout(() => setFocusedCard(newCard.id, false), 50);
+    showCopyToast("Orphan card added — drag-connect or generate a chain around it");
+    return;
+  }
+
   if (!parentVal) return;
   const [parentId, side] = parentVal.split("|");
-  const chainId = document.getElementById("f-chain").value;
   const chain = CHAINS.find(c => c.id === chainId);
   if (!chain) return;
   const parent = chain.cards.find(c => c.id === parentId);
@@ -9475,6 +9693,187 @@ function saveCard() {
   setTimeout(() => setFocusedCard(newCard.id, false), 50);
   showCopyToast("Card added");
 }
+
+// ===================================================================
+// Alt-phrasing variants list — player ask 2026-05: "once i wrote the
+// card content have an autogenerate button for the alternative
+// phrasing and let me add multiple by plus icon."
+//
+// Each variant is one row in #f-variants-list. The "✨ Variant" button
+// next to the Situation label generates one via AI and appends it.
+// Each row has a trash button. Persisted as card.situationVariants.
+// ===================================================================
+function renderVariantsList(variants) {
+  const list = document.getElementById("f-variants-list");
+  if (!list) return;
+  list.innerHTML = "";
+  for (const v of variants || []) appendVariantRow(v);
+}
+
+function appendVariantRow(text) {
+  const list = document.getElementById("f-variants-list");
+  if (!list) return;
+  const row = document.createElement("div");
+  row.className = "variant-row";
+  row.innerHTML = `<div class="variant-text"></div><button type="button" title="Remove this variant">×</button>`;
+  row.querySelector(".variant-text").textContent = text;
+  row.querySelector("button").addEventListener("click", () => {
+    row.remove();
+    runValidation();
+  });
+  list.appendChild(row);
+}
+
+function readVariantsList() {
+  const list = document.getElementById("f-variants-list");
+  if (!list) return [];
+  return Array.from(list.querySelectorAll(".variant-text")).map(el => el.textContent.trim()).filter(Boolean);
+}
+
+// ===================================================================
+// AI auto-write helpers — call the existing Claude/Gemini plumbing to
+// fill in outcome copy or alternative phrasings. Surface as small ✨
+// buttons next to labels. Picks the provider/key from the saved AI
+// keys (Settings → API keys).
+// ===================================================================
+async function aiWriteOutcomeForSide(side) {
+  const btn = document.getElementById(side === "accept" ? "ai-write-accept" : "ai-write-decline");
+  const out = document.getElementById(`f-${side}-outcome`);
+  const situation = document.getElementById("f-situation").value.trim();
+  if (!situation) {
+    showCopyToast("Write the Situation first, then click ✨ AI write");
+    return;
+  }
+  const speaker  = document.getElementById("f-speaker").value || "the speaker";
+  const ministry = document.getElementById("f-ministry").value || "their ministry";
+  const topic    = document.getElementById("f-topic").value || "simple";
+  const keys = loadAIKeys();
+  const provider = keys.claude ? "claude" : (keys.gemini ? "gemini" : null);
+  if (!provider) {
+    showCopyToast("Add a Claude or Gemini API key in Settings first");
+    return;
+  }
+  const apiKey = provider === "claude" ? keys.claude : keys.gemini;
+  const prompt = `You write a single outcome line for a swipe card in "Presidenter".
+
+Situation (the question on the card):
+"${situation}"
+
+Speaker: ${speaker} · ${ministry} · topic .${topic}
+
+Write ONE short outcome line (≤140 chars, ≤2 sentences, no em-dashes) describing what happens AFTER the player swipes "${side === "accept" ? "Accept" : "Decline"}". Be concrete, in-world, written in the speaker's voice. No bookkeeping ("the player chose X") — just describe the in-world reaction.
+
+Output ONLY the outcome line. No quotes, no preamble.`;
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = "…";
+  try {
+    const text = await callAITextPlain(provider, apiKey, prompt);
+    out.value = text.trim().replace(/^["']|["']$/g, "");
+    runValidation();
+    schedulePersistAndRerender && schedulePersistAndRerender();
+  } catch (e) {
+    showCopyToast("AI write failed: " + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
+async function aiWriteVariantOfSituation() {
+  const btn = document.getElementById("ai-write-variant");
+  const situation = document.getElementById("f-situation").value.trim();
+  if (!situation) {
+    showCopyToast("Write the Situation first, then click ✨ Variant");
+    return;
+  }
+  const speaker = document.getElementById("f-speaker").value || "the speaker";
+  const keys = loadAIKeys();
+  const provider = keys.claude ? "claude" : (keys.gemini ? "gemini" : null);
+  if (!provider) {
+    showCopyToast("Add a Claude or Gemini API key in Settings first");
+    return;
+  }
+  const apiKey = provider === "claude" ? keys.claude : keys.gemini;
+  const existing = readVariantsList().join("\n  ");
+  const prompt = `You rephrase a swipe-card situation in "Presidenter".
+
+Speaker: ${speaker}
+
+Original phrasing:
+"${situation}"
+
+${existing ? `Existing alternative phrasings (do NOT repeat these):\n  ${existing}\n` : ""}
+Write ONE new alternative phrasing of the same situation that:
+- Ends in a yes/no question
+- ≤140 chars, ≤3 sentences
+- No em-dashes
+- Stays in the speaker's voice
+- Keeps the same core decision but uses different wording
+
+Output ONLY the new phrasing. No quotes, no preamble.`;
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = "…";
+  try {
+    const text = await callAITextPlain(provider, apiKey, prompt);
+    appendVariantRow(text.trim().replace(/^["']|["']$/g, ""));
+    runValidation();
+  } catch (e) {
+    showCopyToast("AI variant failed: " + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
+// Plain-text AI call — returns just the model's text response. Reuses
+// the same HTTP shape as generateChainWithAI but without JSON parsing.
+async function callAITextPlain(provider, apiKey, prompt) {
+  if (provider === "claude") {
+    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "claude-3-5-sonnet-20241022",
+        max_tokens: 500,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+    if (!resp.ok) throw new Error(`Claude ${resp.status}`);
+    const data = await resp.json();
+    return (data.content && data.content[0] && data.content[0].text) || "";
+  }
+  // Gemini
+  const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(apiKey)}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.8, maxOutputTokens: 500 },
+    }),
+  });
+  if (!resp.ok) throw new Error(`Gemini ${resp.status}`);
+  const data = await resp.json();
+  return (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text) || "";
+}
+
+// Wire the AI buttons once the DOM is parsed (after this script block).
+// The buttons live inside the always-rendered modal markup, so we can
+// bind directly.
+document.addEventListener("DOMContentLoaded", () => {
+  const wAccept  = document.getElementById("ai-write-accept");
+  const wDecline = document.getElementById("ai-write-decline");
+  const wVariant = document.getElementById("ai-write-variant");
+  if (wAccept)  wAccept.addEventListener("click", () => aiWriteOutcomeForSide("accept"));
+  if (wDecline) wDecline.addEventListener("click", () => aiWriteOutcomeForSide("decline"));
+  if (wVariant) wVariant.addEventListener("click", aiWriteVariantOfSituation);
+});
 
 // Dirty-state — modal asks confirmation before discarding edits.
 function modalIsDirty() {
@@ -9528,21 +9927,8 @@ for (const side of ["accept", "decline"]) {
   });
 }
 
-// Copy JSON button
-document.getElementById("copy-json-btn").addEventListener("click", () => {
-  const text = document.getElementById("json-out").value;
-  if (!text) return;
-  navigator.clipboard.writeText(text).then(
-    () => showCopyToast("Copied to clipboard"),
-    () => {
-      // Fallback for older browsers / non-secure contexts
-      const ta = document.getElementById("json-out");
-      ta.select();
-      document.execCommand("copy");
-      showCopyToast("Copied to clipboard");
-    }
-  );
-});
+// Copy-JSON button retired in 2026-05 simplification — the export
+// JSON pane was rarely used. Authors export via the ⬇ button instead.
 
 // Live validation on form changes
 for (const id of ["f-speaker", "f-situation", "f-chain", "f-parent"]) {
@@ -9553,9 +9939,11 @@ for (const id of ["f-accept-outcome", "f-decline-outcome", "f-accept-cond",
                   "f-decline-cond", "f-accept-trigger", "f-decline-trigger",
                   "f-accept-env", "f-accept-mil", "f-accept-wel", "f-accept-eco",
                   "f-decline-env", "f-decline-mil", "f-decline-wel", "f-decline-eco",
-                  "f-topic", "f-role", "f-ministry"]) {
-  document.getElementById(id).addEventListener("input", runValidation);
-  document.getElementById(id).addEventListener("change", runValidation);
+                  "f-topic", "f-ministry"]) {
+  const el = document.getElementById(id);
+  if (!el) continue;
+  el.addEventListener("input", runValidation);
+  el.addEventListener("change", runValidation);
 }
 
 // Keyboard shortcuts
