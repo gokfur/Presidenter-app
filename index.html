@@ -10225,11 +10225,16 @@ function populateModalDropdowns() {
     } else {
       ministrySel.disabled = false;
     }
-    // Auto-fill memory fragment if this speaker has a canonical one
+    // 2026-05-12 — auto-fill OR CLEAR memory fragment when the
+    // speaker changes. Player bug: changing speaker left a stale
+    // fragment from the previous speaker (e.g. "the energy desk"
+    // showed up on Ambassador Linnea Vael because she has no
+    // registry entry). The fix: always overwrite when the speaker
+    // changes — to the canonical fragment when one exists, to
+    // empty when it doesn't, so the author types a fresh one.
     const memEl = document.getElementById("f-memory");
-    if (memEl && !memEl.value.trim()) {
-      const frag = MEMORY_FRAGMENTS[speakerSel.value];
-      if (frag) memEl.value = frag;
+    if (memEl) {
+      memEl.value = MEMORY_FRAGMENTS[speakerSel.value] || "";
     }
     runValidation();
   });
@@ -13364,11 +13369,13 @@ async function generateChainWithAI(provider, apiKey, opts) {
   let structureBlock;
   if (chainLength <= 5) {
     structureBlock = `A 5-card chain follows this tree:
-- c1 (trigger): initial decision
-- c2 (after c1 ACCEPT): consequence of accepting c1
-- c3 (after c1 DECLINE): consequence of declining c1
-- c4 (after c2 ACCEPT): deeper consequence on accept path
-- c5 (after c3 ACCEPT): deeper consequence on decline path
+- c1 (trigger): initial decision. Stakes feel ROUTINE — a small ask, a single signature, a single name on a memo. The player should not realise this is a chain.
+- c2 (after c1 ACCEPT): the routine ask has a wrinkle. Stakes step up ONE notch.
+- c3 (after c1 DECLINE): refusal has its own wrinkle. Same one-notch escalation, opposite branch.
+- c4 (after c2 ACCEPT): the wrinkle becomes a corner. Stakes step up another notch — but only one.
+- c5 (after c3 ACCEPT): same one-notch escalation, decline path.
+
+SLOW BURN — CRITICAL: this chain is a SLOW story, not a thriller. Card-to-card escalation is GENTLE — one new fact, one new face, one new constraint. NEVER skip 3 notches between cards. The player should feel the room slowly close, not get hit with a cliffhanger on c2. The biggest pivot is reserved for the final card.
 
 CRITICAL — CONTINUITY (each card consistent with the parent's accept/decline):
 
@@ -13396,9 +13403,16 @@ NO generic "the room exhales" filler unless tied to a specific prop. NO random s
 Generate these suffixes IN ORDER: ${suffixes}
 
 Shape:
-- c1 (trigger): the inciting event. Stakes feel small. Speaker is reasonable.
+- c1 (trigger): the inciting event. Stakes feel ROUTINE — a small ask, a name on a memo, a single signature. The player should not realise this is a chain. Don't telegraph the future.
 - c2 .. c${chainLength - 1}: each card is the consequence of the PREVIOUS card's ACCEPT swipe. The story advances on accept; decline = the player tries to bail.
 - c${chainLength} (climax): the moment the choice cycle resolves. After this, the chain ends.
+
+SLOW BURN — CRITICAL: this is a slow-burn story across ${chainLength} cards, NOT a thriller. Card-to-card escalation is GENTLE — one new fact, one new face, one new constraint per beat. NEVER skip 3 notches between cards. NEVER reveal the climax stakes before two-thirds of the way in. The player should feel the room slowly close on them, not get blindsided by c3.
+
+Per-card stake size (use as a rough guide):
+  • c1..c${Math.ceil(chainLength / 3)} (the FIRST THIRD): routine cabinet ask. Small numbers, small props, small consequences.
+  • c${Math.ceil(chainLength / 3) + 1}..c${Math.ceil((chainLength * 2) / 3)} (the MIDDLE THIRD): the wrinkle becomes a complication. Names get repeated. The original prop has a second use.
+  • c${Math.ceil((chainLength * 2) / 3) + 1}..c${chainLength} (the FINAL THIRD): the corner the player walked into. Now the stakes feel real. The c${chainLength} card is the climax.
 
 CRITICAL — CONTINUITY (every card consistent with the parent's accept/decline):
 
@@ -14438,8 +14452,10 @@ async function generateRandomCardIntoForm() {
 
   // Memory fragment auto-fill from speaker registry.
   const memEl = document.getElementById("f-memory");
-  if (memEl && localCard.speaker) {
-    memEl.value = MEMORY_FRAGMENTS[localCard.speaker] || memEl.value || "";
+  if (memEl) {
+    // 2026-05-12 — always overwrite, even when no registry entry,
+    // to avoid leaking the previous card's fragment.
+    memEl.value = MEMORY_FRAGMENTS[localCard.speaker] || "";
   }
 
   // AI upgrade — async-replace with a richer / more contextual card.
@@ -14450,13 +14466,15 @@ async function generateRandomCardIntoForm() {
 
 CRITICAL — VOICE: WRONG: "Halvik prints six lines." RIGHT: "I'll print six lines." Both situation and outcomes stay in the speaker's first person.
 
+CONTEXT — every card needs a SETUP and an ASK. Don't open with a naked question. Sentence 1 = setup (ONE concrete fact: a name, a number, a deadline, a place). Sentence 2 = the ask. Example WRONG (no setup): "Would you donate?" Example RIGHT (with setup): "The shelter's running on stove rentals and the kitchen tile is gone. Donate a month's rent from the office fund?"
+
 Constraints:
 - speaker: from the 50-cast below.
 - ministry: matches speaker.
 - topic: tricky / scandal / economy / military / diplomacy / health / simple / education / environment / energy / justice / funnyFlavor.
-- situation: ≤140 chars, ≤2 sentences, ends in "?", no em-dashes.
-- accept.outcome: ≤140 chars, no em-dashes, first-person.
-- decline.outcome: ≤140 chars, no em-dashes, first-person.
+- situation: ≤140 chars, EXACTLY 2 sentences (setup + ask), ends in "?", no em-dashes.
+- accept.outcome: ≤140 chars, no em-dashes, first-person. Reference the prop from the situation.
+- decline.outcome: ≤140 chars, no em-dashes, first-person. Reference the same prop.
 - Both outcomes meaningful — sum of |abs| meter shifts ≥ 2 per side.
 - Both swipes leak something the player wanted to protect (moral dilemma).
 
@@ -14470,7 +14488,7 @@ Output ONLY this JSON (no prose):
       const aiCard = extractJSONFromAIText(text);
       plumbCardIntoForm(aiCard);
       if (memEl && aiCard.speaker) {
-        memEl.value = MEMORY_FRAGMENTS[aiCard.speaker] || memEl.value || "";
+        memEl.value = MEMORY_FRAGMENTS[aiCard.speaker] || "";
       }
     } catch (e) {
       console.warn("🎲 AI upgrade failed:", e.message);
