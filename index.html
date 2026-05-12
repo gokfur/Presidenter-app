@@ -1664,28 +1664,49 @@
     margin-bottom: 12px;
   }
   #proto-card-view .pc .pc-situation {
-    font-size: 14px; line-height: 1.5;
+    font-size: 15px; line-height: 1.55;
     color: var(--text-primary);
-    margin-bottom: 16px;
+    margin-bottom: 20px;
   }
+  /* Step 7 — beefier swipe buttons. Player ask 2026-05-12: 'improve
+     the prototype UI make it easier to use.' Filled fills replace
+     the old outline-only style so the buttons read as bold actions
+     at a glance, not links. */
   #proto-card-view .pc .pc-buttons {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
   }
   #proto-card-view .pc .pc-buttons button {
-    padding: 12px;
-    border-radius: 8px;
-    border: 1px solid var(--hairline);
+    padding: 18px 14px;
+    border-radius: 12px;
+    border: 2px solid var(--hairline);
     background: var(--surface2);
     color: var(--text-primary);
     cursor: pointer;
-    font-size: 12px;
-    font-weight: 700;
+    font-size: 13px;
+    font-weight: 800;
     letter-spacing: 0.10em;
     text-transform: uppercase;
+    transition: transform 0.12s, box-shadow 0.18s;
   }
-  #proto-card-view .pc .pc-buttons .accept { border-color: var(--accept); color: var(--accept); }
-  #proto-card-view .pc .pc-buttons .decline { border-color: var(--decline); color: var(--decline); }
-  #proto-card-view .pc .pc-buttons button:hover { transform: translateY(-2px); }
+  #proto-card-view .pc .pc-buttons .accept {
+    border-color: var(--accept);
+    background: var(--accept);
+    color: var(--bg-deep);
+  }
+  #proto-card-view .pc .pc-buttons .decline {
+    border-color: var(--decline);
+    background: var(--decline);
+    color: var(--bg-deep);
+  }
+  #proto-card-view .pc .pc-buttons button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+    filter: brightness(1.06);
+  }
+  #proto-card-view .pc .pc-buttons button:active {
+    transform: translateY(0);
+    filter: brightness(0.96);
+  }
   #proto-card-view .pc-outcome {
     background: rgba(255,255,255,0.04);
     border-left: 3px solid var(--gold);
@@ -6364,10 +6385,24 @@ function showHealthReport() {
   const sub = document.getElementById("health-sub");
   const fixBtn = document.getElementById("health-autofix");
   const cardCount = CHAINS.flatMap(c => c.cards).length;
+  // Step 7 — surface fixable vs manual counts so the user knows how
+  // much 'Auto-fix all' will resolve in one click. Player ask:
+  // 'bulk operations · if a card is missing info make sure health
+  // check or coach will catch it and suggest solutions and I can
+  // review and approve either individually or mass approve.'
+  let fixableCount = 0;
+  let manualCount = 0;
+  for (const cat of ["v29", "meters", "wiring", "flags", "drift", "chain"]) {
+    for (const i of (issues[cat] || [])) {
+      if (i.fix) fixableCount++;
+      else manualCount++;
+    }
+  }
   sub.innerHTML = total === 0
     ? `<span style="color: var(--accept);">✓ ${cardCount} cards · all checks passed against CLAUDE.md, STYLE_GUIDE.md, GAME_RULES.md, CAST_50.md and CHAIN_AUTHORING.md</span>`
-    : `${total} issue${total === 1 ? "" : "s"} across ${cardCount} cards. References to <code>docs/*.md</code> appear under each issue.`;
-  fixBtn.style.display = total === 0 ? "none" : "inline-block";
+    : `<b>${total}</b> issue${total === 1 ? "" : "s"} across ${cardCount} cards · <span style="color: var(--gold);">${fixableCount} auto-fixable</span>${manualCount ? ` · <span style="color: var(--text-faint);">${manualCount} need manual edit</span>` : ""}. References to <code>docs/*.md</code> appear under each issue.`;
+  fixBtn.textContent = fixableCount > 0 ? `✓ Mass-approve ${fixableCount} fix${fixableCount === 1 ? "" : "es"}` : "Auto-fix all issues";
+  fixBtn.style.display = (fixableCount > 0) ? "inline-block" : "none";
 
   // Severity map per category — what color the left stripe gets
   const severity = {
