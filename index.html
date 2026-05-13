@@ -17370,6 +17370,111 @@ document.addEventListener("keydown", dismissHint, { once: true });
 window.addEventListener("resize", () => {
   fitToScreen();
 });
+
+// =================================================================
+// 2026-05-12 — One-click chain import via URL hash.
+//
+// Workflow: Claude (in chat) drafts a chain → base64-encodes the
+// JSON → sends the user a link like
+//   https://gokfur.github.io/Presidenter-app/#chain=<base64>
+// User clicks → this script decodes on load, shows a preview
+// confirm with chain name + card count, and merges into CHAINS
+// on accept. No copy-paste, no Import dialog. Player ask:
+// "you directly import it to the html and open it for me so i
+// will see it in the card chain format."
+//
+// Encoding uses base64(JSON.stringify(payload)) — a 5-card chain
+// is ~1.5-3KB encoded, well within URL hash limits (browsers
+// support hashes up to ~2MB so even a 50-card chain fits).
+//
+// The hash is cleared from the URL after import so a refresh
+// doesn't re-prompt.
+// =================================================================
+function importChainsFromHash() {
+  const hash = window.location.hash || "";
+  const m = hash.match(/^#chain=(.+)$/);
+  if (!m) return;
+  let payload;
+  try {
+    // URL-safe base64 -> standard base64
+    const b64 = m[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = b64 + "=".repeat((4 - b64.length % 4) % 4);
+    const decoded = atob(padded);
+    // Handle UTF-8 inside the JSON (situations may contain non-ASCII)
+    const utf8 = decodeURIComponent(escape(decoded));
+    payload = JSON.parse(utf8);
+  } catch (err) {
+    alert("Couldn't decode the chain from the URL.\n\n" + (err.message || ""));
+    return;
+  }
+  // Clear the hash so a refresh doesn't double-import.
+  history.replaceState(null, "", window.location.pathname + window.location.search);
+
+  const incoming = Array.isArray(payload) ? payload : (payload.chains || payload.CHAINS);
+  if (!Array.isArray(incoming) || !incoming.length) {
+    alert("The shared link doesn't contain any chains.");
+    return;
+  }
+  const cardCount = incoming.reduce((s, c) => s + ((c.cards || []).length), 0);
+  const names = incoming.map(c => `"${c.name || c.id}"`).join(", ");
+  if (!confirm(`Import chain${incoming.length === 1 ? "" : "s"} from URL?\n\n${names}\n${cardCount} card${cardCount === 1 ? "" : "s"} total.\n\nOK = add to your deck. Cancel = ignore.`)) {
+    showCopyToast("Import skipped.");
+    return;
+  }
+
+  snapshot();
+  const existingIds = new Set(CHAINS.map(c => c.id));
+  const existingCardIds = new Set(CHAINS.flatMap(c => c.cards.map(x => x.id)));
+  let renamedChains = 0, renamedCards = 0;
+  for (const ch of incoming) {
+    let chainId = ch.id;
+    if (existingIds.has(chainId)) {
+      let n = 2; while (existingIds.has(chainId + "_" + n)) n++;
+      chainId = chainId + "_" + n;
+      renamedChains++;
+    }
+    existingIds.add(chainId);
+    const cardIdMap = {};
+    for (const c of ch.cards || []) {
+      let cid = c.id;
+      if (existingCardIds.has(cid)) {
+        let n = 2; while (existingCardIds.has(cid + "_" + n)) n++;
+        cid = cid + "_" + n;
+        renamedCards++;
+      }
+      existingCardIds.add(cid);
+      cardIdMap[c.id] = cid;
+    }
+    ch.id = chainId;
+    for (const c of ch.cards || []) {
+      c.id = cardIdMap[c.id];
+      for (const side of ["accept", "decline"]) {
+        const b = c[side]; if (!b) continue;
+        if (b.target && cardIdMap[b.target]) b.target = cardIdMap[b.target];
+        if (b.poolTargets) b.poolTargets = b.poolTargets.map(t => cardIdMap[t] || t);
+      }
+    }
+    const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + 920 : 80;
+    ch.x = rightmostX;
+    ch.room = ch.room || activeRoom || "Main";
+    if (ch.room && typeof ROOMS !== "undefined" && !ROOMS.includes(ch.room)) ROOMS.push(ch.room);
+    CHAINS.push(ch);
+  }
+  persist();
+  if (typeof persistRooms === "function") persistRooms();
+  rerenderAll();
+  const note = (renamedChains || renamedCards)
+    ? ` (renamed ${renamedChains} chain${renamedChains === 1 ? "" : "s"}, ${renamedCards} card${renamedCards === 1 ? "" : "s"} on collision)`
+    : "";
+  showCopyToast(`Imported ${incoming.length} chain${incoming.length === 1 ? "" : "s"} from URL${note}`);
+  // Auto-focus the first imported chain so the user lands on it.
+  if (incoming[0] && incoming[0].cards && incoming[0].cards[0]) {
+    setTimeout(() => setFocusedCard(incoming[0].cards[0].id, false), 120);
+  }
+}
+// Run after the initial CHAINS load + render so we merge into the
+// existing deck rather than racing localStorage.
+setTimeout(importChainsFromHash, 200);
 </script>
 </body>
 </html>
