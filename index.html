@@ -5873,9 +5873,16 @@ function importJSONFile(file) {
       if (parsed && !Array.isArray(parsed)) {
         parsed = migrateDeckPayload(parsed);
       }
-      const incoming = Array.isArray(parsed) ? parsed : parsed.CHAINS;
+      // 2026-05-13 — accept BOTH 'CHAINS' (uppercase — what the tool's
+      // own export emits) AND 'chains' (lowercase — what Gemini /
+      // hand-authored JSON typically emits). Player report: "IMPORT
+      // FEATURE DIDN'T WORK." Gemini-generated JSON has a lowercase
+      // 'chains' key and the importer silently bounced.
+      const incoming = Array.isArray(parsed)
+        ? parsed
+        : (parsed.CHAINS || parsed.chains);
       if (!Array.isArray(incoming) || !incoming.length) {
-        alert("File doesn't look like a valid deck export.");
+        alert("File doesn't look like a valid deck export.\n\nExpected one of:\n  • Top-level array of chains\n  • { \"CHAINS\": [...] }\n  • { \"chains\": [...] }");
         return;
       }
       const incomingCards = incoming.reduce((s,c) => s + (c.cards || []).length, 0);
@@ -17375,6 +17382,40 @@ document.addEventListener("keydown", dismissHint, { once: true });
 
 window.addEventListener("resize", () => {
   fitToScreen();
+});
+
+// 2026-05-13 — Paste-to-import. If the clipboard contains JSON
+// shaped like a chain payload, pressing Cmd-V (or Ctrl-V) on the
+// canvas — anywhere outside an input/textarea — runs the same
+// merge logic as the file picker. Player ask: "FIX HTML'S IMPORT
+// FEATURE." The file-import works, but pasting is faster for
+// AI-generated JSON because there's no download/upload step.
+document.addEventListener("paste", (e) => {
+  // Don't intercept paste inside form fields — the author wants
+  // to paste text into the situation input, not import a chain.
+  const tag = (e.target && e.target.tagName) || "";
+  if (tag === "INPUT" || tag === "TEXTAREA" || (e.target && e.target.isContentEditable)) return;
+  const text = (e.clipboardData || window.clipboardData)?.getData("text") || "";
+  if (!text) return;
+  const trimmed = text.trim();
+  // Only act when the clipboard looks like JSON we care about
+  // (starts with { or [). Lets normal paste still work everywhere
+  // for non-JSON clipboards.
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return;
+  let parsed;
+  try { parsed = JSON.parse(trimmed); } catch { return; }
+  const incoming = Array.isArray(parsed)
+    ? parsed
+    : (parsed.CHAINS || parsed.chains);
+  if (!Array.isArray(incoming) || !incoming.length) return;
+  e.preventDefault();
+  // Reuse the file-import path by writing the JSON into a Blob
+  // and treating it as a file. Keeps every code path identical to
+  // the regular import (confirmation dialog, collision rename, etc.).
+  const blob = new Blob([trimmed], { type: "application/json" });
+  if (typeof importJSONFile === "function") {
+    importJSONFile(blob);
+  }
 });
 
 // =================================================================
