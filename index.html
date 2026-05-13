@@ -4143,8 +4143,16 @@
           <button type="button" id="f-improve-situation" title="AI rewrite — keeps your meaning, applies v30 style, fixes grammar, attaches nation tokens. Works on whatever you've typed." style="background:rgba(255,200,80,0.15); border:1px solid rgba(255,200,80,0.45); color:var(--gold); padding:3px 10px; border-radius:5px; font-size:11px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer;">✨ Improve</button>
           <button type="button" id="f-grammar-only" title="Grammar pass only — keeps wording, fixes typos / missing '?' / em-dashes" style="background:rgba(120,200,255,0.10); border:1px solid rgba(120,200,255,0.40); color:#9cf; padding:3px 10px; border-radius:5px; font-size:11px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer;">📝 Grammar</button>
           <button type="button" id="f-autowrite-outcomes" title="Auto-write both Accept and Decline outcomes based on the situation + speaker + topic. Universal action." style="background:rgba(140,255,170,0.10); border:1px solid rgba(140,255,170,0.40); color:#9ec; padding:3px 10px; border-radius:5px; font-size:11px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer;">✨ Auto-write outcomes</button>
-          <label style="margin-left:auto; display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text-faint); cursor:pointer; text-transform:none; letter-spacing:0; font-weight:500;">
-            <input type="checkbox" id="f-styleguide-exception">
+          <!-- 2026-05-12 — Player ask: "style guide excemption text
+               is too bar from the checkmark area." The label was
+               flex-laid with margin-left:auto, which pushed it to
+               the far right of the action row. When the row wrapped
+               (no room left for the auto margin), the label text
+               wrapped onto a second line away from its checkbox.
+               Adding white-space:nowrap keeps label + box together
+               on whatever line the flex wrap places them. -->
+          <label style="margin-left:auto; display:inline-flex; align-items:center; gap:6px; font-size:11px; color:var(--text-faint); cursor:pointer; text-transform:none; letter-spacing:0; font-weight:500; white-space:nowrap;">
+            <input type="checkbox" id="f-styleguide-exception" style="margin:0;">
             <span>Style-guide exception</span>
           </label>
         </div>
@@ -7387,8 +7395,16 @@ function autoFixAll() {
 // military... etc."
 // ===================================================================
 function runAnalysis() {
+  // 2026-05-12 — exclude the "orphans" bucket from the chain
+  // count. Orphan cards (AI Quick Card output, batch results)
+  // live in a special CHAINS entry with id "orphans"; they are
+  // standalone cards, not a multi-card narrative arc. Player
+  // report: "i hve only 1 card but in the analysis it says 1
+  // chain." The card came from AI Quick Card and landed in the
+  // orphans bucket, which inflated the chain count.
+  const realChains = CHAINS.filter(c => c.id !== "orphans");
   const stats = {
-    totalChains: CHAINS.length,
+    totalChains: realChains.length,
     totalCards: 0,
     triggers: 0,
     parallels: 0,
@@ -14061,46 +14077,91 @@ function localGenerateCard(opts = {}) {
   // present; otherwise uses a per-topic generic beat. Templates are
   // tagged with placeholders that get replaced at composition time.
   const seedKernel = seed ? truncateSentence(seed, 90) : null;
+  // 2026-05-12 — Player ask: "questions are too vague. no
+  // context. accept and decline messages should be surprise,
+  // creative, tricky." Each situation now carries ONE concrete
+  // prop (a name, number, place, deadline) and the dilemma is
+  // baked in: both swipes have a cost. Templates expanded ~3x
+  // per topic so Random Card / Batch generate don't repeat.
   const SIT_BY_TOPIC = {
-    economy:    ["I'm short on the morning auction by the time you read this. Cover the shortfall?",
-                 "I need to sign the foreign-loan terms before noon. Sign?",
-                 "I have an offer on the table that closes the books. Take it?"],
-    military:   ["I want the garrison moved north tonight. Authorise?",
-                 "I'm asked to mobilise the western column by dawn. Mobilise?",
-                 "I have orders on the desk that need your seal. Sign?"],
-    diplomacy:  ["I have a foreign delegation parked at the south gate. Receive them?",
-                 "I'm holding the cable until you say yes or no. Send it?",
-                 "I want to open a back-channel before the press finds out. Open it?"],
-    scandal:    ["I have a story breaking by sundown. Bury it?",
-                 "I'm sitting on evidence that doesn't help anyone. Release?",
-                 "I want a public denial on the desk by morning. Issue it?"],
-    health:     ["I'm short on the cold-store medicine for two districts. Reroute?",
-                 "I need a public statement on the outbreak by dawn. Approve?",
-                 "I have a vaccine programme ready to roll out. Begin?"],
-    environment:["I'm asked to permit the new mill on the river. Permit?",
-                 "I have a clean-air bill drafted but no votes. Push it?",
-                 "I want the harbour dredging stopped. Stop?"],
-    education:  ["I'm short on chalk in three districts. Send funds?",
-                 "I need a curriculum vote by Friday. Push it through?",
-                 "I have the union at my door. See them?"],
-    energy:     ["I want the reactor restarted before winter. Restart?",
-                 "I'm asked to sign the long-haul power deal. Sign?",
-                 "I have the grid plan in front of me. Approve?"],
-    justice:    ["I have the pardon papers ready. Sign them?",
-                 "I'm asked to drop the prosecution. Drop it?",
-                 "I want the case before a fresh judge. Reassign?"],
-    family:     ["I want a quiet evening at the residence. Take one?",
-                 "I have a letter from my eldest. Read it now?",
-                 "I'm asked to attend a school visit tomorrow. Go?"],
-    tricky:     ["I have two memos. Both look reasonable. Pick the second?",
-                 "I want to ask before I act. Speak plainly?",
-                 "I have a small request that's actually not. Approve?"],
-    simple:    ["I want a quick answer on the bench order. Sign?",
-                 "I have a routine file that won't be routine tomorrow. Sign?",
-                 "I'm asked to confirm the appointments list. Confirm?"],
-    funnyFlavor:["I want to take the long way to lunch. Indulge me?",
-                 "I have a quiet question. Humour me?",
-                 "I'm asked about the office cat again. Comment?"],
+    economy:    ["The Continental Bank wants a 7% rate by Friday or they pull the standby. Sign?",
+                 "Treasury reserves dropped 18% overnight; the foreign-loan terms are on my desk. Sign?",
+                 "Three coastal towns can't pay their salt levy this month. Forgive the debt?",
+                 "The mint says the new coin runs out of silver by Tuesday. Switch to paper?",
+                 "A donor offered to bail out the pensions for one signed appointment. Take it?",
+                 "The audit found a 40-million-mark hole behind the harbour project. Cover it quietly?"],
+    military:   ["The neighbour just trenched the border line by six metres. Mobilise the second column?",
+                 "A signal from the northern garrison says they haven't been paid in 30 days. Wire the funds?",
+                 "The brigadier wants live-fire drills on the harvest road. Authorise?",
+                 "Three deserters surrendered at the eastern wall with maps of our defenses. Court-martial them?",
+                 "Foreign attaches asked to observe our spring exercises. Open the door?",
+                 "Our last warship needs a refit that costs a year of pension funds. Drydock it?"],
+    diplomacy:  ["The ambassador's delegation is on the tarmac and they haven't told us why. Receive them anyway?",
+                 "A neighbour's foreign minister wants to meet at the south gate, no aides, no record. Meet them?",
+                 "The Vael envoy says the trade pact dies at sundown unless we sign tonight. Sign?",
+                 "Our embassy in Dolgov was searched by 'mistake' for the third time this year. Issue a démarche?",
+                 "A leaked cable would embarrass three governments at once. Publish it?",
+                 "The Tehari summit wants us to host. The budget says no. Host anyway?"],
+    scandal:    ["A retired chamberlain has thirty hours of recordings and a publisher waiting. Pay him off?",
+                 "The press has photos of the minister's brother at the wrong yacht club. Issue a denial?",
+                 "A whistleblower inside Audit will sign their name by Friday. Buy them a different Friday?",
+                 "Opposition leaked the cabinet minutes — the redacted ones. Apologise publicly?",
+                 "A radio host called us by name at the dinner hour. Sue or ignore?",
+                 "The gossip column has a name we know is wrong but it's our name. Correct them?"],
+    health:     ["Two districts have run out of insulin and the cold-store generator is out. Reroute from the capital?",
+                 "An outbreak in the eastern quarter is up to twenty cases. Quarantine the quarter?",
+                 "The vaccine batch tested positive for contaminants but the press is at the door. Recall publicly?",
+                 "A clinic burned in the south; the next nearest is forty kilometres. Build temporary or close it?",
+                 "The chief surgeon resigned on a sticky note. Beg her back?",
+                 "A miracle drug from abroad costs the entire health budget. Approve the import?"],
+    environment:["The river ran red yesterday and nobody owns the mill. Shut every upstream operation?",
+                 "Foresters report twenty hectares lost to blight this week. Issue an emergency log-stop?",
+                 "Marine Biologist Ressa says the fishery is two seasons from empty. Ban the catch?",
+                 "The dredging that was supposed to clear the harbour silted the next bay. Continue or stop?",
+                 "A petrochemical leak hit groundwater in the south. Evacuate the wells?",
+                 "Tourism wants the seabird sanctuary opened to walkways. Approve?"],
+    education:  ["Three schools haven't had heat for a week and the press is sniffing. Divert the road budget?",
+                 "The curriculum panel voted down evolution by a single chair. Override the vote?",
+                 "The teachers' union is on day three of a sit-in at the ministry steps. Meet them or wait?",
+                 "A scholarship donor wants their name on a textbook. Accept the gift?",
+                 "The literacy figures came back lower than the press release. Correct it publicly?",
+                 "A new schoolhouse is missing roof tiles three days before opening. Pay overtime?"],
+    energy:     ["The reactor at Brennan went offline at 02:00 and the grid is at 71%. Restart fast or wait for the audit?",
+                 "Engineer Ilva wants to test the new geothermal field, which sits under a vineyard. Permit the bore?",
+                 "A foreign supplier offers cheap gas for ten years of access to our coast. Sign?",
+                 "Wind turbines on the north ridge are killing seabirds at twice the cited rate. Shut the ridge?",
+                 "A blackout in the capital lasted ninety seconds; the press is calling it the longest minute. Comment?",
+                 "Our oldest pipeline failed inspection again. Patch or replace?"],
+    justice:    ["The pardon papers for the man who once saved your father are on my desk. Sign?",
+                 "A high-profile prosecution is collapsing on a procedural foul. Replace the prosecutor?",
+                 "Counsel Aren wants to release the cabinet papers under a sunshine law. Release them?",
+                 "Magistrate Pell ruled against the licensing reform. Appeal or accept?",
+                 "An ex-minister will testify if granted immunity. Grant it?",
+                 "A wrongful-conviction file landed on my desk after the man died. Issue the posthumous pardon?"],
+    family:     ["Your eldest left a letter under the door an hour ago. Read it before the briefing?",
+                 "Your spouse asked once and won't ask again about Sunday. Promise the day?",
+                 "Your cousin is selling his name to a foreign paper. Stop him?",
+                 "The residence is empty for the first time this month. Take the evening?",
+                 "Your father-in-law's funeral is at noon Saturday. Cancel the Senate session?",
+                 "Your sister wants the office for the spring rite. Allow it?"],
+    tricky:     ["Two memos arrived at the same time, both signed, both on Treasury paper. Pick the second?",
+                 "Inspector Hova won't say what she found, only that it 'requires the office.' See her tonight?",
+                 "The chamberlain placed a sealed envelope on the desk with no return address. Open it?",
+                 "An anonymous note: 'Don't sign anything Thursday.' Today is Tuesday. Cancel Thursday?",
+                 "Three advisors say yes. The fourth, the one who's always right, says no. Side with the four?",
+                 "A note on Cabinet stationery in a hand you don't recognise asks one favour. Grant it?"],
+    simple:    ["The bench order is one signature short and the courier is in the lobby. Sign?",
+                 "The appointments list is routine except for one name. Confirm anyway?",
+                 "A licensing renewal sits on top of the pile, six months overdue. Sign?",
+                 "The Chamberlain wants the office cat declared official. Indulge him?",
+                 "A foreign envoy's calling card has been on the desk for three days. Return the call?",
+                 "The clerk's wedding invitation is on Cabinet letterhead. Accept it?"],
+    funnyFlavor:["The office plant has produced one tomato in three years. Eat it?",
+                 "Princess Vora has rewritten the national anthem in waltz time. Approve the trial?",
+                 "The chamberlain wants permission to name the office pigeon. Permit?",
+                 "Foreman Kell brought the workshop dog to the cabinet meeting. Allow him to stay?",
+                 "A child in the south sent a crayon drawing of the presidency. Reply?",
+                 "Aysel, the citizen who writes weekly, wants a portrait day. Hold one?"],
   };
   const sitPool = SIT_BY_TOPIC[topic] || SIT_BY_TOPIC.scandal;
   // 2026-05-12 — capitalise the first character of the seed
@@ -14848,8 +14909,76 @@ async function generateBatch() {
   let key = keys.anthropic || keys.claude || null;
   let provider = key ? "claude" : null;
   if (!key && keys.gemini) { key = keys.gemini; provider = "gemini"; }
+  // 2026-05-12 — no-API-key path. Player ask verbatim: "i hit
+  // batch generate and it asks api key! dont ask that again you
+  // do my orders on that html." When no key is configured, batch
+  // generate falls through to the local template engine that
+  // already powers AI Quick Card and Random Card. The local
+  // generator routes the theme into the seed-keyword topic
+  // detection so a theme of "Nuclear tension" lands cards on
+  // Defense / Foreign Affairs speakers rather than random.
   if (!key) {
-    document.getElementById("batch-status").innerHTML = `<span style="color: var(--decline);">No API key configured.</span>`;
+    document.getElementById("batch-status").textContent = `Generating ${count} cards locally on "${theme}"…`;
+    document.getElementById("batch-generate").disabled = true;
+    try {
+      snapshot();
+      let bucket = CHAINS.find(c => c.id === "orphans");
+      if (!bucket) {
+        const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + 920 : 80;
+        bucket = { id: "orphans", name: "Orphan Cards", subtitle: "Batch · " + theme, chainTheme: "civic", color: "var(--gold)", x: rightmostX, room: (activeRoom === "__all__") ? "Main" : activeRoom, cards: [] };
+        CHAINS.push(bucket);
+      }
+      let landed = 0;
+      const usedSpeakers = new Set();
+      for (let i = 0; i < count; i++) {
+        // Vary the seed slightly per card so the generator picks
+        // a different angle each iteration. Append a rotating
+        // sub-prompt so two cards on "Nuclear tension" don't
+        // both become "I want the embassy briefed. Sign?".
+        const angles = ["from the cabinet's view", "from the press desk", "from the streets", "from the embassy", "from the audit team", "from the medical wing", "from the schoolhouse", "from the dock", "from the court", "from the workshop"];
+        const angle = angles[i % angles.length];
+        const card = localGenerateCard({ seed: `${theme} (${angle})` });
+        // Rotate speakers across the batch to avoid the same name
+        // showing up on every card.
+        let attempts = 0;
+        while (usedSpeakers.has(card.speaker) && attempts < 6) {
+          const retry = localGenerateCard({ seed: `${theme} (${angle})` });
+          if (!usedSpeakers.has(retry.speaker)) Object.assign(card, retry);
+          attempts++;
+        }
+        usedSpeakers.add(card.speaker);
+        if (artifactPct > 0 && Math.random() * 100 < artifactPct) {
+          card.isArtifact = true;
+          card.speaker = "";
+          card.ministry = "";
+        }
+        const seq = bucket.cards.length + 1;
+        const newCard = {
+          id: "orphans-" + seq,
+          role: "AI Batch",
+          level: 0,
+          col: "center",
+          speaker: card.speaker,
+          ministry: card.ministry,
+          topic: card.topic,
+          situation: card.situation,
+          requires: null,
+          accept: { setFlag: null, target: null, ...card.accept },
+          decline: { setFlag: null, target: null, ...card.decline },
+        };
+        if (card.isArtifact) newCard.isArtifact = true;
+        bucket.cards.push(newCard);
+        landed++;
+      }
+      persist();
+      rerenderAll();
+      closeBatchModal();
+      showCopyToast(`Batch landed ${landed} cards on "${theme}" (local). Open the Orphans bucket to review.`);
+    } catch (err) {
+      document.getElementById("batch-status").innerHTML = `<span style="color: var(--decline);">Error: ${err.message}</span>`;
+    } finally {
+      document.getElementById("batch-generate").disabled = false;
+    }
     return;
   }
   document.getElementById("batch-status").textContent = `Calling ${provider === "claude" ? "Claude" : "Gemini"} for ${count} cards…`;
@@ -15335,6 +15464,14 @@ function showCoachReport() {
   }
   document.getElementById("coach-backdrop").classList.add("open");
 }
+// 2026-05-12 — wire the X button. The Deck Coach modal had
+// data-fires="coach-close" on its X but the underlying #coach-close
+// element had no click handler, so tapping the X did nothing.
+// Player report: "deck coach close icon is not working." Wire it
+// here once globally so every X (and Esc) closes the modal.
+document.getElementById("coach-close")?.addEventListener("click", () => {
+  document.getElementById("coach-backdrop").classList.remove("open");
+});
 
 function computeCoachSuggestions() {
   const out = [];
