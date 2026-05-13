@@ -17477,12 +17477,23 @@ function importChainsFromHash() {
     // URL-safe base64 -> standard base64
     const b64 = m[1].replace(/-/g, "+").replace(/_/g, "/");
     const padded = b64 + "=".repeat((4 - b64.length % 4) % 4);
-    const decoded = atob(padded);
-    // Handle UTF-8 inside the JSON (situations may contain non-ASCII)
-    const utf8 = decodeURIComponent(escape(decoded));
+    // 2026-05-13 — switched from `decodeURIComponent(escape(atob()))`
+    // to the modern `TextDecoder` route. The legacy trick relies on
+    // `escape()` (deprecated) and silently mangles certain byte
+    // sequences (e.g. lone surrogates, valid UTF-8 that round-trips
+    // through escape() differently). Player report: "AI DECIDES
+    // ONE COULDN'T DECODE." Modern decoders handle the same input
+    // identically and the failure modes are loud (throws), so we
+    // can show the author exactly where the byte stream broke.
+    const binary = atob(padded);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const utf8 = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+    console.log("[hash-import] decoded length:", utf8.length, "first 80:", utf8.slice(0, 80));
     payload = JSON.parse(utf8);
   } catch (err) {
-    alert("Couldn't decode the chain from the URL.\n\n" + (err.message || ""));
+    console.error("[hash-import] decode failed:", err);
+    alert("Couldn't decode the chain from the URL.\n\n" + (err.message || "") + "\n\n(The link may have been truncated when pasted. Try the file-picker import or drag-drop instead.)");
     return;
   }
   // Clear the hash so a refresh doesn't double-import.
