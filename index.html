@@ -4558,10 +4558,16 @@ function cardPosition(chain, card) {
   // Pension grandchildren shift down because the pool stack
   // pushed the C2 cards further south.
   const isPension = chain.id === "pension";
-  const y =
-    card.level === 0 ? COL_TOP_Y :
-    card.level === 1 ? MID_Y :
-    (isPension ? 1000 : BOT_Y);
+  // 2026-05-12 — extended Y for deep chains. Original layout only
+  // knew 3 levels (top/mid/bot); a 15-card chain with 8 levels
+  // collapsed every card past level 2 onto the same BOT_Y row.
+  // Now level 0/1/2 keep their original anchors; level 3+ falls
+  // back to a formula that extends downward by ~350pt per step.
+  let y;
+  if (card.level === 0) y = COL_TOP_Y;
+  else if (card.level === 1) y = MID_Y;
+  else if (card.level === 2) y = isPension ? 1000 : BOT_Y;
+  else y = BOT_Y + (card.level - 2) * 350;
   return { x: colX, y: y };
 }
 
