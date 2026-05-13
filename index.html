@@ -13267,6 +13267,15 @@ async function generateChainFromOptions() {
   let key = keys.anthropic || keys.claude || null;
   let provider = key ? "claude" : null;
   if (!key && (keys.gemini)) { key = keys.gemini; provider = "gemini"; }
+  // 2026-05-12 — remember the secondary key so a billing failure
+  // on the primary provider can auto-retry against the fallback.
+  // Player report: "I put gemini api as well but html gave error"
+  // — the tool saw the Anthropic key first, hit a credit error,
+  // and surfaced it instead of trying Gemini. Now: if both keys
+  // are set, a Claude billing error (insufficient credit / 401)
+  // re-fires the call against Gemini transparently.
+  const fallbackKey = (provider === "claude" && keys.gemini) ? keys.gemini : null;
+  const fallbackProvider = fallbackKey ? "gemini" : null;
   if (!key) {
     // 2026-05-12 — chain generation REQUIRES an API key. Player
     // ask: "is this fun? will people gonna like such questions?
@@ -13284,7 +13293,23 @@ async function generateChainFromOptions() {
   document.getElementById("co-generate").disabled = true;
 
   try {
-    const data = await generateChainWithAI(provider, key, { length, theme, speaker, endingPrompt, sourceCtx, lens });
+    // 2026-05-12 — auto-fallback wrapper. Claude billing errors
+    // (credit balance too low, 401, 402) silently retry against
+    // Gemini if its key is also configured. Other errors (rate
+    // limit, network, malformed JSON) bubble up as before.
+    let data;
+    try {
+      data = await generateChainWithAI(provider, key, { length, theme, speaker, endingPrompt, sourceCtx, lens });
+    } catch (firstErr) {
+      const msg = String(firstErr.message || "");
+      const looksLikeBilling = /credit balance|insufficient|billing|payment|exceeded your monthly|quota|401|402|invalid_request_error/i.test(msg);
+      if (fallbackKey && looksLikeBilling) {
+        status.textContent = `Claude unavailable (billing). Retrying with Gemini…`;
+        data = await generateChainWithAI(fallbackProvider, fallbackKey, { length, theme, speaker, endingPrompt, sourceCtx, lens });
+      } else {
+        throw firstErr;
+      }
+    }
     document.getElementById("co-generate").disabled = false;
     if (!data || !data.cards || !data.cards.length) {
       status.innerHTML = `<span style="color: var(--decline);">No cards in AI response.</span>`;
