@@ -5866,7 +5866,17 @@ function importJSONFile(file) {
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
-      let parsed = JSON.parse(e.target.result);
+      const raw = e.target.result;
+      console.log("[import] raw length:", raw && raw.length);
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch (jsonErr) {
+        console.error("[import] JSON.parse failed:", jsonErr);
+        alert("The file isn't valid JSON.\n\n" + (jsonErr.message || "") + "\n\nFirst 80 chars of file:\n" + (raw || "").slice(0, 80));
+        return;
+      }
+      console.log("[import] parsed top-level keys:", Object.keys(parsed || {}));
       // 2026-05-12 — run schema migrations before reading CHAINS so a
       // future v3 file (e.g. with `modes: [...]` per card) imported
       // by an older build won't strand the new fields.
@@ -17382,6 +17392,27 @@ document.addEventListener("keydown", dismissHint, { once: true });
 
 window.addEventListener("resize", () => {
   fitToScreen();
+});
+
+// 2026-05-13 — Drag-and-drop import. Drop any .json file onto the
+// canvas and it goes through the same merge-import flow as the
+// file picker. Player ask: "FIX HTML'S IMPORT FEATURE." Belt-and-
+// braces — file-picker, paste, and drop all route into the same
+// importJSONFile.
+["dragover", "drop"].forEach(evt => {
+  document.addEventListener(evt, (e) => {
+    if (!e.dataTransfer || !e.dataTransfer.types) return;
+    if (!e.dataTransfer.types.includes("Files")) return;
+    e.preventDefault();
+    if (evt !== "drop") return;
+    const file = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".json") && file.type !== "application/json") {
+      alert("Drop a .json file (got: " + (file.name || file.type || "unknown") + ")");
+      return;
+    }
+    if (typeof importJSONFile === "function") importJSONFile(file);
+  });
 });
 
 // 2026-05-13 — Paste-to-import. If the clipboard contains JSON
