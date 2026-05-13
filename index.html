@@ -4461,9 +4461,18 @@ const CHAINS = [];
 
 const CARD_W = 240;
 const CARD_H_COLLAPSED = 230;
+// 2026-05-13 — vertical breathing room. Old values were
+// COL_TOP_Y=140 / MID_Y=450 / BOT_Y=800 (310 / 350pt row gaps).
+// With 230pt-tall cards that left only 80-120pt of visible empty
+// space between rows, which read as crowded on chains with cards
+// at every level. Bumped to 140 / 580 / 1020 — 440pt row gaps,
+// ~210pt empty space between cards. The deep-chain fallback
+// formula (level >= 3) gets the same 440pt step.
+// Player report: 'they are too close to each other can we put
+// more spacing between cards.'
 const COL_TOP_Y = 140;
-const MID_Y = 450;
-const BOT_Y = 800;
+const MID_Y = 580;
+const BOT_Y = 1020;
 const CHAIN_WIDTH = 600;
 const CARD_X_CENTER = (CHAIN_WIDTH - CARD_W) / 2;
 const CARD_X_LEFT = 20;
@@ -4562,12 +4571,16 @@ function cardPosition(chain, card) {
   // knew 3 levels (top/mid/bot); a 15-card chain with 8 levels
   // collapsed every card past level 2 onto the same BOT_Y row.
   // Now level 0/1/2 keep their original anchors; level 3+ falls
-  // back to a formula that extends downward by ~350pt per step.
+  // back to a formula that extends downward.
+  //
+  // 2026-05-13 — bumped the deep-chain step from 350pt to 440pt
+  // to match the new MID_Y / BOT_Y spacing (also 440pt apart).
+  // Keeps row gaps uniform top-to-bottom.
   let y;
   if (card.level === 0) y = COL_TOP_Y;
   else if (card.level === 1) y = MID_Y;
-  else if (card.level === 2) y = isPension ? 1000 : BOT_Y;
-  else y = BOT_Y + (card.level - 2) * 350;
+  else if (card.level === 2) y = isPension ? 1240 : BOT_Y;
+  else y = BOT_Y + (card.level - 2) * 440;
   return { x: colX, y: y };
 }
 
