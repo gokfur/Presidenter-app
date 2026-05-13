@@ -13751,15 +13751,34 @@ Every card is ONE speaker leaning into the desk with TWO short sentences. Senten
 
 CRITICAL — VOICE: The card is the SPEAKER TALKING TO THE PRESIDENT. Write FIRST PERSON as the speaker. WRONG: "Halvik prints six lines under your name." RIGHT: "I'll print six lines under your name." WRONG: "Halvik wants you to approve the press release." RIGHT: "I want the press release signed before noon." Both outcomes also stay in the speaker's voice — "I publish tonight" / "I bury the file."
 
+CRITICAL — SPEAKER MUST MATCH TOPIC. The speaker's MINISTRY must own the subject matter of the situation. Pick the topic FIRST based on the author's seed, then choose a speaker whose ministry handles that subject. Examples:
+  • Nuclear weapons / neighbour military build-up → topic=military OR diplomacy → speaker = Marshal Dren Volk / General Marek / Ambassador Hess. NEVER Treasurer/Tax Commissioner.
+  • Bank loan / budget shortfall / treasury → topic=economy → speaker = Treasurer Halen Vorr / Tax Commissioner Brask / Economist Kael
+  • Outbreak / vaccine / clinic → topic=health → speaker = Dr. Myra
+  • Press leak / story breaking → topic=scandal → speaker = Editor Halvik / Press Secretary Lindi
+  • Power grid / reactor → topic=energy → speaker = Engineer Ilva
+  • Schools / curriculum → topic=education → speaker = Principal Vorn
+  • Court / pardon / prosecution → topic=justice → speaker = Counsel Aren / Magistrate Pell
+  • Pollution / river / mill / wildlife → topic=environment → speaker = Curator Brandt
+  • Foreign delegation / treaty → topic=diplomacy → speaker = Ambassador Hess
+If the seed mentions a subject outside Treasury, Tax, or Audit, DO NOT use a Treasury speaker.
+
+CRITICAL — OUTCOMES MUST REFERENCE THE SITUATION. Both outcome.accept and outcome.decline MUST name a concrete noun or verb from the situation, not generic boilerplate. WRONG (situation about nuclear bombs, outcome reads): "I sign. The treasury sleeps tonight; the cost lands by Friday." RIGHT: "I sign the sanctions. The wire to the embassy goes out before lunch." / "I leave the sanctions on the desk. The neighbour signs the next round of warheads by Sunday." Each outcome shows what THIS choice does to THIS situation, in the speaker's voice, with a touch of dry humour.
+
+HUMOUR: every card carries a wry, slightly cynical observation. Specific imagery beats abstract claims. "The chamberlain found it after lunch. President found a beach." beats "The reign ended." Punchy. One image per outcome, not a paragraph.
+
+CAPITALISATION: first character of situation + first character of each outcome must be uppercase. Spellcheck before emitting (the JSON must be free of typos like "neigbours").
+
 Card fields:
 - speaker: must be one of the 50 names below (or "" for artifact)
-- ministry: must match speaker's home ministry (or "" for artifact)
-- topic: one of [tricky, scandal, economy, military, diplomacy, health, simple, education, environment, energy, justice, funnyFlavor]
-- situation: ≤140 chars, ends in "?", FIRST-PERSON in the speaker's voice
-- accept.outcome: ≤140 chars, FIRST-PERSON in the same voice
-- decline.outcome: ≤140 chars, FIRST-PERSON in the same voice
-- Both outcomes meaningful (≥2 |abs| meter total per side)
+- ministry: must match speaker's home ministry exactly (or "" for artifact)
+- topic: lowercase enum case, no leading dot. One of [tricky, scandal, economy, military, diplomacy, health, simple, education, environment, energy, justice, funnyFlavor]
+- situation: ≤140 chars, ends in "?", FIRST-PERSON in the speaker's voice, FIRST CHAR UPPERCASE
+- accept.outcome: ≤140 chars, FIRST-PERSON, REFERENCES situation's subject, FIRST CHAR UPPERCASE
+- decline.outcome: ≤140 chars, FIRST-PERSON, REFERENCES situation's subject, FIRST CHAR UPPERCASE
+- Both outcomes meaningful (≥2 |abs| meter total per side); stakes match topic: nuclear weapons → ±3 military, not ±1 economy
 - NO em-dashes
+- NO mid-sentence ellipsis (the situation must be a complete thought ending in "?")
 
 TONE: witty, slightly cynical, mysterious. Every card is a moral dilemma — both swipes leak something the player wanted to protect. No free yes, no free no.
 
@@ -13768,12 +13787,28 @@ ${speakerLines}${toneBlock}${artifactNote}
 
 ${seedLine}
 
-Output ONLY this JSON (no prose):
+Output ONLY this JSON (no prose, no markdown fences):
 {"speaker":"...","ministry":"...","topic":"...","situation":"...","accept":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0},"decline":{"outcome":"...","env":0,"mil":0,"wel":0,"eco":0}}`;
 
   try {
     const text = await callAITextPlain(provider, key, prompt);
     const card = extractJSONFromAIText(text);
+    // 2026-05-12 — defensive normalisation of AI output. Even with
+    // explicit rules in the prompt, models drift: strip leading
+    // dots from topic, uppercase the first character of every
+    // text field, trim whitespace. Player ask: "tell me all the
+    // issues in this generation… add humour, follow styleguide,
+    // always make sure accept and decline is related to the main
+    // situation."
+    if (card.topic) card.topic = String(card.topic).replace(/^\.+/, "").trim().toLowerCase();
+    const capFirst = (s) => {
+      if (!s) return s;
+      const t = String(s).trim();
+      return t.charAt(0).toUpperCase() + t.slice(1);
+    };
+    card.situation = capFirst(card.situation);
+    if (card.accept)  card.accept.outcome  = capFirst(card.accept.outcome);
+    if (card.decline) card.decline.outcome = capFirst(card.decline.outcome);
     // Land as an orphan card.
     snapshot();
     let bucket = CHAINS.find(c => c.id === "orphans");
@@ -13951,13 +13986,76 @@ function plumbCardIntoForm(card) {
 // author never hits "No API key configured" — they get a draft to
 // edit instead. Tries to use the seed string as a kernel when
 // non-empty.
+// 2026-05-12 — seed-keyword → topic router. The previous local
+// generator picked a RANDOM speaker first and then forced the
+// topic to match their ministry — so a seed about "nuclear bombs
+// in a neighbouring country" could land on Tax Commissioner Brask
+// (Treasury) with a topic of .economy. Player report: "I clicked
+// ai quick card and it generated this. tell me all the issues...
+// always make sure accept and decline is related to the main
+// situation." Now we route TOPIC FIRST from the seed text, THEN
+// pick a speaker whose ministry owns that topic.
+const TOPIC_KEYWORDS = {
+  military:    ["nuclear", "bomb", "weapon", "warhead", "missile", "army", "soldier", "garrison", "mobilis", "mobiliz", "war", "battle", "tank", "border", "invasion", "general", "marshal", "brigade", "regiment", "fleet", "fortif"],
+  diplomacy:   ["neighbour", "neighbor", "embassy", "ambassador", "treaty", "delegation", "foreign", "summit", "cable", "wire", "accord", "pact", "sanction"],
+  economy:     ["bank", "loan", "treasury", "budget", "tax", "audit", "debt", "deficit", "interest", "market", "auction", "currency", "ledger", "shortfall", "subsidy"],
+  health:      ["outbreak", "vaccine", "clinic", "hospital", "doctor", "patient", "disease", "epidemic", "pandemic", "medicine", "drug", "surgery", "ward"],
+  scandal:     ["leak", "scandal", "press", "story", "headline", "rumour", "rumor", "denial", "exposé", "expose", "tabloid", "tip-off", "whistle"],
+  environment: ["river", "mill", "pollution", "forest", "wildlife", "harbour", "harbor", "fish", "soil", "climate", "carbon", "emission", "dredg", "deforest"],
+  energy:      ["reactor", "grid", "power", "blackout", "blackouts", "turbine", "solar", "wind farm", "coal", "fuel", "oil pipeline"],
+  education:   ["school", "teacher", "curriculum", "exam", "student", "classroom", "chalk", "university", "literacy", "scholarship"],
+  justice:     ["pardon", "court", "judge", "prosecut", "lawyer", "tribunal", "verdict", "appeal", "sentence", "convict"],
+  family:      ["spouse", "wife", "husband", "child", "daughter", "son", "eldest", "father-in-law", "cousin", "sister", "residence"],
+  funnyFlavor: ["cat", "pigeon", "fish", "dog", "biscuit", "lunch", "office plant"],
+};
+const TOPIC_TO_MINISTRIES = {
+  military:    ["Defense"],
+  diplomacy:   ["Foreign Affairs", "Diplomatic Corps", "Foreign"],
+  economy:     ["Treasury", "Economy", "Audit"],
+  health:      ["Health"],
+  scandal:     ["Press", "Opposition"],
+  environment: ["Environment", "Heritage"],
+  energy:      ["Energy"],
+  education:   ["Education"],
+  justice:     ["Justice"],
+  family:      ["Family"],
+  funnyFlavor: ["Cabinet", "Royal Court", "The Public"],
+  tricky:      ["Cabinet", "Interior"],
+  simple:      ["Cabinet"],
+};
+function inferTopicFromSeed(seed) {
+  const s = (seed || "").toLowerCase();
+  if (!s) return null;
+  let best = null;
+  let bestHits = 0;
+  for (const [topic, keywords] of Object.entries(TOPIC_KEYWORDS)) {
+    let hits = 0;
+    for (const kw of keywords) if (s.includes(kw)) hits++;
+    if (hits > bestHits) { best = topic; bestHits = hits; }
+  }
+  return best;
+}
+function pickSpeakerForTopic(topic) {
+  const ministries = TOPIC_TO_MINISTRIES[topic] || ["Cabinet"];
+  const candidates = ministries.flatMap(m => SPEAKERS_BY_MINISTRY[m] || []);
+  if (candidates.length) return pickRandom(candidates);
+  // Last-resort fallback — any speaker.
+  return pickRandom(Object.values(SPEAKERS_BY_MINISTRY).flat());
+}
+
 function localGenerateCard(opts = {}) {
   const seed = (opts.seed || "").trim();
-  const allSpeakers = Object.values(SPEAKERS_BY_MINISTRY).flat();
-  const speaker = pickRandom(allSpeakers);
+  // 2026-05-12 — topic-first routing. If the seed mentions
+  // 'nuclear bombs' the speaker MUST be a Defense / Foreign minister,
+  // not a random Treasury clerk.
+  const inferredTopic = inferTopicFromSeed(seed);
+  const speaker = inferredTopic
+    ? pickSpeakerForTopic(inferredTopic)
+    : pickRandom(Object.values(SPEAKERS_BY_MINISTRY).flat());
   const ministry = MINISTRY_OF[speaker] || "Cabinet";
-  // Topic — auto-pick from ministry, fallback to scandal.
-  const topic = resolveTopic("__auto__", ministry) || "scandal";
+  // Topic — use inferred topic from seed when present, otherwise
+  // auto-pick from ministry, fallback to scandal.
+  const topic = inferredTopic || resolveTopic("__auto__", ministry) || "scandal";
 
   // First-person situation templates. Each draws from the seed when
   // present; otherwise uses a per-topic generic beat. Templates are
@@ -14005,9 +14103,21 @@ function localGenerateCard(opts = {}) {
                  "I'm asked about the office cat again. Comment?"],
   };
   const sitPool = SIT_BY_TOPIC[topic] || SIT_BY_TOPIC.scandal;
-  const situation = seedKernel
-    ? `${seedKernel.replace(/[.?!]+$/, "")} ${pickRandom(["Sign?", "Approve?", "Authorise?", "Do it?", "Confirm?"])}`
-    : pickRandom(sitPool);
+  // 2026-05-12 — capitalise the first character of the seed
+  // before stitching the ask onto it, and route through
+  // first-person voice. Player report: "a country is developing
+  // nuclear bombs ." — the AI emitted a lower-case seed without
+  // a speaker-voice frame. Now the seed becomes "I want X. Ask?"
+  // not "x ask?".
+  const capFirst = (s) => (!s ? s : s.charAt(0).toUpperCase() + s.slice(1));
+  let situation;
+  if (seedKernel) {
+    const cleanKernel = capFirst(seedKernel.replace(/[.?!]+$/, "").trim());
+    const ask = pickRandom(["Sign?", "Approve?", "Authorise?", "Do it?", "Confirm?", "Speak?"]);
+    situation = `${cleanKernel}. ${ask}`;
+  } else {
+    situation = pickRandom(sitPool);
+  }
 
   // First-person outcomes — accept = "I do the thing", decline =
   // "I sit on it / drop it / leave it alone." Pick from per-topic
@@ -14094,8 +14204,26 @@ function localGenerateCard(opts = {}) {
                  "I don't humour you. The room contracts.",
                  "I decline. The cat is in the paper anyway."],
   };
-  const accept_out = pickRandom(ACC_OUT[topic] || ACC_OUT.scandal);
-  const decline_out = pickRandom(DEC_OUT[topic] || DEC_OUT.scandal);
+  // 2026-05-12 — outcomes were previously random picks from
+  // generic per-topic pools (e.g. economy → "I sign. The treasury
+  // sleeps tonight…") regardless of what the situation actually
+  // said. Player ask: "accept and decline should be relevant!
+  // they are always the same! ...follow styleguide always make
+  // sure accept and decline is related to the main situation."
+  // Now we route through localSituationAwareOutcomes which pulls
+  // a noun from the situation text and substitutes it into the
+  // outcome templates, so a card about NUCLEAR BOMBS produces
+  // outcomes referencing the bombs (not generic treasury patter).
+  let accept_out, decline_out;
+  if (typeof localSituationAwareOutcomes === "function") {
+    const pair = localSituationAwareOutcomes(situation, topic);
+    // `localSituationAwareOutcomes` returns {accept:{text,…}, decline:{text,…}}.
+    accept_out = pair?.accept?.text || pickRandom(ACC_OUT[topic] || ACC_OUT.scandal);
+    decline_out = pair?.decline?.text || pickRandom(DEC_OUT[topic] || DEC_OUT.scandal);
+  } else {
+    accept_out = pickRandom(ACC_OUT[topic] || ACC_OUT.scandal);
+    decline_out = pickRandom(DEC_OUT[topic] || DEC_OUT.scandal);
+  }
 
   // Meter shifts — use the existing TOPIC_METER_SUGGESTIONS table.
   const meterSugg = (typeof TOPIC_METER_SUGGESTIONS !== "undefined")
