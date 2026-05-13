@@ -13268,24 +13268,16 @@ async function generateChainFromOptions() {
   let provider = key ? "claude" : null;
   if (!key && (keys.gemini)) { key = keys.gemini; provider = "gemini"; }
   if (!key) {
-    // No key — local context-aware generator (uses sourceCtx + the
-    // chain-options inputs to build a single-chain template that
-    // matches the wizard inputs without hitting an API).
-    document.getElementById("chainopt-backdrop").classList.remove("open");
-    const newChain = buildLocalContextChain({ length, theme, speaker, endingPrompt, sourceCtx, lens });
-    if (newChain) {
-      newChain.cooldownDays = cooldownDays;
-      newChain.firstPassRotation = (rotation === "enforce");
-      snapshot();
-      CHAINS.push(newChain);
-      if (extend) wireLeafExtend(newChain, extend);
-      persist();
-      rerenderAll();
-      setTimeout(() => setFocusedCard(newChain.cards[0].id, false), 80);
-      showCopyToast(extend
-        ? `Extended ${extend.sourceSpeaker}'s ${extend.side} swipe → "${newChain.name}" (local context engine)`
-        : `Generated "${newChain.name}" (local context engine)`);
-    }
+    // 2026-05-12 — chain generation REQUIRES an API key. Player
+    // ask: "is this fun? will people gonna like such questions?
+    // are they relevant to each other?" — answered honestly: no,
+    // because the local template builder cannot produce a real
+    // story arc. A chain is five connected dilemmas with
+    // escalating stakes; templates can only rotate the same
+    // skeleton around a swapped noun. Single cards (Quick Card /
+    // Batch / Random) keep their local fallback because a
+    // one-shot dilemma survives template generation. Arcs don't.
+    status.innerHTML = `<span style="color: var(--decline); display:block; line-height:1.5;">Chain generation needs an API key.<br><br>A chain is a connected story across 5+ cards — escalation, surprise, a twist. Templates can't write that; they only rotate the same shape with different nouns.<br><br>Add an Anthropic or Gemini key in <strong>Settings → AI Keys</strong>, then try again. Single-card tools (✨ Quick Card, 🚀 Batch, 🎲 Random) still work without a key.</span>`;
     return;
   }
   status.textContent = `Calling ${provider === "claude" ? "Claude" : "Gemini"}…`;
