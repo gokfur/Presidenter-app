@@ -12203,7 +12203,7 @@ async function callAITextPlain(provider, apiKey, prompt) {
     return (data.content && data.content[0] && data.content[0].text) || "";
   }
   // Gemini
-  const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(apiKey)}`, {
+  const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${encodeURIComponent(apiKey)}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -13758,7 +13758,7 @@ Output ONLY this JSON (no prose). Include EVERY card asked for in the structure 
     if (!text) throw new Error("Empty response from Claude");
     return extractJSONFromAIText(text);
   } else if (provider === "gemini") {
-    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(apiKey)}`, {
+    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${encodeURIComponent(apiKey)}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -15153,7 +15153,7 @@ Output ONLY this JSON array (no prose):
       const data = await resp.json();
       text = (data.content && data.content[0] && data.content[0].text) || "";
     } else {
-      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(key)}`, {
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${encodeURIComponent(key)}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
