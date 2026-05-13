@@ -13031,42 +13031,115 @@ function buildLocalContextChain(opts) {
     return pickRandom(pool.length ? pool : allSpeakers);
   }
 
-  // Continuation copy generators — reference the source card's
-  // decision moment instead of inventing a new scene.
-  function makeC1(notThese) {
-    const sp = speakerFor(notThese);
-    const m = MINISTRY_OF[sp] || "Cabinet";
-    const sourceLine = sourceCtx && sourceCtx.outcome
-      ? `With "${sourceCtx.outcome.replace(/\.$/,"")}", `
-      : sourceCtx && sourceCtx.situation
-      ? `After ${sourceCtx.speaker || "the room"} settled, `
-      : "";
-    const ask = sourceCtx
-      ? `${sp.split(" ").slice(-1)[0]} wants a hard answer before lunch. Sign?`
-      : `${sp.split(" ").slice(-1)[0]} brings a thin file. The cabinet is split two and two. Decide?`;
-    return {
-      speaker: sp, ministry: m, topic: resolveTopic("__auto__", m),
-      situation: (sourceLine + ask).slice(0, 200),
-    };
+  // 2026-05-12 — story-arc planner for the no-API-key path.
+  // Player report: "I created 2 chains each are 5 cards. it
+  // created the same chains! same words!" The old builder
+  // used hardcoded phrases ("the room wants a public statement.
+  // Issue it?") that made every chain look identical. Now we:
+  //   1. Pick a theme + a prop (random per call, so two
+  //      back-to-back chains can't collide).
+  //   2. Pick a SEQUENCE of speakers across c1..cN where each
+  //      ministry feels like an escalation of the prior.
+  //   3. Compose each card's situation by interpolating the
+  //      prop, the speaker's surname, and a per-position beat
+  //      template (hook / pressure / mirage / climax).
+  const ARC_PROPS = [
+    "the loan", "the ledger", "the bill", "the column", "the contract",
+    "the audit", "the leak", "the patent", "the harbour permit", "the
+charter", "the file", "the report", "the wire", "the testimony",
+    "the appointment", "the warrant", "the bond", "the cable",
+  ];
+  // Theme → escalation ladder. Each ladder is the SEQUENCE of
+  // ministries the story walks through as it escalates. c1 is
+  // gentle / routine; later cards turn the screw.
+  const THEME_LADDERS = {
+    civic:    ["Treasury", "Press", "Justice", "Cabinet", "Civic"],
+    crisis:   ["Health", "Press", "Defense", "Civic", "Cabinet"],
+    money:    ["Treasury", "Economy", "Audit", "Press", "Foreign Affairs"],
+    foreign:  ["Foreign Affairs", "Diplomatic Corps", "Defense", "Press", "Cabinet"],
+    security: ["Defense", "Justice", "Press", "Civic", "Cabinet"],
+    energy:   ["Energy", "Environment", "Press", "Civic", "Cabinet"],
+    health:   ["Health", "Press", "Civic", "Cabinet", "Justice"],
+    family:   ["Family", "Royal Court", "Press", "Cabinet", "Civic"],
+  };
+  // Pick a ladder. Theme name maps imperfectly; fall back to civic.
+  const ladderKey = (THEME_LADDERS[theme] ? theme : "civic");
+  const ladder = THEME_LADDERS[ladderKey];
+  // Per-call random prop so two back-to-back chains differ.
+  const PROP = pickRandom(ARC_PROPS);
+
+  // Beat templates per position. {Surname} substituted for the
+  // speaker's last name; {prop} for the chosen prop.
+  const POSITION_BEATS = {
+    hook: [
+      "{Surname} brings {prop} with a single yellow tab. Sign?",
+      "{Surname} wants {prop} signed before noon. Authorise?",
+      "{Surname} has {prop} on the desk and a tight smile. Decide?",
+      "{Surname} would like {prop} cleared before the press call. Yes?",
+    ],
+    pressure: [
+      "With {prop} on the floor, the room split two and two. Push it?",
+      "The terms on {prop} drifted overnight. Re-sign?",
+      "{Surname} found a clause inside {prop} that wasn't there yesterday. Honour it?",
+      "{prop} grew a tail of three amendments by breakfast. Accept them all?",
+    ],
+    mirage: [
+      "{Surname} offers a quieter version of {prop} that nobody will read. Sign the quiet copy?",
+      "There's a way to bury {prop} in a Friday filing. File it Friday?",
+      "{Surname} would let {prop} expire if we just stop talking. Stop?",
+      "The press hasn't asked about {prop} yet. Wait them out?",
+    ],
+    climax: [
+      "{Surname} stood up and walked to the door, then turned. Will you finish {prop} or not?",
+      "The cabinet is in the lobby. They want one yes on {prop}. Give it?",
+      "{Surname} put their resignation on top of {prop}. Hold them both?",
+      "Three signatures left on {prop} and one of them is yours. Sign?",
+    ],
+  };
+
+  // Position assignment by index.
+  function positionFor(i, total) {
+    if (total <= 3) return i === 0 ? "hook" : (i === total - 1 ? "climax" : "pressure");
+    if (i === 0) return "hook";
+    if (i >= total - 1) return "climax";
+    // Middle beats alternate pressure / mirage so accept and
+    // decline branches feel different in tone.
+    return i % 2 === 1 ? "pressure" : "mirage";
   }
-  function makeChild(parent, notThese, rolePhrase) {
-    const sp = speakerFor(notThese);
-    const m = MINISTRY_OF[sp] || "Cabinet";
-    const cite = `After ${parent.speaker.split(" ").slice(-1)[0]}'s call, `;
+
+  function makeCard(i, total, notThese) {
+    // Walk the ladder, looping if total > ladder.length.
+    const ministry = ladder[i % ladder.length];
+    const ministryPool = inSpeakers(ministry).filter(s => !notThese.has(s));
+    const sp = ministryPool.length
+      ? pickRandom(ministryPool)
+      : speakerFor(notThese);
+    const m = MINISTRY_OF[sp] || ministry;
+    const surname = sp.split(" ").slice(-1)[0];
+    const beat = positionFor(i, total);
+    const tpl = pickRandom(POSITION_BEATS[beat] || POSITION_BEATS.pressure);
+    const sourcePrefix = i === 0 && sourceCtx && sourceCtx.outcome
+      ? `After ${(sourceCtx.outcome || "").replace(/\.$/, "").slice(0, 80)}, `
+      : "";
+    const situation = (sourcePrefix + tpl)
+      .replace(/\{Surname\}/g, surname)
+      .replace(/\{prop\}/g, PROP)
+      .slice(0, 200);
     return {
       speaker: sp, ministry: m, topic: resolveTopic("__auto__", m),
-      situation: (cite + rolePhrase).slice(0, 200),
+      situation,
     };
   }
 
-  // Build c1..c5 (or however many fit `length`)
-  const notThese = new Set([sourceCtx ? sourceCtx.speaker : null]);
-  const c1 = makeC1(notThese); notThese.add(c1.speaker);
-  const c2 = makeChild(c1, notThese, localLensPhrase(lens, "c2", "the room wants a public statement. Issue it?")); notThese.add(c2.speaker);
-  const c3 = makeChild(c1, notThese, localLensPhrase(lens, "c3", "the rival faction wants a meeting first. Take it?")); notThese.add(c3.speaker);
-  const c4 = makeChild(c2, notThese, localLensPhrase(lens, "c4", "the bench has filed three motions overnight. Respond to all of them?")); notThese.add(c4.speaker);
-  const c5 = makeChild(c3, notThese, localLensPhrase(lens, "c5", "the unions want a number on the contract. Give them one?"));
-  const sketches = [c1, c2, c3, c4, c5].slice(0, Math.max(5, length));
+  // Build c1..cN. Track speakers used to keep variety per call.
+  const notThese = new Set([sourceCtx ? sourceCtx.speaker : null].filter(Boolean));
+  const total = Math.max(5, length);
+  const sketches = [];
+  for (let i = 0; i < total; i++) {
+    const card = makeCard(i, total, notThese);
+    notThese.add(card.speaker);
+    sketches.push(card);
+  }
 
   // Wrap each sketch with full outcomes + meter shifts via the local
   // outcome templates (v30 tone). Build wiring c1→c2/c3, c2→c4, c3→c5.
@@ -13552,8 +13625,40 @@ c1's situation MUST:
 c2-c5 must keep escalating: each beat is a tighter consequence of the previous beat. Make it feel like the room is closing in, characters are revealing motives, and old decisions come back to bite. Aim for the kind of story turn that makes the player whisper "oh no" or "what".
 `
     : "";
+  // 2026-05-12 — anti-duplication block. Player report: "I
+  // created 2 chains each are 5 cards. it created the same
+  // chains! same words!" The prompt now lists every existing
+  // chain's name + c1 situation so the model knows what NOT to
+  // repeat. Limited to 12 most-recent chains so the prompt
+  // doesn't balloon on big decks.
+  const existingChains = CHAINS
+    .filter(c => c.id !== "orphans" && c.cards && c.cards[0])
+    .slice(-12)
+    .map(c => `  • "${c.name}" — c1: "${(c.cards[0].situation || "").slice(0, 100)}"`)
+    .join("\n");
+  const avoidBlock = existingChains
+    ? `\n\nAVOID THESE EXISTING ARCS — write something CLEARLY DIFFERENT from each:\n${existingChains}\n\nDo NOT reuse the same speakers, props, or opening setups as these. If a similar topic must be revisited, give it a fresh angle: new speaker, new prop, new escalation.\n`
+    : "";
+
+  // 2026-05-12 — story-arc planning. Player ask: "when I asked a
+  // chain you think of a whole story and divide it into cards
+  // and think all accept and decline situations." Adds an
+  // explicit ARC SUMMARY block the AI must internalise before
+  // writing cards. (The summary isn't emitted in the JSON — it's
+  // a planning step that produces more coherent output.)
+  const arcPlanningBlock = `
+
+ARC SUMMARY FIRST (do this BEFORE writing any cards, in your head):
+  • Write a single sentence describing the WHOLE arc — its hook, its turn, its closing image.
+  • Decide what one PROP threads through every card (a document / a name / a place / a number / a deadline).
+  • Decide which speaker delivers the hook (c1) and which delivers the closing turn (cN). They should be different.
+  • Sketch what happens on each ACCEPT branch and each DECLINE branch. The player must feel each choice changes the next scene.
+
+Only after you've planned the arc, write the cards. Each card carries the prop forward in a visible way (the prop is named in the situation OR in one of the outcomes). The reader should be able to trace the prop across all ${chainLength} cards.
+`;
+
   const stylePrefix = styleProfilePromptBlock();
-  const prompt = `You write decision cards for "Presidenter", a swipe-based cabinet game in the Reigns tradition.${stylePrefix}
+  const prompt = `You write decision cards for "Presidenter", a swipe-based cabinet game in the Reigns tradition.${stylePrefix}${avoidBlock}${arcPlanningBlock}
 
 THE FORMAT (v30, STYLE_GUIDE §12):
 Every card is ONE speaker leaning into the desk with TWO short sentences. Sentence 1 = the situation. Sentence 2 = the ask (the yes/no question). That's it. No narration, no third-person, no stage directions.
