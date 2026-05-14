@@ -3538,6 +3538,7 @@
   <button id="act-analyze" title="Deck analysis · distribution + balance">Σ</button>
   <button id="act-quickconnect" title="Quick-connect mode (Q) — click two cards to wire them">⚭</button>
   <button id="act-simulate" title="Regression simulator — play random reigns">▶</button>
+  <button id="act-arrange" title="Auto-arrange chains — re-positions every chain left-to-right based on its actual width. Fixes overlaps from legacy x positions.">⊞</button>
   <div class="divider"></div>
   <button id="act-export" title="Export deck as a JSON file">⬇</button>
   <button id="act-import" title="Import a JSON file">⇑</button>
@@ -16159,6 +16160,59 @@ document.getElementById("import-file").addEventListener("change", (e) => {
   e.target.value = ""; // allow re-selecting same file
 });
 document.getElementById("act-simulate").addEventListener("click", showSimulatorReport);
+document.getElementById("act-arrange").addEventListener("click", autoArrangeChains);
+
+// 2026-05-13 — Auto-arrange. Player report (with screenshot of
+// cards stacking across chain boundaries): 'still on top of each
+// other'. Root cause: chains imported before CHAIN_X_STEP grew
+// from 920 -> 1600 kept their old x positions on disk; at the
+// new CHAIN_WIDTH=1240 those chains physically overlap each
+// other. This function reflows every chain left-to-right with
+// each chain's ACTUAL needed width (based on the widest level's
+// card count) so chains can't bleed into one another regardless
+// of how many parallel cards Gemini produced.
+function autoArrangeChains() {
+  if (!CHAINS.length) {
+    showCopyToast("No chains to arrange");
+    return;
+  }
+  snapshot();
+  // Order chains by their current left-to-right position so the
+  // arrangement preserves the author's existing intent (which
+  // chain comes first, which is last).
+  const ordered = [...CHAINS].sort((a, b) => (a.x || 0) - (b.x || 0));
+  const COL_GUTTER = 80;
+  const CHAIN_GAP = 240; // empty space between chains
+  let cursor = 80;
+  for (const chain of ordered) {
+    chain.x = cursor;
+    // Compute the chain's effective width = widest level's row
+    // width. A level holding 5 cards needs 5*CARD_W + 4*GUTTER
+    // = 5*240 + 4*80 = 1520pt of horizontal room. Empty chains
+    // fall back to CHAIN_WIDTH.
+    const byLevel = {};
+    for (const c of chain.cards || []) {
+      // Skip cards with their own layout paths (pool / parallel /
+      // stack / right-far / drag-positioned) — they don't go into
+      // the row-spread calculation.
+      if (c.col === "stack" || c.col === "parallel" || c.col === "right-far") continue;
+      if (typeof c.col === "string" && c.col.startsWith("pool")) continue;
+      if (typeof c.customX === "number" && typeof c.customY === "number") continue;
+      const lvl = (typeof c.level === "number") ? c.level : 0;
+      byLevel[lvl] = (byLevel[lvl] || 0) + 1;
+    }
+    let widestLevelCount = 0;
+    for (const k in byLevel) if (byLevel[k] > widestLevelCount) widestLevelCount = byLevel[k];
+    const effectiveWidth = Math.max(
+      CHAIN_WIDTH,
+      widestLevelCount * CARD_W + Math.max(0, widestLevelCount - 1) * COL_GUTTER + 80
+    );
+    cursor += effectiveWidth + CHAIN_GAP;
+  }
+  persist();
+  rerenderAll();
+  showCopyToast(`Auto-arranged ${ordered.length} chain${ordered.length === 1 ? "" : "s"}`);
+}
 // Settings modal — danger zone (clear all chains, reset to source,
 // wipe localStorage). Player ask 2026-05: "put this clear all
 // chains feature into a settings pop up."
