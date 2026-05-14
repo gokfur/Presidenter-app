@@ -404,6 +404,15 @@
   #arrows .decline { stroke: var(--decline); stroke-width: 2.2; }
   #arrows .accept-leaf { stroke: var(--accept); stroke-width: 2; opacity: 0.7; }
   #arrows .decline-leaf { stroke: var(--decline); stroke-width: 2; opacity: 0.7; }
+  /* 2026-05-13 — thick lines when the destination is a Game Over
+     leaf (forcesEnding). Player ask: "If there is a path that goes
+     to game over, make its green or red lines thicker." Same colour
+     palette, doubled stroke + faint glow so the path reads as fatal
+     at a glance. */
+  #arrows .accept.to-gameover,
+  #arrows .accept-leaf.to-gameover { stroke-width: 5; filter: drop-shadow(0 0 4px var(--accept)); }
+  #arrows .decline.to-gameover,
+  #arrows .decline-leaf.to-gameover { stroke-width: 5; filter: drop-shadow(0 0 4px var(--decline)); }
   /* Pool arrows take the colour of the swipe they belong to. An
      Accept-side pool fans out in green dashes, a Decline-side pool
      in red. Player ask 2026-05: "what are these dotted greens? why
@@ -820,6 +829,24 @@
     text-transform: uppercase;
     letter-spacing: 0.08em;
   }
+  /* 2026-05-13 — inline outcome text under each ACCEPT/DECLINE line.
+     Indented under the swipe-label column so it visually nests inside
+     the fate-line above it. */
+  .card .fate-outcome {
+    font-size: 11px;
+    line-height: 1.4;
+    padding: 4px 8px 6px 56px;
+    margin-top: -2px;
+    margin-bottom: 4px;
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.025);
+    border-left: 2px solid var(--hairline);
+    border-radius: 0 4px 4px 0;
+    font-style: italic;
+    word-wrap: break-word;
+  }
+  .card .fate-outcome.accept-outcome { border-left-color: var(--accept); }
+  .card .fate-outcome.decline-outcome { border-left-color: var(--decline); }
   .card .fate-line.trigger-only .target {
     color: var(--cascade);
   }
@@ -4464,33 +4491,30 @@ const CARD_H_COLLAPSED = 230;
 // 2026-05-13 — chain-to-chain horizontal step. Used by every
 // "place a new chain to the right of the existing ones" callsite
 // (~15 of them throughout the file). Was hardcoded as the literal
-// `+ 920` everywhere; now centralised so we can widen CHAIN_WIDTH
-// without hunting every callsite. Player report: "I need to see
-// lines so put a lot" — bumped from 920 to 1400 so adjacent
-// chains have a 320pt gutter even at the new wider CHAIN_WIDTH.
-const CHAIN_X_STEP = 1400;
-// 2026-05-13 — vertical breathing room. Old values were
-// COL_TOP_Y=140 / MID_Y=450 / BOT_Y=800 (310 / 350pt row gaps).
-// With 230pt-tall cards that left only 80-120pt of visible empty
-// space between rows, which read as crowded on chains with cards
-// at every level. Bumped to 140 / 580 / 1020 — 440pt row gaps,
-// ~210pt empty space between cards. The deep-chain fallback
-// formula (level >= 3) gets the same 440pt step.
-// Player report: 'they are too close to each other can we put
-// more spacing between cards.'
+// `+ 920` everywhere; now centralised. Bumped to 1600 alongside
+// the CHAIN_WIDTH=1240 round-2 widening so chains keep a 360pt
+// gutter between them.
+const CHAIN_X_STEP = 1600;
+// 2026-05-13 round 2 — bumped vertical anchors AGAIN now that
+// the inline outcome blocks (one under ACCEPT, one under DECLINE)
+// make each card ~80pt taller. New row gaps are 540pt (was 440)
+// so the new ~310pt-tall cards still have ~230pt of breathing
+// room between rows. Player ask: "add a little bit more vertical
+// and horizontal spacing to the html cards."
 const COL_TOP_Y = 140;
-const MID_Y = 580;
-const BOT_Y = 1020;
-// 2026-05-13 — chain width widened 600 -> 1080. With CARD_W=240,
-// the three columns now sit at x=40 / x=420 / x=820, giving
-// ~160pt of clear horizontal space between adjacent cards
-// (was -80pt, i.e. cards overlapped by 80pt with each other).
-// Player report: "can you make html put more horizontal spaces
-// i need to see lines so put a lot."
-const CHAIN_WIDTH = 1080;
+const MID_Y = 680;
+const BOT_Y = 1220;
+// 2026-05-13 (round 2) — bumped again to CHAIN_WIDTH=1240 so the
+// 240pt cards have 200pt of clear horizontal space between columns.
+// Round 1 (1080) wasn't enough; the inline outcome blocks made
+// cards visually heavier and the columns felt cramped again.
+// Round 2 also bumped the inter-chain step (CHAIN_X_STEP) to 1600
+// at the top so adjacent chains keep a 360pt gutter at the new
+// wider footprint.
+const CHAIN_WIDTH = 1240;
 const CARD_X_CENTER = (CHAIN_WIDTH - CARD_W) / 2;
-const CARD_X_LEFT = 40;
-const CARD_X_RIGHT = CHAIN_WIDTH - CARD_W - 40;
+const CARD_X_LEFT = 60;
+const CARD_X_RIGHT = CHAIN_WIDTH - CARD_W - 60;
 
 function cardPosition(chain, card) {
   const baseX = chain.x;
@@ -4593,8 +4617,8 @@ function cardPosition(chain, card) {
   let y;
   if (card.level === 0) y = COL_TOP_Y;
   else if (card.level === 1) y = MID_Y;
-  else if (card.level === 2) y = isPension ? 1240 : BOT_Y;
-  else y = BOT_Y + (card.level - 2) * 440;
+  else if (card.level === 2) y = isPension ? 1440 : BOT_Y;
+  else y = BOT_Y + (card.level - 2) * 540;
   return { x: colX, y: y };
 }
 
@@ -5764,6 +5788,42 @@ function migrateDeckPayload(payload) {
   }
   payload.schemaVersion = DECK_SCHEMA_VERSION;
   return payload;
+}
+
+// 2026-05-13 — per-chain export. Player ask: "I wanna be able to
+// select a chain and export as json locally and each chain will
+// have its own file so when you are adding them to the game you
+// will know the chain groups." Downloads `<chain_id>.json` with
+// a single-chain payload that the same importer can read back.
+// Browsers can't write directly to a specific folder; the user
+// picks the save location once and modern browsers remember the
+// last download folder so subsequent per-chain exports land
+// alongside the first one without prompting.
+function exportSingleChain(chainId) {
+  const chain = CHAINS.find(c => c.id === chainId);
+  if (!chain) { alert("Chain not found: " + chainId); return; }
+  const payload = {
+    schemaVersion: DECK_SCHEMA_VERSION,
+    chains: [chain],
+    exportedAt: new Date().toISOString(),
+    sourceChainId: chain.id,
+    sourceChainName: chain.name,
+  };
+  const data = JSON.stringify(payload, null, 2);
+  const blob = new Blob([data], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  // Filename: <chain-id>.json — the chain's stable id so the file
+  // name stays consistent across re-exports (no timestamp suffix
+  // so editing-and-re-exporting overwrites the same file).
+  const safeId = (chain.id || "chain").replace(/[^a-z0-9_-]/gi, "_");
+  a.download = safeId + ".json";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showCopyToast(`Exported "${chain.name}" -> ${a.download}`);
 }
 
 function exportJSONFile() {
@@ -8943,12 +9003,14 @@ function renderChainHeader(chain) {
     <div class="chain-actions">
       <button class="play" title="Prototype — play through this chain right here (no app needed)">▶</button>
       <button class="regen" title="Regenerate every card in this chain">↻</button>
+      <button class="export-chain" title="Export THIS chain as JSON. Saves as &lt;chain-id&gt;.json so each chain stays in its own file.">⬇</button>
       <button class="room" title="Move chain to another room (${chain.room || 'Main'})">📁</button>
       <button class="del" title="Delete the entire chain">×</button>
     </div>
   `;
   el.querySelector(".play").addEventListener("click", () => startPrototype(chain.id));
   el.querySelector(".regen").addEventListener("click", () => regenerateChain(chain.id));
+  el.querySelector(".export-chain").addEventListener("click", () => exportSingleChain(chain.id));
   el.querySelector(".room").addEventListener("click", () => moveChainToRoom(chain.id));
   el.querySelector(".del").addEventListener("click", () => deleteChain(chain.id));
   world.appendChild(el);
@@ -9046,6 +9108,18 @@ function renderFateBlock(card, chain) {
   const dTip  = dMode === "extend"
     ? "Extend this dead end into a new chain (AI or template, with optional ending)"
     : "Branch a new chain off this Decline swipe";
+  // 2026-05-13 — inline outcome text. Player ask: "I don't see the
+  // accept and decline message. I have to click and go in. Make sure
+  // I can read what happens so, under the 'Accept' 'Decline' texts
+  // in a box you can write what the message is."
+  const aOutcome = (card.accept && card.accept.outcome || "").trim();
+  const dOutcome = (card.decline && card.decline.outcome || "").trim();
+  const aOutcomeHTML = aOutcome
+    ? `<div class="fate-outcome accept-outcome">${escapeHTML(aOutcome)}</div>`
+    : "";
+  const dOutcomeHTML = dOutcome
+    ? `<div class="fate-outcome decline-outcome">${escapeHTML(dOutcome)}</div>`
+    : "";
   return `<div class="fate-block">
     <div class="fate-line accept ${a.kind}">
       <span class="swipe-label">Accept</span>
@@ -9053,13 +9127,26 @@ function renderFateBlock(card, chain) {
       <span class="target">${a.text}</span>
       <button class="branch-btn ${aMode === "extend" ? "extend-btn" : ""}" data-branch-side="accept" data-branch-card="${card.id}" data-branch-mode="${aMode}" title="${aTip}">+</button>
     </div>
+    ${aOutcomeHTML}
     <div class="fate-line decline ${d.kind}">
       <span class="swipe-label">Decline</span>
       <span class="arrow">→</span>
       <span class="target">${d.text}</span>
       <button class="branch-btn ${dMode === "extend" ? "extend-btn" : ""}" data-branch-side="decline" data-branch-card="${card.id}" data-branch-mode="${dMode}" title="${dTip}">+</button>
     </div>
+    ${dOutcomeHTML}
   </div>`;
+}
+
+// Defensive HTML escape — outcome strings come from author input and
+// may contain quotes / ampersands. Inlined to avoid grabbing a heavy
+// helper from elsewhere in the file.
+function escapeHTML(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 // Branch a new chain off a specific swipe. Player ask 2026-05:
@@ -9570,7 +9657,27 @@ function makeArrow(fromId, toId, kind, label, opts) {
   // render in red (matching the red Decline arrow) and accept-pools
   // in green.
   const isDeclinePool = kind === "pool" && opts && opts.side === "decline";
-  const cls = kind === "merge" ? "merge" : (kind + (isDeclinePool ? " decline-side" : ""));
+  // 2026-05-13 — detect Game-Over destinations and add a 'to-gameover'
+  // modifier class so the CSS draws the connector with a thick stroke
+  // and a soft glow. Player ask: "If there is a path that goes to
+  // game over, make its green or red lines thicker." A "Game Over"
+  // destination is any card whose accept or decline carries
+  // forcesEnding, OR whose chain is itself flagged forcesEnding.
+  let toGameover = false;
+  if (toId) {
+    const toCard = CHAINS.flatMap(c => c.cards).find(x => x.id === toId);
+    if (toCard) {
+      const aGO = toCard.accept && toCard.accept.forcesEnding;
+      const dGO = toCard.decline && toCard.decline.forcesEnding;
+      if (aGO || dGO) toGameover = true;
+      if (!toGameover) {
+        const toChain = CHAINS.find(c => c.cards.some(x => x.id === toId));
+        if (toChain && toChain.forcesEnding) toGameover = true;
+      }
+    }
+  }
+  const cls = (kind === "merge" ? "merge" : (kind + (isDeclinePool ? " decline-side" : "")))
+    + (toGameover ? " to-gameover" : "");
   const markerKind = isDeclinePool ? "pool-decline" : kind;
   path.setAttribute("class", cls);
   path.setAttribute("marker-end", "url(#arrow-" + markerKind + ")");
