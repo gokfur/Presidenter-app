@@ -4461,6 +4461,14 @@ const CHAINS = [];
 
 const CARD_W = 240;
 const CARD_H_COLLAPSED = 230;
+// 2026-05-13 — chain-to-chain horizontal step. Used by every
+// "place a new chain to the right of the existing ones" callsite
+// (~15 of them throughout the file). Was hardcoded as the literal
+// `+ 920` everywhere; now centralised so we can widen CHAIN_WIDTH
+// without hunting every callsite. Player report: "I need to see
+// lines so put a lot" — bumped from 920 to 1400 so adjacent
+// chains have a 320pt gutter even at the new wider CHAIN_WIDTH.
+const CHAIN_X_STEP = 1400;
 // 2026-05-13 — vertical breathing room. Old values were
 // COL_TOP_Y=140 / MID_Y=450 / BOT_Y=800 (310 / 350pt row gaps).
 // With 230pt-tall cards that left only 80-120pt of visible empty
@@ -4473,10 +4481,16 @@ const CARD_H_COLLAPSED = 230;
 const COL_TOP_Y = 140;
 const MID_Y = 580;
 const BOT_Y = 1020;
-const CHAIN_WIDTH = 600;
+// 2026-05-13 — chain width widened 600 -> 1080. With CARD_W=240,
+// the three columns now sit at x=40 / x=420 / x=820, giving
+// ~160pt of clear horizontal space between adjacent cards
+// (was -80pt, i.e. cards overlapped by 80pt with each other).
+// Player report: "can you make html put more horizontal spaces
+// i need to see lines so put a lot."
+const CHAIN_WIDTH = 1080;
 const CARD_X_CENTER = (CHAIN_WIDTH - CARD_W) / 2;
-const CARD_X_LEFT = 20;
-const CARD_X_RIGHT = CHAIN_WIDTH - CARD_W - 20;
+const CARD_X_LEFT = 40;
+const CARD_X_RIGHT = CHAIN_WIDTH - CARD_W - 40;
 
 function cardPosition(chain, card) {
   const baseX = chain.x;
@@ -5971,7 +5985,7 @@ function importJSONFile(file) {
           }
         }
         // Append to canvas at the right edge so the new chain isn't on top of an existing one
-        const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + 920 : 80;
+        const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + CHAIN_X_STEP : 80;
         ch.x = rightmostX;
         ch.room = ch.room || activeRoom || "Main";
         if (ch.room && !ROOMS.includes(ch.room)) ROOMS.push(ch.room);
@@ -6519,7 +6533,7 @@ function addChain(name, subtitle, length) {
     const baseId = arc.id;
     let id = baseId, n = 1;
     while (CHAINS.find(c => c.id === id)) { id = baseId + (++n); }
-    const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + 920 : 80;
+    const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + CHAIN_X_STEP : 80;
     const chain = instantiateArc(arc, id, rightmostX);
     // Adjust to requested length
     if (length === 3) {
@@ -6680,7 +6694,7 @@ function addChain(name, subtitle, length) {
   let id = baseId, n = 1;
   while (CHAINS.find(c => c.id === id)) { id = baseId + (++n); }
   // Position to the right of existing chains
-  const rightmostX = Math.max(...CHAINS.map(c => c.x)) + 920;
+  const rightmostX = Math.max(...CHAINS.map(c => c.x)) + CHAIN_X_STEP;
   // Pick 5 distinct speakers
   const usedSpeakers = new Set();
   function pickFresh() {
@@ -8785,7 +8799,7 @@ function generateEndingChain(endingId, chainName) {
   const baseId = endingId.replace(/_/g, "").slice(0, 12) || "ending";
   let id = baseId, n = 1;
   while (CHAINS.find(c => c.id === id)) { id = baseId + (++n); }
-  const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + 920 : 80;
+  const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + CHAIN_X_STEP : 80;
   // Apply the ending's meter push to every Accept outcome (so the
   // "bad path" actually moves the meters toward the failure state).
   function mkBranch(b, isLastAccept) {
@@ -9083,7 +9097,7 @@ function branchOffSwipe(cardId, side) {
   const baseId = "branch_" + arc.id;
   let id = baseId, n = 1;
   while (CHAINS.find(c => c.id === id)) { id = baseId + "_" + (++n); }
-  const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + 920 : 80;
+  const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + CHAIN_X_STEP : 80;
   const newChain = instantiateArc(arc, id, rightmostX);
   newChain.name = "Branch · " + arc.name;
   newChain.subtitle = "Branched from " + sourceCard.speaker + " · " + side;
@@ -11797,7 +11811,7 @@ function saveCard() {
     snapshot();
     let bucket = CHAINS.find(c => c.id === "orphans");
     if (!bucket) {
-      const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + 920 : 80;
+      const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + CHAIN_X_STEP : 80;
       bucket = {
         id: "orphans",
         name: "Orphan Cards",
@@ -12764,7 +12778,7 @@ function createSpecialTypeCard(cardType, extras = {}) {
 
   let bucket = CHAINS.find(c => c.id === bucketId);
   if (!bucket) {
-    const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + 920 : 80;
+    const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + CHAIN_X_STEP : 80;
     bucket = {
       id: bucketId,
       name: bucketName,
@@ -13216,7 +13230,7 @@ function buildLocalContextChain(opts) {
     cards[2].accept.setFlag = id + "_c3_accept";
     cards[4].requires = cards[2].accept.setFlag;
   }
-  const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + 920 : 80;
+  const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + CHAIN_X_STEP : 80;
   const name = sourceCtx
     ? `From ${sourceCtx.speaker.split(" ").slice(-1)[0]}: ${cards[0].speaker.split(" ").slice(-1)[0]}'s call`
     : `Local chain · ${cards[0].speaker.split(" ").slice(-1)[0]}`;
@@ -13354,7 +13368,7 @@ async function generateChainFromOptions() {
     const id = (data.name || "ai_chain").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12) || "aichain";
     let uniqueId = id, n = 1;
     while (CHAINS.find(c => c.id === uniqueId)) uniqueId = id + (++n);
-    const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + 920 : 80;
+    const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + CHAIN_X_STEP : 80;
     snapshot();
     const arc = {
       id: uniqueId,
@@ -13872,7 +13886,7 @@ async function generateQuickCard() {
       snapshot();
       let bucket = CHAINS.find(c => c.id === "orphans");
       if (!bucket) {
-        const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + 920 : 80;
+        const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + CHAIN_X_STEP : 80;
         bucket = { id: "orphans", name: "Orphan Cards", subtitle: "AI ✨ quick cards · review and keep", chainTheme: "civic", color: "var(--gold)", x: rightmostX, room: (activeRoom === "__all__") ? "Main" : activeRoom, cards: [] };
         CHAINS.push(bucket);
       }
@@ -13987,7 +14001,7 @@ Output ONLY this JSON (no prose, no markdown fences):
     snapshot();
     let bucket = CHAINS.find(c => c.id === "orphans");
     if (!bucket) {
-      const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + 920 : 80;
+      const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + CHAIN_X_STEP : 80;
       bucket = { id: "orphans", name: "Orphan Cards", subtitle: "AI ✨ quick cards · review and keep", chainTheme: "civic", color: "var(--gold)", x: rightmostX, room: (activeRoom === "__all__") ? "Main" : activeRoom, cards: [] };
       CHAINS.push(bucket);
     }
@@ -15082,7 +15096,7 @@ async function generateBatch() {
       snapshot();
       let bucket = CHAINS.find(c => c.id === "orphans");
       if (!bucket) {
-        const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + 920 : 80;
+        const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + CHAIN_X_STEP : 80;
         bucket = { id: "orphans", name: "Orphan Cards", subtitle: "Batch · " + theme, chainTheme: "civic", color: "var(--gold)", x: rightmostX, room: (activeRoom === "__all__") ? "Main" : activeRoom, cards: [] };
         CHAINS.push(bucket);
       }
@@ -15214,7 +15228,7 @@ Output ONLY this JSON array (no prose):
     snapshot();
     let bucket = CHAINS.find(c => c.id === "orphans");
     if (!bucket) {
-      const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + 920 : 80;
+      const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + CHAIN_X_STEP : 80;
       bucket = { id: "orphans", name: "Orphan Cards", subtitle: "Batch · " + theme, chainTheme: "civic", color: "var(--gold)", x: rightmostX, room: (activeRoom === "__all__") ? "Main" : activeRoom, cards: [] };
       CHAINS.push(bucket);
     }
@@ -16142,7 +16156,7 @@ function createStandaloneCard(tmpl) {
   // Find or create a "standalones" chain bucket
   let bucket = CHAINS.find(c => c.id === "standalones");
   if (!bucket) {
-    const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + 920 : 80;
+    const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + CHAIN_X_STEP : 80;
     bucket = {
       id: "standalones", name: "Standalone Cards",
       subtitle: "One-shot events · no chain", chainTheme: "civic",
@@ -17556,7 +17570,7 @@ function importChainsFromHash() {
         if (b.poolTargets) b.poolTargets = b.poolTargets.map(t => cardIdMap[t] || t);
       }
     }
-    const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + 920 : 80;
+    const rightmostX = CHAINS.length ? Math.max(...CHAINS.map(c => c.x)) + CHAIN_X_STEP : 80;
     ch.x = rightmostX;
     ch.room = ch.room || activeRoom || "Main";
     if (ch.room && typeof ROOMS !== "undefined" && !ROOMS.includes(ch.room)) ROOMS.push(ch.room);
