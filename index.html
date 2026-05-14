@@ -4598,22 +4598,55 @@ function cardPosition(chain, card) {
     const isPension = chain.id === "pension";
     return { x: baseX + CHAIN_WIDTH - 40, y: isPension ? 1000 : BOT_Y };
   }
-  const colX =
-    card.col === "center" ? baseX + CARD_X_CENTER :
-    card.col === "left"   ? baseX + CARD_X_LEFT :
-                            baseX + CARD_X_RIGHT;
-  // Pension grandchildren shift down because the pool stack
-  // pushed the C2 cards further south.
+  // 2026-05-13 — AUTO-SPREAD layout (replaces the fixed
+  // left/center/right slots). Player report: 'you still put
+  // cards onto each other'. Root cause: the three-column grid
+  // could fit at most 3 cards per level, so any chain with 4+
+  // cards at the same level (or two cards with the same
+  // (level, col) tuple) had them physically overlap. This
+  // version groups cards by level and spreads them horizontally
+  // across the chain's width based on how many cards actually
+  // share that level — so 5 cards at the same level become 5
+  // evenly-spaced columns, not 5 cards in 3 slots.
+  //
+  // Sort within a level: cards with col="left" first, then
+  // "center", then "right", then anything else, then by id.
+  // This honours the author's stated col when there's room,
+  // and falls back to deterministic ordering when there isn't.
   const isPension = chain.id === "pension";
+  const cardLevel = (typeof card.level === "number") ? card.level : 0;
+  const sameLevel = chain.cards.filter(c => {
+    if ((typeof c.level === "number" ? c.level : 0) !== cardLevel) return false;
+    // Exclude cards that have their own layout rules above
+    if (c.col === "stack" || c.col === "parallel" || c.col === "right-far") return false;
+    if (typeof c.col === "string" && c.col.startsWith("pool")) return false;
+    if (typeof c.customX === "number" && typeof c.customY === "number") return false;
+    return true;
+  });
+  const colOrder = { left: 0, center: 1, right: 2 };
+  sameLevel.sort((a, b) => {
+    const aO = colOrder[a.col] !== undefined ? colOrder[a.col] : 3;
+    const bO = colOrder[b.col] !== undefined ? colOrder[b.col] : 3;
+    if (aO !== bO) return aO - bO;
+    return String(a.id).localeCompare(String(b.id));
+  });
+  const idx = sameLevel.findIndex(c => c.id === card.id);
+  const COL_GUTTER = 80; // visible empty space between cards at same level
+  const n = Math.max(1, sameLevel.length);
+  const rowWidth = n * CARD_W + (n - 1) * COL_GUTTER;
+  // If the row fits inside CHAIN_WIDTH (with a 40pt margin),
+  // centre it. Otherwise overflow to the right of the chain
+  // (no clipping, the chain box gets visibly wider).
+  const startX = (rowWidth <= CHAIN_WIDTH - 80)
+    ? (CHAIN_WIDTH - rowWidth) / 2
+    : 40;
+  const colX = baseX + startX + (idx < 0 ? 0 : idx) * (CARD_W + COL_GUTTER);
+
   // 2026-05-12 — extended Y for deep chains. Original layout only
   // knew 3 levels (top/mid/bot); a 15-card chain with 8 levels
   // collapsed every card past level 2 onto the same BOT_Y row.
   // Now level 0/1/2 keep their original anchors; level 3+ falls
   // back to a formula that extends downward.
-  //
-  // 2026-05-13 — bumped the deep-chain step from 350pt to 440pt
-  // to match the new MID_Y / BOT_Y spacing (also 440pt apart).
-  // Keeps row gaps uniform top-to-bottom.
   let y;
   if (card.level === 0) y = COL_TOP_Y;
   else if (card.level === 1) y = MID_Y;
