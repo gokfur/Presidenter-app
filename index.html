@@ -4254,6 +4254,10 @@
             <button type="button" id="ai-write-accept" class="ai-mini-btn" title="AI-write the Accept outcome based on the situation, speaker and topic">✨ AI write</button>
           </label>
           <textarea id="f-accept-outcome" placeholder="Halvik prints six lines under your name. The bench reads at breakfast."></textarea>
+          <label style="margin-top:8px;display:flex;align-items:center;gap:6px;">
+            <span>Loss explainer <span style="opacity:0.6;font-weight:400;">(required when this swipe ends the game · 1-4 sentences)</span></span>
+          </label>
+          <textarea id="f-accept-lossexplainer" placeholder="Why this path leads to failure — the chain of choices that made the outcome inevitable. Surfaces on the Game Over screen's 'WHY THIS HAPPENED' panel." rows="3"></textarea>
         </div>
       </div>
       <label>Meter effects</label>
@@ -4316,6 +4320,10 @@
             <button type="button" id="ai-write-decline" class="ai-mini-btn" title="AI-write the Decline outcome based on the situation, speaker and topic">✨ AI write</button>
           </label>
           <textarea id="f-decline-outcome" placeholder="Halvik prints the audit summary alone. The headline asks the question you didn't answer."></textarea>
+          <label style="margin-top:8px;display:flex;align-items:center;gap:6px;">
+            <span>Loss explainer <span style="opacity:0.6;font-weight:400;">(required when this swipe ends the game · 1-4 sentences)</span></span>
+          </label>
+          <textarea id="f-decline-lossexplainer" placeholder="Why this path leads to failure — the chain of choices that made the outcome inevitable. Surfaces on the Game Over screen's 'WHY THIS HAPPENED' panel." rows="3"></textarea>
         </div>
       </div>
       <label>Meter effects</label>
@@ -11931,6 +11939,13 @@ function saveCard() {
       } else {
         delete b.triggersChain;
       }
+      // v21.3 — lossExplainer field. Required on swipes that
+      // carry forcesEnding; surfaces on the engine's "WHY THIS
+      // HAPPENED" panel as the chain author's narrative
+      // post-mortem (replaces the generic per-meter explainer).
+      const lossExEl = document.getElementById(`f-${side}-lossexplainer`);
+      const lossEx = lossExEl ? lossExEl.value.trim() : "";
+      if (lossEx) b.lossExplainer = lossEx; else delete b.lossExplainer;
     }
     const savedId = editingCardId;
     learnFromCard(card);
@@ -14301,6 +14316,9 @@ function plumbCardIntoForm(card) {
     document.getElementById("f-accept-mil").value = String(card.accept.mil ?? 0);
     document.getElementById("f-accept-wel").value = String(card.accept.wel ?? 0);
     document.getElementById("f-accept-eco").value = String(card.accept.eco ?? 0);
+    // v21.3 — lossExplainer (required when forcesEnding is set)
+    const aex = document.getElementById("f-accept-lossexplainer");
+    if (aex) aex.value = card.accept.lossExplainer || "";
   }
   if (card.decline) {
     document.getElementById("f-decline-outcome").value = card.decline.outcome || "";
@@ -14308,6 +14326,9 @@ function plumbCardIntoForm(card) {
     document.getElementById("f-decline-mil").value = String(card.decline.mil ?? 0);
     document.getElementById("f-decline-wel").value = String(card.decline.wel ?? 0);
     document.getElementById("f-decline-eco").value = String(card.decline.eco ?? 0);
+    // v21.3 — lossExplainer (required when forcesEnding is set)
+    const dex = document.getElementById("f-decline-lossexplainer");
+    if (dex) dex.value = card.decline.lossExplainer || "";
   }
   runValidation();
 }
