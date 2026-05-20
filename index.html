@@ -829,6 +829,41 @@
     text-transform: uppercase;
     letter-spacing: 0.08em;
   }
+  /* v23 — authored swipe-stamp label (Card.rightLabel /
+     Card.leftLabel at runtime). Sits between the swipe-label chip and
+     the arrow so the author sees what the player will see on the
+     stamp at a glance. Uppercased, tight padding, side-tinted. */
+  .card .fate-line .swipe-stamp {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 2px 7px;
+    border-radius: 3px;
+    margin-right: 6px;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+  .card .fate-line .swipe-stamp.accept-stamp {
+    background: rgba(92, 194, 139, 0.18);
+    color: var(--accept);
+    border: 1px solid rgba(92, 194, 139, 0.45);
+  }
+  .card .fate-line .swipe-stamp.decline-stamp {
+    background: rgba(215, 118, 118, 0.18);
+    color: var(--decline);
+    border: 1px solid rgba(215, 118, 118, 0.45);
+  }
+  .card .fate-line .swipe-stamp.empty {
+    opacity: 0.5;
+    background: transparent;
+    color: var(--text-faint);
+    border-color: var(--hairline);
+  }
   /* 2026-05-13 — inline outcome text under each ACCEPT/DECLINE line.
      Indented under the swipe-label column so it visually nests inside
      the fate-line above it. */
@@ -3338,7 +3373,12 @@
     </details>
 
     <div class="ins-section accept">
-      <h3>▶ Accept</h3>
+      <h3>▶ Accept (right swipe)</h3>
+      <!-- v23 — per-card swipe label. Rendered on the stamp at runtime
+           (CardView.choiceStamp reads Card.rightLabel). 28-char cap is
+           soft (longer labels wrap to 2 lines and shrink-to-fit) but
+           the chain prompt's PREFLIGHT rule 23 hard-caps it. -->
+      <input id="ins-accept-label" maxlength="40" placeholder="Funny right reply (≤ 28 chars)" style="width:100%; padding:6px 8px; margin-bottom:6px; background:rgba(92,194,139,0.08); border:1px solid rgba(92,194,139,0.45); border-radius:4px; color:var(--text); font-size:13px; font-weight:600;">
       <textarea id="ins-accept-outcome" rows="2" placeholder="What happens after Accept"></textarea>
       <div class="meter-grid">
         <div><label class="env">Env</label><input type="number" id="ins-accept-env" min="-10" max="10"></div>
@@ -3360,7 +3400,10 @@
     </div>
 
     <div class="ins-section decline">
-      <h3>◀ Decline</h3>
+      <h3>◀ Decline (left swipe)</h3>
+      <!-- v23 — per-card swipe label. Rendered on the stamp at runtime
+           (CardView.choiceStamp reads Card.leftLabel). -->
+      <input id="ins-decline-label" maxlength="40" placeholder="Funny left reply (≤ 28 chars)" style="width:100%; padding:6px 8px; margin-bottom:6px; background:rgba(215,118,118,0.08); border:1px solid rgba(215,118,118,0.45); border-radius:4px; color:var(--text); font-size:13px; font-weight:600;">
       <textarea id="ins-decline-outcome" rows="2" placeholder="What happens after Decline"></textarea>
       <div class="meter-grid">
         <div><label class="env">Env</label><input type="number" id="ins-decline-env" min="-10" max="10"></div>
@@ -4247,10 +4290,12 @@
     <input id="f-condition" type="hidden">
 
     <div class="branch-block accept">
-      <h3>▶ Accept</h3>
+      <h3>▶ Accept (right swipe)</h3>
       <div class="row full">
         <div>
-          <label>Outcome (what happens after Accept)
+          <label>Swipe label <span style="opacity:0.6;font-weight:400;">(President's reply — stamped on the card when the player drags right · ≤ 28 chars)</span></label>
+          <input id="f-accept-label" maxlength="40" placeholder="Roll the trucks">
+          <label style="margin-top:8px;">Outcome (what happens after Accept)
             <button type="button" id="ai-write-accept" class="ai-mini-btn" title="AI-write the Accept outcome based on the situation, speaker and topic">✨ AI write</button>
           </label>
           <textarea id="f-accept-outcome" placeholder="Halvik prints six lines under your name. The bench reads at breakfast."></textarea>
@@ -4313,10 +4358,12 @@
     </div>
 
     <div class="branch-block decline">
-      <h3>◀ Decline</h3>
+      <h3>◀ Decline (left swipe)</h3>
       <div class="row full">
         <div>
-          <label>Outcome (what happens after Decline)
+          <label>Swipe label <span style="opacity:0.6;font-weight:400;">(President's reply — stamped on the card when the player drags left · ≤ 28 chars)</span></label>
+          <input id="f-decline-label" maxlength="40" placeholder="Burn the file">
+          <label style="margin-top:8px;">Outcome (what happens after Decline)
             <button type="button" id="ai-write-decline" class="ai-mini-btn" title="AI-write the Decline outcome based on the situation, speaker and topic">✨ AI write</button>
           </label>
           <textarea id="f-decline-outcome" placeholder="Halvik prints the audit summary alone. The headline asks the question you didn't answer."></textarea>
@@ -9158,6 +9205,19 @@ function renderFateBlock(card, chain) {
   // in a box you can write what the message is."
   const aOutcome = (card.accept && card.accept.outcome || "").trim();
   const dOutcome = (card.decline && card.decline.outcome || "").trim();
+  // v23 — surface the authored swipe label (Card.rightLabel /
+  // Card.leftLabel at runtime) right next to the Accept / Decline
+  // chip so the author can read the actual stamp text without
+  // opening the inspector. Missing labels render as "—" so the
+  // author sees the gap.
+  const aLabel = (card.accept && card.accept.label || "").trim();
+  const dLabel = (card.decline && card.decline.label || "").trim();
+  const aLabelChip = aLabel
+    ? `<span class="swipe-stamp accept-stamp" title="Right swipe stamp">${escapeHTML(aLabel)}</span>`
+    : `<span class="swipe-stamp accept-stamp empty" title="Right swipe stamp (missing — add a label in the inspector)">—</span>`;
+  const dLabelChip = dLabel
+    ? `<span class="swipe-stamp decline-stamp" title="Left swipe stamp">${escapeHTML(dLabel)}</span>`
+    : `<span class="swipe-stamp decline-stamp empty" title="Left swipe stamp (missing — add a label in the inspector)">—</span>`;
   const aOutcomeHTML = aOutcome
     ? `<div class="fate-outcome accept-outcome">${escapeHTML(aOutcome)}</div>`
     : "";
@@ -9167,6 +9227,7 @@ function renderFateBlock(card, chain) {
   return `<div class="fate-block">
     <div class="fate-line accept ${a.kind}">
       <span class="swipe-label">Accept</span>
+      ${aLabelChip}
       <span class="arrow">→</span>
       <span class="target">${a.text}</span>
       <button class="branch-btn ${aMode === "extend" ? "extend-btn" : ""}" data-branch-side="accept" data-branch-card="${card.id}" data-branch-mode="${aMode}" title="${aTip}">+</button>
@@ -9174,6 +9235,7 @@ function renderFateBlock(card, chain) {
     ${aOutcomeHTML}
     <div class="fate-line decline ${d.kind}">
       <span class="swipe-label">Decline</span>
+      ${dLabelChip}
       <span class="arrow">→</span>
       <span class="target">${d.text}</span>
       <button class="branch-btn ${dMode === "extend" ? "extend-btn" : ""}" data-branch-side="decline" data-branch-card="${card.id}" data-branch-mode="${dMode}" title="${dTip}">+</button>
@@ -11753,6 +11815,11 @@ function readModesList() {
 function makeBranch(side) {
   const trig = document.getElementById(`f-${side}-trigger`).value;
   const cond = document.getElementById(`f-${side}-cond`).value.trim();
+  // v23 — authored swipe label. Optional in the data model; the
+  // bake script and runtime fall back to "Accept" / "Decline"
+  // when missing.
+  const lblEl = document.getElementById(`f-${side}-label`);
+  const lbl = lblEl ? lblEl.value.trim() : "";
   const branch = {
     setFlag: null,
     target: null,
@@ -11762,6 +11829,7 @@ function makeBranch(side) {
     wel: parseInt(document.getElementById(`f-${side}-wel`).value || "0", 10),
     eco: parseInt(document.getElementById(`f-${side}-eco`).value || "0", 10),
   };
+  if (lbl) branch.label = lbl;
   if (trig) {
     branch.triggersChain = cond ? { id: trig, if: cond } : trig;
   }
@@ -11927,6 +11995,10 @@ function saveCard() {
     for (const side of ["accept", "decline"]) {
       if (!card[side]) card[side] = {};
       const b = card[side];
+      // v23 — per-card swipe label (Card.{right,left}Label at runtime).
+      const lblEl = document.getElementById(`f-${side}-label`);
+      const lbl = lblEl ? lblEl.value.trim() : "";
+      if (lbl) b.label = lbl; else delete b.label;
       b.outcome = document.getElementById(`f-${side}-outcome`).value.trim();
       b.env = parseInt(document.getElementById(`f-${side}-env`).value || "0", 10);
       b.mil = parseInt(document.getElementById(`f-${side}-mil`).value || "0", 10);
@@ -14311,6 +14383,9 @@ function plumbCardIntoForm(card) {
   }
   if (card.situation) document.getElementById("f-situation").value = card.situation;
   if (card.accept) {
+    // v23 — swipe-label field. May be missing on legacy cards.
+    const aLbl = document.getElementById("f-accept-label");
+    if (aLbl) aLbl.value = card.accept.label || "";
     document.getElementById("f-accept-outcome").value = card.accept.outcome || "";
     document.getElementById("f-accept-env").value = String(card.accept.env ?? 0);
     document.getElementById("f-accept-mil").value = String(card.accept.mil ?? 0);
@@ -14321,6 +14396,8 @@ function plumbCardIntoForm(card) {
     if (aex) aex.value = card.accept.lossExplainer || "";
   }
   if (card.decline) {
+    const dLbl = document.getElementById("f-decline-label");
+    if (dLbl) dLbl.value = card.decline.label || "";
     document.getElementById("f-decline-outcome").value = card.decline.outcome || "";
     document.getElementById("f-decline-env").value = String(card.decline.env ?? 0);
     document.getElementById("f-decline-mil").value = String(card.decline.mil ?? 0);
@@ -16648,6 +16725,7 @@ function openInspector(cardId) {
     document.getElementById("ins-tricky-row").style.display = card.topic === "tricky" ? "block" : "none";
     for (const side of ["accept", "decline"]) {
       const b = card[side] || {};
+      document.getElementById(`ins-${side}-label`).value = b.label || "";
       document.getElementById(`ins-${side}-outcome`).value = b.outcome || "";
       document.getElementById(`ins-${side}-env`).value = b.env || 0;
       document.getElementById(`ins-${side}-mil`).value = b.mil || 0;
@@ -16838,6 +16916,8 @@ function saveInspectorField() {
   for (const side of ["accept", "decline"]) {
     if (!card[side]) card[side] = {};
     const b = card[side];
+    const lbl = document.getElementById(`ins-${side}-label`).value.trim();
+    if (lbl) b.label = lbl; else delete b.label;
     b.outcome = document.getElementById(`ins-${side}-outcome`).value;
     b.env = parseInt(document.getElementById(`ins-${side}-env`).value || "0", 10);
     b.mil = parseInt(document.getElementById(`ins-${side}-mil`).value || "0", 10);
@@ -16919,9 +16999,9 @@ function wireInspector() {
     "ins-role", "ins-role-custom",
     "ins-situation", "ins-tricky", "ins-memory",
     "ins-cond-meter", "ins-cond-op", "ins-cond-value", "ins-condition",
-    "ins-accept-outcome", "ins-accept-env", "ins-accept-mil", "ins-accept-wel", "ins-accept-eco",
+    "ins-accept-label", "ins-accept-outcome", "ins-accept-env", "ins-accept-mil", "ins-accept-wel", "ins-accept-eco",
     "ins-accept-trigger", "ins-accept-cond",
-    "ins-decline-outcome", "ins-decline-env", "ins-decline-mil", "ins-decline-wel", "ins-decline-eco",
+    "ins-decline-label", "ins-decline-outcome", "ins-decline-env", "ins-decline-mil", "ins-decline-wel", "ins-decline-eco",
     "ins-decline-trigger", "ins-decline-cond",
     "ins-min-era", "ins-max-era", "ins-scheme", "ins-tutorial",
     // 2026-05-12 — Reigns-ify + modes parity in inspector.
