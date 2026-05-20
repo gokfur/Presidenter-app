@@ -800,6 +800,7 @@
   .card .fate-line {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 6px;
     font-size: 11px;
     padding: 4px 0;
@@ -829,42 +830,53 @@
     text-transform: uppercase;
     letter-spacing: 0.08em;
   }
-  /* v23 — authored swipe-stamp label (Card.rightLabel /
-     Card.leftLabel at runtime). Sits between the swipe-label chip and
-     the arrow so the author sees what the player will see on the
-     stamp at a glance. Slim padding so the chip doesn't push the
-     fate-line taller than the existing layout. */
-  .card .fate-line .swipe-stamp {
-    display: inline-block;
-    font-size: 10px;
+  /* v23 — full-width swipe pill. The authored label (Card.rightLabel
+     / Card.leftLabel at runtime) IS the row's primary text; the
+     "next: …" target moves to a small muted line underneath so the
+     pill never has to truncate. Empty (no authored label) falls back
+     to the v0 "Accept" / "Decline" wording at reduced opacity so the
+     author sees the gap. */
+  .card .fate-line .swipe-pill {
+    flex: 1;
+    display: block;
+    font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    padding: 1px 6px;
-    border-radius: 3px;
-    margin: 0 4px 0 0;
-    max-width: 160px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    vertical-align: middle;
-    line-height: 1.2;
+    letter-spacing: 0.04em;
+    padding: 4px 8px;
+    border-radius: 4px;
+    line-height: 1.25;
+    word-wrap: break-word;
+    white-space: normal;
   }
-  .card .fate-line .swipe-stamp.accept-stamp {
+  .card .fate-line .swipe-pill.accept-pill {
     background: rgba(92, 194, 139, 0.18);
     color: var(--accept);
     border: 1px solid rgba(92, 194, 139, 0.45);
   }
-  .card .fate-line .swipe-stamp.decline-stamp {
+  .card .fate-line .swipe-pill.decline-pill {
     background: rgba(215, 118, 118, 0.18);
     color: var(--decline);
     border: 1px solid rgba(215, 118, 118, 0.45);
   }
-  .card .fate-line .swipe-stamp.empty {
-    opacity: 0.5;
+  .card .fate-line .swipe-pill.empty {
+    opacity: 0.55;
     background: transparent;
+  }
+  /* v23 — target line ("next: Brask" / "end of chain") under the
+     pill, full-width, small + muted so the pill stays the loud
+     element. */
+  .card .fate-line .fate-target {
+    flex: 1 0 100%;
+    font-size: 10px;
     color: var(--text-faint);
-    border-color: var(--hairline);
+    padding: 2px 2px 0 2px;
+    line-height: 1.3;
+  }
+  .card .fate-line.gameover .fate-target {
+    color: var(--decline);
+    font-weight: 700;
+    letter-spacing: 0.04em;
   }
   /* 2026-05-13 — inline outcome text under each ACCEPT/DECLINE line.
      Indented under the swipe-label column so it visually nests inside
@@ -872,7 +884,7 @@
   .card .fate-outcome {
     font-size: 11px;
     line-height: 1.4;
-    padding: 4px 8px 6px 56px;
+    padding: 4px 8px 6px 10px;
     margin-top: -2px;
     margin-bottom: 4px;
     color: var(--text-primary);
@@ -9207,19 +9219,19 @@ function renderFateBlock(card, chain) {
   // in a box you can write what the message is."
   const aOutcome = (card.accept && card.accept.outcome || "").trim();
   const dOutcome = (card.decline && card.decline.outcome || "").trim();
-  // v23 — surface the authored swipe label (Card.rightLabel /
-  // Card.leftLabel at runtime) right next to the Accept / Decline
-  // chip so the author can read the actual stamp text without
-  // opening the inspector. Missing labels render as "—" so the
-  // author sees the gap.
+  // v23 — authored swipe label IS the primary text on each fate
+  // line. When a label is present we show it full-width inside the
+  // pill (no truncation, no redundant "Accept" word). When it's
+  // missing we fall back to the v0 "Accept" / "Decline" wording so
+  // the author sees the gap and goes back to the inspector to fill
+  // it in. Target ("next: …" / "end of chain") drops to a small
+  // muted line under the pill so the row breathes.
   const aLabel = (card.accept && card.accept.label || "").trim();
   const dLabel = (card.decline && card.decline.label || "").trim();
-  const aLabelChip = aLabel
-    ? `<span class="swipe-stamp accept-stamp" title="Right swipe stamp">${escapeHTML(aLabel)}</span>`
-    : `<span class="swipe-stamp accept-stamp empty" title="Right swipe stamp (missing — add a label in the inspector)">—</span>`;
-  const dLabelChip = dLabel
-    ? `<span class="swipe-stamp decline-stamp" title="Left swipe stamp">${escapeHTML(dLabel)}</span>`
-    : `<span class="swipe-stamp decline-stamp empty" title="Left swipe stamp (missing — add a label in the inspector)">—</span>`;
+  const aPillText = aLabel || "Accept";
+  const dPillText = dLabel || "Decline";
+  const aPillClass = aLabel ? "swipe-pill accept-pill" : "swipe-pill accept-pill empty";
+  const dPillClass = dLabel ? "swipe-pill decline-pill" : "swipe-pill decline-pill empty";
   const aOutcomeHTML = aOutcome
     ? `<div class="fate-outcome accept-outcome">${escapeHTML(aOutcome)}</div>`
     : "";
@@ -9228,19 +9240,15 @@ function renderFateBlock(card, chain) {
     : "";
   return `<div class="fate-block">
     <div class="fate-line accept ${a.kind}">
-      <span class="swipe-label">Accept</span>
-      ${aLabelChip}
-      <span class="arrow">→</span>
-      <span class="target">${a.text}</span>
+      <span class="${aPillClass}">${escapeHTML(aPillText)}</span>
       <button class="branch-btn ${aMode === "extend" ? "extend-btn" : ""}" data-branch-side="accept" data-branch-card="${card.id}" data-branch-mode="${aMode}" title="${aTip}">+</button>
+      <div class="fate-target">→ ${a.text}</div>
     </div>
     ${aOutcomeHTML}
     <div class="fate-line decline ${d.kind}">
-      <span class="swipe-label">Decline</span>
-      ${dLabelChip}
-      <span class="arrow">→</span>
-      <span class="target">${d.text}</span>
+      <span class="${dPillClass}">${escapeHTML(dPillText)}</span>
       <button class="branch-btn ${dMode === "extend" ? "extend-btn" : ""}" data-branch-side="decline" data-branch-card="${card.id}" data-branch-mode="${dMode}" title="${dTip}">+</button>
+      <div class="fate-target">→ ${d.text}</div>
     </div>
     ${dOutcomeHTML}
   </div>`;
